@@ -112,6 +112,39 @@ def _layers_per_device(device_map: dict) -> dict:
     return counts
 
 
+def check_label_shift(model, tok, torch) -> dict:
+    """Loss on real text through the training forward path, checked against the logits.
+
+    The random-id step's loss (above ln(vocab) for a trained model) says nothing about
+    whether labels are shifted. On real text a correct loss is well below ln(vocab) and
+    equals cross-entropy of logits[t] against ids[t+1]. Raises if either fails.
+    """
+    import math
+
+    text = (REPO / "README.md").read_text()
+    ids = tok(text, return_tensors="pt").input_ids[:, :512].to(model.get_input_embeddings().weight.device)
+    model.eval()
+    with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+        out = model(input_ids=ids, labels=ids)
+    vocab = model.get_input_embeddings().weight.shape[0]
+    res = {"tokens": ids.shape[1], "model_loss": round(float(out.loss), 4),
+           "uniform_loss": round(math.log(vocab), 4)}
+    logits = getattr(out, "logits", None)
+    if logits is not None and logits.dim() == 3 and logits.shape[1] == ids.shape[1]:
+        lg = logits.float().to(ids.device)
+        ce = torch.nn.functional.cross_entropy
+        res["shifted_ce"] = round(float(ce(lg[0, :-1], ids[0, 1:])), 4)
+        res["unshifted_ce"] = round(float(ce(lg[0], ids[0])), 4)
+    else:
+        res["logits"] = "not returned by this forward path"
+    del out, logits
+    if not res["model_loss"] < 0.5 * res["uniform_loss"]:
+        raise RuntimeError(f"real-text loss is not well below uniform: {res}")
+    if "shifted_ce" in res and abs(res["model_loss"] - res["shifted_ce"]) > 0.05:
+        raise RuntimeError(f"model loss does not match next-token cross-entropy: {res}")
+    return res
+
+
 def stage_lora(model_dir: str, report: dict, seq_len: int, targets: list[str], seed: int) -> None:
     import unsloth  # noqa: F401  (before transformers/peft)
     from unsloth import FastLanguageModel
@@ -140,8 +173,11 @@ def stage_lora(model_dir: str, report: dict, seq_len: int, targets: list[str], s
     pinned = trainer.pin_layer_devices(model)  # the split-model race fix, as trainer.train applies it
     coverage = trainer.target_coverage(model, targets)
     trainer.check_coverage(coverage)
+    components = trainer.component_coverage(model)
     devices = sorted({str(p.device) for p in model.parameters()})
     after_load = gpu_mem(torch)
+
+    label_check = check_label_shift(model, tok, torch)
 
     trainable = [p for p in model.parameters() if p.requires_grad]
     opt = torch.optim.AdamW(trainable, lr=1e-5)
@@ -167,7 +203,8 @@ def stage_lora(model_dir: str, report: dict, seq_len: int, targets: list[str], s
     if not torch.isfinite(loss):
         raise RuntimeError(f"non-finite loss {loss.item()}")
     report["lora"] = {
-        "seq_len": seq_len, "targets": targets, "r": 16, "coverage": coverage, "pinned_layers": pinned,
+        "seq_len": seq_len, "targets": targets, "r": 16, "coverage": coverage,
+        "component_coverage": components, "label_check": label_check, "pinned_layers": pinned,
         "trainable_params": sum(p.numel() for p in trainable),
         "devices": devices, "load_s": round(load_s, 1), "step_s": round(step_s, 1),
         "loss": round(float(loss.item()), 4),
