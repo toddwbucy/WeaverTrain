@@ -225,7 +225,7 @@ class RunRecord:
     sampler: dict = field(default_factory=dict)  # temperature, top_p, top_k, max_new_tokens, ...
     snapshot: dict | None = None  # {"name", "tree_hash"} for bench runs
     adapter: dict | None = None  # {"name", "tree_hash"} when an adapter is applied/produced
-    dataset: dict | None = None  # {"path_name", "sha256"} for train runs
+    dataset: dict | None = None  # {"file_name", "sha256"} for train runs
     config: dict = field(default_factory=dict)  # trainer or bench config, verbatim
     repetition: int | None = None  # 0-based index for repeated bench runs
     commit: dict = field(default_factory=git_commit)

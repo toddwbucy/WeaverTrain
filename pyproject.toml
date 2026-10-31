@@ -60,5 +60,5 @@ causal-conv1d = { url = "https://github.com/Dao-AILab/causal-conv1d/releases/dow
 testpaths = ["tests"]
 markers = [
     "gpu: needs a CUDA GPU",
-    "kernels: needs the mamba-ssm / causal-conv1d CUDA kernels",
+    "multigpu: needs two CUDA GPUs",
 ]

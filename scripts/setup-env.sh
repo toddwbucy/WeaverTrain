@@ -17,6 +17,8 @@
 #   models     scripts/fetch_models.py: download pinned revisions, check against the
 #              publisher's digests and manifests/models/*.json, stage the fast-load copy.
 #              Skipped per model when already verified and unchanged (--rehash)
+#   tests      the unit suite (tests/, stand-in model, GPU tests included). Skipped when it
+#              passed before for this lock + driver + source tree (--retest)
 #
 # Configuration comes from .env (copy .env.example). See docs/environment.md.
 
@@ -27,19 +29,21 @@ cd "$REPO"
 
 # Minimum driver: the torch wheels are built for CUDA 13.0.
 MIN_DRIVER_CUDA_MAJOR=13
-STAGES=(preflight env lock verify models)
+STAGES=(preflight env lock verify models tests)
 
 only=""
 reverify=0
 rehash=0
 update_lock=0
+retest=0
 skip_cache=0
 
 usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; cat <<'EOF'
 Options:
-  --only STAGE     run preflight and then only STAGE (env|lock|verify|models)
+  --only STAGE     run preflight and then only STAGE (env|lock|verify|models|tests)
   --reverify       re-run kernel verification even if it passed before
   --rehash         full sha256 check of model trees, ignoring stamps
+  --retest         re-run the unit suite even if it passed before
   --update-lock    rewrite environment.lock from the installed venv
   --skip-cache     do not stage the fast-load model copy
   -h, --help       this text
@@ -52,6 +56,7 @@ while (($#)); do
     --reverify) reverify=1; shift ;;
     --rehash) rehash=1; shift ;;
     --update-lock) update_lock=1; shift ;;
+    --retest) retest=1; shift ;;
     --skip-cache) skip_cache=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -156,6 +161,23 @@ if want models; then
   ((rehash)) && args+=(--rehash)
   ((skip_cache)) && args+=(--skip-cache)
   "$PY" scripts/fetch_models.py "${args[@]}" || die "model fetch/verify failed"
+fi
+
+# ------------------------------------------------------------------------- tests
+if want tests; then
+  say "tests (unit suite on the stand-in model)"
+  src_key="$( { cat environment.lock; echo "driver=$driver_ver gpus=$CUDA_VISIBLE_DEVICES";
+               find src tests pyproject.toml -type f \( -name '*.py' -o -name '*.toml' \) -print0 \
+                 | LC_ALL=C sort -z | xargs -0 sha256sum; } | sha256sum | cut -d' ' -f1)"
+  stamp="$WEAVER_TRAIN_STATE_DIR/stamps/tests.ok"
+  if [[ $retest -eq 0 && -f "$stamp" && "$(cat "$stamp")" == "$src_key" ]]; then
+    skip "suite passed before for this lock + driver + source"
+  else
+    rm -f "$stamp"
+    "$PY" -m pytest -q -p no:warnings 2>&1 | tail -3
+    [[ ${PIPESTATUS[0]} -eq 0 ]] || die "unit tests failed"
+    echo "$src_key" > "$stamp"
+  fi
 fi
 
 say "done"

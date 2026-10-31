@@ -90,3 +90,25 @@ is the sha256 of the sorted `"<sha256>  <path>"` lines, and it is the model hash
 written into run records. Verified files are made read-only. A new revision needs a
 new manifest; the fetch refuses to verify against a manifest that pins a different
 revision.
+
+## Known gaps
+
+**Unsloth's LoRA target filter skips Granite's Mamba blocks** (found 2026-10-31,
+Unsloth 2026.10.11). `FastLanguageModel.get_peft_model` turns `target_modules` into a
+regex that only accepts modules under path segments such as `self_attn`, `attention`,
+`mixer` or `mlp`. On the real model structures, with targets
+`q/k/v/o_proj, in_proj, out_proj`:
+
+| Model | Mamba `in_proj` / `out_proj` adapted | Attention adapted |
+|---|---|---|
+| granite-4.0-h-small (`model.layers.N.mamba.*`) | 0 of 36 / 0 of 36 | 4 of 4 per projection |
+| Nemotron-3-Nano (`model.layers.N.mixer.*`) | 23 of 23 / 23 of 23 | 6 of 6 per projection |
+
+The trainer checks coverage after attaching LoRA and raises `TargetCoverageError`
+before any training step if a requested target exists but was not adapted.
+`tests/test_trainer.py::test_refuses_when_mamba_targets_are_dropped` pins the current
+behaviour. Resolving it (an explicit target regex, plain PEFT for Granite, or an
+upstream fix) is a methods decision that has not been made.
+
+**fp32 adapter weights.** The LoRA A/B matrices are saved in fp32 while the base model
+stays bf16. This is PEFT's default, not a precision change to the reference model.
