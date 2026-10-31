@@ -1,0 +1,40 @@
+{
+  "kind": "source",
+  "name": "swe-rebench-v2",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "size": 2520,
+      "sha256": "70c871f626b4fbc0d8ddf3764ca44555db17fb9dd50688889fbda1b728de56be",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "LICENSE",
+      "size": 17509,
+      "sha256": "fe2ae9b4d7a68d4e4bf48bbc103318eb7b697455d56fd78c9ffe87a34da5668c",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "README.md",
+      "size": 6629,
+      "sha256": "a20de363f2179078a503c49a09247f84b8c96bc8979d420cad6fcbd84a021205",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "data/train-00000-of-00001.parquet",
+      "size": 428839266,
+      "sha256": "0e0bf9355f892ad74ae98d4e1c404f39fd6654a8e351ee3e6ab162e4a64cd3ad",
+      "upstream": "hf-lfs-sha256"
+    }
+  ],
+  "source": {
+    "repo_id": "nebius/SWE-rebench-V2",
+    "revision": "10483de0f50fe5da545942705a76c6150171af7f",
+    "repo_type": "dataset"
+  },
+  "local_dir_name": "nebius--SWE-rebench-V2",
+  "schema": "weaver-train/tree-manifest/v1",
+  "created_at": "2026-10-31T14:44:00+00:00",
+  "tree_hash": "a4148da00ffa87f2f86f5f7102cabdd387ba1ffa8fd2da2c1f141166ea48365e",
+  "total_bytes": 428865924
+}

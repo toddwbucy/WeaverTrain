@@ -14,9 +14,12 @@
 #   verify     scripts/verify_env.py: run each CUDA kernel against its reference, check
 #              transformers binds the kernels for both model families, import Unsloth.
 #              Skipped when it already passed for this exact lock + driver (--reverify)
-#   models     scripts/fetch_models.py: download pinned revisions, check against the
-#              publisher's digests and manifests/models/*.json, stage the fast-load copy.
-#              Skipped per model when already verified and unchanged (--rehash)
+#   models     scripts/fetch_artifacts.py --set models: download pinned revisions, check
+#              against the publisher's digests and manifests/models/*.json, stage the
+#              fast-load copy. Skipped per model when verified and unchanged (--rehash)
+#   benchmarks scripts/fetch_artifacts.py --set benchmarks, then scripts/build_snapshot.py:
+#              archive pinned benchmark sources, freeze the dated snapshots in
+#              config/snapshots.toml (a rebuild must reproduce the committed hash)
 #   tests      the unit suite (tests/, stand-in model, GPU tests included). Skipped when it
 #              passed before for this lock + driver + source tree (--retest)
 #
@@ -29,7 +32,7 @@ cd "$REPO"
 
 # Minimum driver: the torch wheels are built for CUDA 13.0.
 MIN_DRIVER_CUDA_MAJOR=13
-STAGES=(preflight env lock verify models tests)
+STAGES=(preflight env lock verify models benchmarks tests)
 
 only=""
 reverify=0
@@ -40,7 +43,7 @@ skip_cache=0
 
 usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; cat <<'EOF'
 Options:
-  --only STAGE     run preflight and then only STAGE (env|lock|verify|models|tests)
+  --only STAGE     run preflight and then only STAGE (env|lock|verify|models|benchmarks|tests)
   --reverify       re-run kernel verification even if it passed before
   --rehash         full sha256 check of model trees, ignoring stamps
   --retest         re-run the unit suite even if it passed before
@@ -160,7 +163,16 @@ if want models; then
   args=()
   ((rehash)) && args+=(--rehash)
   ((skip_cache)) && args+=(--skip-cache)
-  "$PY" scripts/fetch_models.py "${args[@]}" || die "model fetch/verify failed"
+  "$PY" scripts/fetch_artifacts.py --set models "${args[@]}" || die "model fetch/verify failed"
+fi
+
+# -------------------------------------------------------------------- benchmarks
+if want benchmarks; then
+  say "benchmarks (config/benchmarks.toml, config/snapshots.toml)"
+  args=()
+  ((rehash)) && args+=(--rehash)
+  "$PY" scripts/fetch_artifacts.py --set benchmarks "${args[@]}" || die "benchmark source fetch/verify failed"
+  "$PY" scripts/build_snapshot.py "${args[@]}" || die "snapshot build/verify failed"
 fi
 
 # ------------------------------------------------------------------------- tests

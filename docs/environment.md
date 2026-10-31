@@ -25,7 +25,8 @@ How the weaver-train environment is built, why each version is pinned, and what
 | env | `uv sync --locked` into `.venv` | `uv.lock` and `pyproject.toml` are unchanged since the last successful sync |
 | lock | Writes `environment.lock`, or checks the venv against it | never (the check is the skip test) |
 | verify | `scripts/verify_env.py`: driver, GPUs, five kernel checks, Unsloth | it passed before for the same `environment.lock`, driver and GPU selection |
-| models | `scripts/fetch_models.py`: archive store, then the fast-load copy | per model and per location: stamp matches, and every file's size and mtime is unchanged |
+| models | `scripts/fetch_artifacts.py --set models`: archive store, then the fast-load copy | per model and per location: stamp matches, and every file's size and mtime is unchanged |
+| benchmarks | `fetch_artifacts.py --set benchmarks`, then `build_snapshot.py` | per source / snapshot: stamp matches and files unchanged; without a stamp a snapshot is rebuilt and must reproduce its committed hash |
 
 Options: `--only STAGE`, `--reverify`, `--rehash`, `--update-lock`, `--skip-cache`.
 

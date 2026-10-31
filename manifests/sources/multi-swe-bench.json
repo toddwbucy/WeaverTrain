@@ -1,0 +1,86 @@
+{
+  "kind": "source",
+  "name": "multi-swe-bench",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 11283,
+      "sha256": "26638a5dc8d8c10e04de4578c904beecefb584d44e618cfe2c33fd350ca9810d",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/BurntSushi__ripgrep_dataset.jsonl",
+      "size": 1583497,
+      "sha256": "e5e82e96a002feabee5693c3cbe0856e67879c74874c016347ae476b24afc53e",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/clap-rs__clap_dataset.jsonl",
+      "size": 28813289,
+      "sha256": "098ea3afa5700cb67e3a27e859bdcce18f4468e373172254155862c313f9cf32",
+      "upstream": "hf-lfs-sha256"
+    },
+    {
+      "path": "rust/nushell__nushell_dataset.jsonl",
+      "size": 4503595,
+      "sha256": "e5f23ca6881643c58f2f2c0dd066d3a24a9dd6bc817a41a5839dd5beb3157fb9",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/rayon-rs__rayon_dataset.jsonl",
+      "size": 163860,
+      "sha256": "03dbe8d22c1b61eddf3b0f729426a1f9579e9efd80bfbecf6dd68f802c2b589d",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/serde-rs__serde_dataset.jsonl",
+      "size": 138138,
+      "sha256": "164ea8543f438b964c40e5e1cd09f5b82dc917aa5e4348b644d4b5e17e81142f",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/sharkdp__bat_dataset.jsonl",
+      "size": 610685,
+      "sha256": "5d2a10fd1adef574b8a21c41d2f1b7bcd904e40c7c0c563c3b92efea7b576348",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/sharkdp__fd_dataset.jsonl",
+      "size": 648192,
+      "sha256": "3e2b3862f7b17a39aa27bf03458d27204af0a5e72c71f1e6e19b2bdd52ef45ea",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/tokio-rs__bytes_dataset.jsonl",
+      "size": 143947,
+      "sha256": "9516b916eb11556a27a62d79296829c821b19873fea0a9f8f02d52c043f855a0",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/tokio-rs__tokio_dataset.jsonl",
+      "size": 2293852,
+      "sha256": "464a3597fe21ea64a6e62d38535aa31895939d63619bf2a695050b67d4ff56bf",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "rust/tokio-rs__tracing_dataset.jsonl",
+      "size": 2244688,
+      "sha256": "b392ef573d20e1d96c0fbc6695779db104649fbd4a3002bb210264e61ac9a63a",
+      "upstream": "hf-git-blob-sha1"
+    }
+  ],
+  "source": {
+    "repo_id": "ByteDance-Seed/Multi-SWE-bench",
+    "revision": "56ff018c04a38e27ada1e9d0a6d5839a51f88f0d",
+    "repo_type": "dataset",
+    "allow_patterns": [
+      "README.md",
+      "rust/*"
+    ]
+  },
+  "local_dir_name": "ByteDance-Seed--Multi-SWE-bench",
+  "schema": "weaver-train/tree-manifest/v1",
+  "created_at": "2026-10-31T14:43:46+00:00",
+  "tree_hash": "0ad947fd31afd5c8f83bf6a9c31340fc42cc4efbb51e2f97e3d3a61cc1762b89",
+  "total_bytes": 41155026
+}

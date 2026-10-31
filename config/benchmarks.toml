@@ -1,0 +1,31 @@
+# Upstream benchmark sources, archived at pinned revisions and never modified.
+# Frozen evaluation snapshots are derived from these (scripts/build_snapshot.py);
+# manifests: manifests/sources/<name>.json. Store: $WEAVER_TRAIN_BENCH_STORE.
+#
+# Model training cutoffs (from the model cards, read 2026-10-31):
+#   granite-4.0-h-small      released 2025-10-02 (no cutoff stated; cannot be later)
+#   nemotron-3-nano-30b-a3b  pre-training 2025-06-25, post-training 2025-11-28
+# so evaluation tasks must be created on or after 2025-12-01.
+
+[benchmarks."swe-rebench-leaderboard"]
+# Monthly decontaminated task sets (Python), with prebuilt Docker images.
+repo_id = "nebius/SWE-rebench-leaderboard"
+repo_type = "dataset"
+revision = "34d5a58864acf91613740a09ec5d205228dcfa39"
+local_dir = "nebius--SWE-rebench-leaderboard"
+
+[benchmarks."multi-swe-bench"]
+# Rust split only.
+repo_id = "ByteDance-Seed/Multi-SWE-bench"
+repo_type = "dataset"
+revision = "56ff018c04a38e27ada1e9d0a6d5839a51f88f0d"
+local_dir = "ByteDance-Seed--Multi-SWE-bench"
+allow_patterns = ["README.md", "rust/*"]
+
+[benchmarks."swe-rebench-v2"]
+# Rolling multi-language set (has a language field and created_at); candidate
+# source of post-cutoff Rust tasks.
+repo_id = "nebius/SWE-rebench-V2"
+repo_type = "dataset"
+revision = "10483de0f50fe5da545942705a76c6150171af7f"
+local_dir = "nebius--SWE-rebench-V2"

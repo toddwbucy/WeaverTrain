@@ -38,10 +38,13 @@ and every pinned version.
 |---|---|
 | `scripts/setup-env.sh` | Environment build and verification (entry point) |
 | `scripts/verify_env.py` | Kernel and stack checks, JSON report |
-| `scripts/fetch_models.py` | Pinned model download, upstream digest check, staging |
+| `scripts/fetch_artifacts.py` | Pinned download (models, benchmark sources), upstream digest check, staging |
+| `scripts/build_snapshot.py` | Freezes dated, reproducible benchmark snapshots |
+| `scripts/smoke_test.py` | Per-model smoke test: load, forward, generate, 32K LoRA step, peak VRAM |
 | `scripts/freeze_env.py` | Writes `environment.lock` (installed packages, per build) |
 | `config/models.toml` | Reference models: repo id, revision, directory name |
-| `manifests/models/` | Per-file sha256 of each reference model (committed) |
+| `config/benchmarks.toml`, `config/snapshots.toml` | Benchmark sources (pinned) and the snapshots frozen from them |
+| `manifests/{models,sources,snapshots}/` | Per-file sha256 of every archived artifact (committed) |
 | `src/weaver_train/` | Primitives: `manifest`, `loader`, `trainer`, `bench` |
 | `uv.lock`, `environment.lock` | Resolution lock; installed-build lock |
 

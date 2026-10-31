@@ -45,7 +45,8 @@ reinstalls them. To change a dependency: edit `pyproject.toml`, `uv lock`, then
 
 - **Setup** (`scripts/`): `setup-env.sh` runs these stages in order: preflight, env
   (`uv.lock`), lock (`environment.lock`), verify (`verify_env.py`), models
-  (`fetch_models.py`), tests. Each stage writes a stamp under `$WEAVER_TRAIN_STATE_DIR`
+  (`fetch_artifacts.py --set models`), benchmarks (`fetch_artifacts.py --set benchmarks`,
+  `build_snapshot.py`), tests. Each stage writes a stamp under `$WEAVER_TRAIN_STATE_DIR`
   and skips when the stamp still matches. `docs/environment.md` explains every pin and
   stage. `environment.lock` fingerprints each installed build, which `pip freeze` cannot
   do; `uv.lock` stays the resolution source.

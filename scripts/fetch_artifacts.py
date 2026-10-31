@@ -1,14 +1,25 @@
-"""Fetch, verify and stage the reference models in config/models.toml.
+"""Fetch, verify and stage pinned Hugging Face repositories: models and benchmark sources.
 
-Two stages per model, each skipped when already done:
+    python scripts/fetch_artifacts.py --set models        # config/models.toml
+    python scripts/fetch_artifacts.py --set benchmarks    # config/benchmarks.toml
 
-store  Download the pinned revision into $WEAVER_TRAIN_MODEL_STORE/<local_dir>.
+| set        | config                  | manifests              | store env var             | cache env var            |
+|------------|-------------------------|------------------------|---------------------------|--------------------------|
+| models     | config/models.toml      | manifests/models/      | WEAVER_TRAIN_MODEL_STORE  | WEAVER_TRAIN_MODEL_CACHE |
+| benchmarks | config/benchmarks.toml  | manifests/sources/     | WEAVER_TRAIN_BENCH_STORE  | (none)                   |
+
+Each entry pins ``repo_id``, ``revision`` and ``local_dir``; optional ``repo_type``
+(default "model") and ``allow_patterns`` (only those files are fetched and manifested).
+
+Two stages per entry, each skipped when already done:
+
+store  Download the pinned revision into <store>/<local_dir>.
        First time: hash every file and check it against the publisher's own digest
        (LFS sha256, or git blob sha1 for small files), then write
-       manifests/models/<name>.json. Afterwards: full sha256 check against that
+       manifests/<set dir>/<name>.json. Afterwards: full sha256 check against that
        manifest. Files are then made read-only.
-cache  Copy the verified tree to $WEAVER_TRAIN_MODEL_CACHE/<local_dir> (the fast-load
-       copy the loader reads), full sha256 check, read-only. Skipped if unset.
+cache  (models only) Copy the verified tree to <cache>/<local_dir>, the fast-load copy
+       the loader reads; full sha256 check, read-only. Skipped if the cache is unset.
 
 "Already done" is a stamp in $WEAVER_TRAIN_STATE_DIR/stamps recording the verified
 tree hash plus each file's size and mtime. A matching stamp skips re-hashing; any
@@ -22,6 +33,7 @@ the script stops and reports, because a reference artifact has changed.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -37,8 +49,16 @@ sys.path.insert(0, str(REPO / "src"))
 from weaver_train import manifest as mf  # noqa: E402
 
 
+SETS = {
+    "models": {"config": "config/models.toml", "manifests": "manifests/models", "kind": "model",
+               "stamp": "model", "store": "WEAVER_TRAIN_MODEL_STORE", "cache": "WEAVER_TRAIN_MODEL_CACHE"},
+    "benchmarks": {"config": "config/benchmarks.toml", "manifests": "manifests/sources", "kind": "source",
+                   "stamp": "source", "store": "WEAVER_TRAIN_BENCH_STORE", "cache": None},
+}
+
+
 def log(msg: str) -> None:
-    print(f"[fetch_models] {msg}", flush=True)
+    print(f"[fetch] {msg}", flush=True)
 
 
 class FetchError(Exception):
@@ -49,7 +69,8 @@ class FetchError(Exception):
 
 
 def _stamp_path(state_dir: Path, name: str, role: str) -> Path:
-    return state_dir / "stamps" / f"model-{name}-{role}.json"
+    # name arrives as "<prefix>-<entry name>"
+    return state_dir / "stamps" / f"{name}-{role}.json"
 
 
 def _file_stats(root: Path, paths: list[str]) -> dict[str, list[int]]:
@@ -103,32 +124,48 @@ def git_blob_sha1(path: Path) -> str:
     return h.hexdigest()
 
 
-def upstream_files(repo_id: str, revision: str) -> dict[str, dict]:
+def _selected(path: str, patterns: list[str] | None) -> bool:
+    return patterns is None or any(fnmatch.fnmatch(path, p) for p in patterns)
+
+
+def upstream_files(repo_id: str, revision: str, repo_type: str = "model",
+                   patterns: list[str] | None = None) -> dict[str, dict]:
     from huggingface_hub import HfApi
 
-    info = HfApi().model_info(repo_id, revision=revision, files_metadata=True)
+    api = HfApi()
+    getter = api.dataset_info if repo_type == "dataset" else api.model_info
+    info = getter(repo_id, revision=revision, files_metadata=True)
     if info.sha != revision:
         raise FetchError(f"{repo_id}: hub returned revision {info.sha}, pinned {revision}")
     out = {}
     for s in info.siblings:
+        if not _selected(s.rfilename, patterns):
+            continue
         lfs = s.lfs.sha256 if s.lfs is not None else None
         out[s.rfilename] = {"size": s.size, "blob_id": s.blob_id, "lfs_sha256": lfs}
     return out
 
 
-def download(repo_id: str, revision: str, dest: Path) -> None:
+def download(spec: dict, dest: Path) -> None:
     from huggingface_hub import snapshot_download
 
-    log(f"downloading {repo_id}@{revision[:12]} -> {dest}")
-    snapshot_download(repo_id=repo_id, revision=revision, local_dir=str(dest), max_workers=8)
+    log(f"downloading {spec['repo_id']}@{spec['revision'][:12]} -> {dest}")
+    snapshot_download(repo_id=spec["repo_id"], revision=spec["revision"], local_dir=str(dest),
+                      repo_type=spec.get("repo_type", "model"),
+                      allow_patterns=spec.get("allow_patterns"), max_workers=8)
 
 
-def first_manifest(name: str, spec: dict, root: Path) -> mf.TreeManifest:
+def first_manifest(name: str, spec: dict, root: Path, kind: str) -> mf.TreeManifest:
     """Hash the fresh download and confirm every file against the publisher's digests."""
-    up = upstream_files(spec["repo_id"], spec["revision"])
+    up = upstream_files(spec["repo_id"], spec["revision"], spec.get("repo_type", "model"),
+                        spec.get("allow_patterns"))
     log(f"{name}: hashing {len(up)} files and checking them against upstream digests")
-    m = mf.build_tree(root, "model", name, local_dir_name=spec["local_dir"],
-                      source={"repo_id": spec["repo_id"], "revision": spec["revision"]})
+    source = {"repo_id": spec["repo_id"], "revision": spec["revision"]}
+    if spec.get("repo_type", "model") != "model":
+        source["repo_type"] = spec["repo_type"]
+    if spec.get("allow_patterns"):
+        source["allow_patterns"] = spec["allow_patterns"]
+    m = mf.build_tree(root, kind, name, local_dir_name=spec["local_dir"], source=source)
     have = {f.path for f in m.files}
     if have != set(up):
         raise FetchError(f"{name}: local files differ from upstream: "
@@ -151,44 +188,48 @@ def first_manifest(name: str, spec: dict, root: Path) -> mf.TreeManifest:
 # ---------------------------------------------------------------- stages
 
 
-def stage_store(name: str, spec: dict, store: Path, state_dir: Path, rehash: bool) -> None:
+def stage_store(name: str, spec: dict, store: Path, state_dir: Path, rehash: bool, cfg: dict) -> None:
     root = store / spec["local_dir"]
-    mpath = REPO / "manifests" / "models" / f"{name}.json"
+    mpath = REPO / cfg["manifests"] / f"{name}.json"
+    sname = f"{cfg['stamp']}-{name}"
 
     if mpath.exists():
         m = mf.load_tree(mpath)
         if m.source.get("revision") != spec["revision"] or m.source.get("repo_id") != spec["repo_id"]:
             raise FetchError(f"{name}: manifest pins {m.source}, config pins "
                              f"{spec['repo_id']}@{spec['revision']}; a new revision needs a new manifest")
-        if not rehash and stamp_valid(state_dir, name, "store", root, m):
+        if not rehash and stamp_valid(state_dir, sname, "store", root, m):
             log(f"{name}: store verified earlier, files unchanged -> skip")
             return
         want = {f.path: f.size for f in m.files}
         present = root.is_dir() and all((root / p).is_file() and (root / p).stat().st_size == s
                                         for p, s in want.items())
         if not present:
-            download(spec["repo_id"], spec["revision"], root)
+            download(spec, root)
         log(f"{name}: full sha256 check of store against {mpath.relative_to(REPO)}")
         mf.require_tree(m, root)
     else:
-        download(spec["repo_id"], spec["revision"], root)
-        m = first_manifest(name, spec, root)
+        download(spec, root)
+        m = first_manifest(name, spec, root, cfg["kind"])
         m.save(mpath)
         log(f"{name}: wrote {mpath.relative_to(REPO)} (tree {m.tree_hash[:16]}, {m.total_bytes / 1e9:.1f} GB)")
 
     make_read_only(root, [f.path for f in m.files])
-    write_stamp(state_dir, name, "store", root, m)
+    write_stamp(state_dir, sname, "store", root, m)
     log(f"{name}: store OK (tree {m.tree_hash[:16]})")
 
 
 def stage_cache(name: str, spec: dict, store: Path, cache: Path | None, state_dir: Path,
-                rehash: bool) -> None:
-    if cache is None:
-        log(f"{name}: WEAVER_TRAIN_MODEL_CACHE unset -> skip fast-load copy")
+                rehash: bool, cfg: dict) -> None:
+    if cfg["cache"] is None:
         return
-    m = mf.load_tree(REPO / "manifests" / "models" / f"{name}.json")
+    if cache is None:
+        log(f"{name}: {cfg['cache']} unset -> skip fast-load copy")
+        return
+    m = mf.load_tree(REPO / cfg["manifests"] / f"{name}.json")
+    sname = f"{cfg['stamp']}-{name}"
     src, dst = store / spec["local_dir"], cache / spec["local_dir"]
-    if not rehash and stamp_valid(state_dir, name, "cache", dst, m):
+    if not rehash and stamp_valid(state_dir, sname, "cache", dst, m):
         log(f"{name}: cache verified earlier, files unchanged -> skip")
         return
     if not cache.is_dir() or not os.access(cache, os.W_OK):
@@ -201,37 +242,41 @@ def stage_cache(name: str, spec: dict, store: Path, cache: Path | None, state_di
     log(f"{name}: full sha256 check of cache copy")
     mf.require_tree(m, dst)
     make_read_only(dst, [f.path for f in m.files])
-    write_stamp(state_dir, name, "cache", dst, m)
+    write_stamp(state_dir, sname, "cache", dst, m)
     log(f"{name}: cache OK")
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--model", action="append", help="only this model (repeatable)")
-    ap.add_argument("--config", default=str(REPO / "config" / "models.toml"))
+    ap.add_argument("--set", dest="set_", choices=sorted(SETS), default="models")
+    ap.add_argument("--name", "--model", dest="names", action="append", help="only this entry (repeatable)")
     ap.add_argument("--rehash", action="store_true", help="ignore stamps; full sha256 check")
     ap.add_argument("--skip-cache", action="store_true")
     a = ap.parse_args(argv)
 
-    store_env = os.environ.get("WEAVER_TRAIN_MODEL_STORE")
+    cfg = SETS[a.set_]
+    store_env = os.environ.get(cfg["store"])
     if not store_env:
-        log("WEAVER_TRAIN_MODEL_STORE is not set (see .env.example)")
+        log(f"{cfg['store']} is not set (see .env.example)")
         return 2
     store = Path(store_env)
-    cache_env = os.environ.get("WEAVER_TRAIN_MODEL_CACHE") or None
+    if not store.is_dir():
+        log(f"{cfg['store']}={store} is not a directory")
+        return 2
+    cache_env = (os.environ.get(cfg["cache"]) or None) if cfg["cache"] else None
     cache = None if a.skip_cache or not cache_env else Path(cache_env)
     state_dir = Path(os.environ.get("WEAVER_TRAIN_STATE_DIR") or REPO / "var")
     if not state_dir.is_absolute():
         state_dir = REPO / state_dir
 
-    models = tomllib.loads(Path(a.config).read_text())["models"]
-    names = a.model or list(models)
+    entries = tomllib.loads((REPO / cfg["config"]).read_text())[a.set_]
+    names = a.names or list(entries)
     try:
         for name in names:
-            if name not in models:
-                raise FetchError(f"unknown model {name!r}; known: {sorted(models)}")
-            stage_store(name, models[name], store, state_dir, a.rehash)
-            stage_cache(name, models[name], store, cache, state_dir, a.rehash)
+            if name not in entries:
+                raise FetchError(f"unknown {a.set_} entry {name!r}; known: {sorted(entries)}")
+            stage_store(name, entries[name], store, state_dir, a.rehash, cfg)
+            stage_cache(name, entries[name], store, cache, state_dir, a.rehash, cfg)
     except (FetchError, mf.ManifestError, subprocess.CalledProcessError) as e:
         log(f"FAILED: {e}")
         return 1
