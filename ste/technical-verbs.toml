@@ -1,0 +1,66 @@
+# Technical verbs the STE rewriter may use (rule 1.12, technical verbs), for the pilot.
+# Candidate, unratified. Senses are written here in our own words; nothing is copied
+# from ASD-STE100.
+#
+# Sources:
+#   e2  WeaverAgent dictionary v0.6, E2: the standard's category 2 (computer processes
+#       and applications) examples, less the six that are approved verbs (TAP, CLOSE,
+#       CUT, ERASE, OPEN, INSTALL) and the four the operator struck (tweet, swipe,
+#       zoom in, zoom out): 40 keys.
+#   e3  dictionary v0.6, E3 (compile, commit, merge; recall is an internal program
+#       verb and is not for rewriting).
+#   ruling-2026-10-31  docs/decisions.md; class 1 of the synonym check (merge, roll back).
+# Not here, pending the operator's ruling (class 2 and 3 of the synonym check): run,
+# insert, create, alter, push, select, join, drop, and the SQL senses of update and
+# delete. The pilot counts how often the model needs them.
+
+[verbs]
+# e2, 2 a) input and output
+click = "To press and release a mouse button on an item on the screen"
+digitize = "To change analog data into digital data"
+enter = "To type or put data into a field, a program or a device"
+press = "To push a key or a button"
+print = "To send a document to a printer, or to write text to a terminal"
+type = "To put text in with a keyboard"
+# e2, 2 b) user interface and application
+clear = "To remove all data or values from a field, a buffer or a display"
+copy = "To make a second item of data that is the same as the first"
+delete = "To remove a file, an item or data so that it is not available"
+deselect = "To cancel the selection of an item on the screen"
+disable = "To set a function or a feature so that it does not operate"
+drag = "To move an item on the screen with the mouse button held down"
+"drag and drop" = "To drag an item and release it at a new location"
+enable = "To set a function or a feature so that it can operate"
+encrypt = "To change data into a code that only an approved key can change back"
+filter = "To keep only the items that agree with a condition"
+highlight = "To mark an item on the screen so that it is easy to see"
+invalidate = "To mark data or a value as no longer correct or usable"
+maximize = "To make a window as large as the screen"
+minimize = "To make a window as small as possible"
+navigate = "To move from one location to another in a program, a document or a file system"
+paste = "To put copied data at a new location"
+save = "To keep data in storage so that it is available later"
+scroll = "To move the content of a window up, down or across"
+sort = "To put items in a sequence by a value"
+store = "To put data in a location where it is kept"
+validate = "To make sure that data or a value agrees with its requirements"
+# e2, 2 c) system operations
+abort = "To stop a process before it is complete"
+boot = "To start a computer or an operating system"
+communicate = "To send and receive data between systems"
+debug = "To find and remove errors in a program"
+download = "To copy data from a remote system to the local system"
+format = "To prepare a storage medium, or to arrange data in a specified layout"
+load = "To put a program or data into memory"
+manage = "To control the configuration or the operation of a system or its resources"
+process = "To do operations on data to get a result"
+reboot = "To start a computer again"
+update = "To change software or data to a newer version"
+upgrade = "To replace software or hardware with a newer version"
+upload = "To copy data from the local system to a remote system"
+# e3
+compile = "To change source code into a form that a computer can operate"
+commit = "To make a set of changes permanent in a repository or a database"
+merge = "To combine branches, or to combine changes into a store"
+# ruling 2026-10-31, class 1
+"roll back" = "To discard the changes of a database transaction that is not committed"
