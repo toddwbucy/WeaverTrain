@@ -72,7 +72,11 @@ reinstalls them. To change a dependency: edit `pyproject.toml`, `uv lock`, then
   (36 of 40 layers) get no adapter; Nemotron's `mixer` blocks are covered. The trainer
   refuses (`TargetCoverageError`) rather than train a different adapter than the config
   asks for. Do not work around this without the operator's decision.
-- No smoke test of the 30B models has run yet (load, generation, 32K LoRA step, peak
+- **Splitting either model across both GPUs gives NaN logits** (Mamba-2 Triton kernels
+  launch on the current device's stream, which stays GPU 0 for the layers on GPU 1).
+  Root cause and evidence: `docs/environment.md`, Known gaps. No remedy applied yet;
+  do not add one without the operator's decision.
+- The 30B smoke tests have not passed yet (they stop at the NaN above) (load, generation, 32K LoRA step, peak
   VRAM). No benchmark snapshot or Docker harness exists yet.
 
 ## Rules that are easy to get wrong

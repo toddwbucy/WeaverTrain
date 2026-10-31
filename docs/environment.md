@@ -113,3 +113,30 @@ upstream fix) is a methods decision that has not been made.
 
 **fp32 adapter weights.** The LoRA A/B matrices are saved in fp32 while the base model
 stays bf16. This is PEFT's default, not a precision change to the reference model.
+
+**Multi-GPU race in the Mamba-2 Triton kernels: both models give non-finite output
+when split across two GPUs** (found 2026-10-31; mamba-ssm 2.3.2.post1, triton 3.6.0,
+torch 2.10.0+cu130, accelerate 1.15.0). Symptom: the first forward pass after a
+`device_map="auto"` load returns all-NaN logits, for both Granite and Nemotron. The
+model loads and splits fine (Granite 19/21 layers, Nemotron 27/25).
+
+Root cause, established step by step:
+
+1. `CUDA_LAUNCH_BLOCKING=1` makes the logits finite, so this is an ordering race, not
+   bad weights or overflow (Granite activations peak near 560, well inside bf16).
+2. Snapshots that do not synchronize put the first NaN in the second Mamba block on
+   GPU 1 (Granite layer 20). Its input is finite; only its first 4 of 14 positions are.
+3. While the layers on GPU 1 run, `torch.cuda.current_device()` is still 0. accelerate's
+   layer dispatch does not change the current device.
+4. mamba-ssm launches its Triton kernels on the current device's stream, with no
+   device guard. With peer access over NVLink, a GPU 0 stream can read GPU 1 memory, so
+   the kernel runs unordered with GPU 1's own work. causal-conv1d (a C++ extension with a
+   device guard) and torch's `grouped_mm` were each tested and are not affected.
+5. Setting the current device to each decoder layer's device in a forward pre-hook, with
+   no added synchronization, makes both models' logits finite. Granite's logits then
+   match the `CUDA_LAUNCH_BLOCKING=1` result: identical argmax at every position, max
+   difference 0.375.
+
+The unit test `test_splits_across_two_gpus` passed despite this: the race does not
+show at stand-in sizes. That pass is not evidence that the split works.
+No remedy is applied yet; the choice is the operator's.
