@@ -85,7 +85,8 @@ def test_splits_across_two_gpus(tiny_model):
 
     The stand-in is too small for device_map="auto" to split it (accelerate keeps a
     model that fits on one card there), so the placement is explicit. Whether "auto"
-    splits the 30B models is checked by the per-model smoke test, not here.
+    splits the 30B models is checked by the per-model smoke test, not here. Passing
+    here does not show the split is race-free: see tests/test_devices.py.
     """
     import torch
 

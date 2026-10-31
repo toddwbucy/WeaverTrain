@@ -66,7 +66,8 @@ def stage_load_forward_generate(name: str, report: dict, gen_tokens: int, min_de
     report["model"] = lm.record
     report["load"] = {"path_from": "cache" if os.environ.get("WEAVER_TRAIN_MODEL_CACHE") and
                       str(lm.path).startswith(os.environ["WEAVER_TRAIN_MODEL_CACHE"]) else "store",
-                      "devices": lm.devices, "verify_s": round(lm.verify_seconds, 1),
+                      "devices": lm.devices, "pinned_layers": lm.pinned_layers,
+                      "verify_s": round(lm.verify_seconds, 1),
                       "load_s": round(lm.load_seconds, 1),
                       "layers_per_device": _layers_per_device(lm.device_map), "memory": gpu_mem(torch)}
     if len(lm.devices) < min_devices:
@@ -134,6 +135,7 @@ def stage_lora(model_dir: str, report: dict, seq_len: int, targets: list[str], s
         model, r=16, lora_alpha=32, lora_dropout=0.0, target_modules=targets, bias="none",
         use_gradient_checkpointing="unsloth", random_state=seed,
     )
+    pinned = trainer.pin_layer_devices(model)  # the split-model race fix, as trainer.train applies it
     coverage = trainer.target_coverage(model, targets)
     trainer.check_coverage(coverage)
     devices = sorted({str(p.device) for p in model.parameters()})
@@ -163,7 +165,7 @@ def stage_lora(model_dir: str, report: dict, seq_len: int, targets: list[str], s
     if not torch.isfinite(loss):
         raise RuntimeError(f"non-finite loss {loss.item()}")
     report["lora"] = {
-        "seq_len": seq_len, "targets": targets, "r": 16, "coverage": coverage,
+        "seq_len": seq_len, "targets": targets, "r": 16, "coverage": coverage, "pinned_layers": pinned,
         "trainable_params": sum(p.numel() for p in trainable),
         "devices": devices, "load_s": round(load_s, 1), "step_s": round(step_s, 1),
         "loss": round(float(loss.item()), 4),

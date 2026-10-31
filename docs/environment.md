@@ -139,4 +139,12 @@ Root cause, established step by step:
 
 The unit test `test_splits_across_two_gpus` passed despite this: the race does not
 show at stand-in sizes. That pass is not evidence that the split works.
-No remedy is applied yet; the choice is the operator's.
+
+Remedy (operator's decision, 2026-10-31): `pin_layer_devices`, kept identical in
+`loader.py` and `trainer.py`. It adds a forward pre-hook per decoder layer that sets
+the current device, applied automatically to any split model; the smoke test applies
+it to the Unsloth path too. It patches no library code and adds no synchronization.
+`tests/test_devices.py` checks the precondition directly: without the hook, the layer
+on GPU 1 runs with GPU 0 current; with it, every layer runs with its own GPU current.
+Remove it once mamba-ssm guards the device in its Triton wrappers, and keep the
+smoke test as the check.

@@ -167,6 +167,44 @@ def sha256_path(path: Path) -> str:
     return h.hexdigest()
 
 
+def pin_layer_devices(model) -> int:
+    """Make each decoder layer run with its own GPU as the current CUDA device.
+
+    Works around a race found 2026-10-31 (docs/environment.md, Known gaps): mamba-ssm
+    launches its Triton kernels on the *current* device's stream with no device
+    guard. After a multi-GPU split, the current device stays cuda:0, so Mamba kernels
+    for layers on cuda:1 run on cuda:0's stream, unordered with cuda:1's own work,
+    and read unfinished inputs (NaN logits). A forward pre-hook per decoder layer sets
+    the current device; it adds no synchronization. Backward needs nothing: autograd
+    runs each device's work with that device current.
+
+    Hooks every child of each ``nn.ModuleList`` named ``layers``. Idempotent.
+    Returns the number of layers hooked. Kept identical in loader.py and trainer.py
+    (modules share only weaver_train.manifest); tests/test_devices.py checks both.
+    """
+    import torch
+
+    hooked = 0
+    for name, mod in model.named_modules():
+        if not (isinstance(mod, torch.nn.ModuleList) and name.rsplit(".", 1)[-1] == "layers"):
+            continue
+        for layer in mod:
+            devices = {p.device for p in layer.parameters()}
+            if len(devices) != 1:
+                raise RuntimeError(f"decoder layer spans devices {devices}; cannot pin it")
+            (device,) = devices
+            if device.type != "cuda" or getattr(layer, "_weaver_pinned_device", None) == device:
+                continue
+
+            def pre_hook(module, args, _device=device):
+                torch.cuda.set_device(_device)
+
+            layer.register_forward_pre_hook(pre_hook)
+            layer._weaver_pinned_device = device
+            hooked += 1
+    return hooked
+
+
 def target_coverage(model, targets: list[str]) -> dict[str, dict[str, int]]:
     """Per requested target: how many modules exist in the base model, how many got LoRA."""
     import torch
@@ -265,6 +303,8 @@ def _run_unsloth(model_dir: Path, dataset_path: Path, cfg: TrainConfig, out_dir:
         target_modules=cfg.lora.target_modules, bias=cfg.lora.bias,
         use_gradient_checkpointing=t.gradient_checkpointing, random_state=t.seed,
     )
+    if len({p.device for p in model.parameters()}) > 1:
+        pin_layer_devices(model)  # required for split hybrid models; see its docstring
     coverage = target_coverage(model, cfg.lora.target_modules)
     check_coverage(coverage)  # before any training step
     ds = load_dataset("json", data_files=str(dataset_path), split="train")

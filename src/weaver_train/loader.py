@@ -4,6 +4,8 @@ Every file's sha256 is checked against the model's manifest before anything is
 loaded; any mismatch, missing or extra file refuses the load (ManifestError).
 Models load with the transformers-native implementation (``trust_remote_code`` is
 off), which is the implementation scripts/verify_env.py checks for kernel binding.
+A model split across GPUs gets ``pin_layer_devices`` (see its docstring): without it
+both reference models return NaN logits.
 
 Model location, by precedence:
   1. an explicit directory (``load(path=...)``)
@@ -45,6 +47,7 @@ class LoadedModel:
     path: Path
     device_map: dict
     devices: list[str]
+    pinned_layers: int
     verify_seconds: float
     load_seconds: float
 
@@ -52,6 +55,44 @@ class LoadedModel:
     def record(self) -> dict:
         """The ``model`` entry of a run record."""
         return {"name": self.name, "tree_hash": self.tree_hash}
+
+
+def pin_layer_devices(model) -> int:
+    """Make each decoder layer run with its own GPU as the current CUDA device.
+
+    Works around a race found 2026-10-31 (docs/environment.md, Known gaps): mamba-ssm
+    launches its Triton kernels on the *current* device's stream with no device
+    guard. After a multi-GPU split, the current device stays cuda:0, so Mamba kernels
+    for layers on cuda:1 run on cuda:0's stream, unordered with cuda:1's own work,
+    and read unfinished inputs (NaN logits). A forward pre-hook per decoder layer sets
+    the current device; it adds no synchronization. Backward needs nothing: autograd
+    runs each device's work with that device current.
+
+    Hooks every child of each ``nn.ModuleList`` named ``layers``. Idempotent.
+    Returns the number of layers hooked. Kept identical in loader.py and trainer.py
+    (modules share only weaver_train.manifest); tests/test_devices.py checks both.
+    """
+    import torch
+
+    hooked = 0
+    for name, mod in model.named_modules():
+        if not (isinstance(mod, torch.nn.ModuleList) and name.rsplit(".", 1)[-1] == "layers"):
+            continue
+        for layer in mod:
+            devices = {p.device for p in layer.parameters()}
+            if len(devices) != 1:
+                raise RuntimeError(f"decoder layer spans devices {devices}; cannot pin it")
+            (device,) = devices
+            if device.type != "cuda" or getattr(layer, "_weaver_pinned_device", None) == device:
+                continue
+
+            def pre_hook(module, args, _device=device):
+                torch.cuda.set_device(_device)
+
+            layer.register_forward_pre_hook(pre_hook)
+            layer._weaver_pinned_device = device
+            hooked += 1
+    return hooked
 
 
 def manifest_path_for(name: str) -> Path:
@@ -115,6 +156,8 @@ def load(name: str | None = None, *, path: str | os.PathLike | None = None,
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir), trust_remote_code=False)
     load_s = time.monotonic() - t1
     model.eval()
+    devices = sorted({str(p.device) for p in model.parameters()})
+    pinned = pin_layer_devices(model) if len(devices) > 1 else 0
 
     wrong = {p.dtype for p in model.parameters() if p.is_floating_point() and p.dtype != torch.bfloat16}
     if wrong:
@@ -122,7 +165,7 @@ def load(name: str | None = None, *, path: str | os.PathLike | None = None,
 
     return LoadedModel(model=model, tokenizer=tokenizer, name=m.name, tree_hash=tree_hash,
                        path=model_dir, device_map=dict(getattr(model, "hf_device_map", {}) or {}),
-                       devices=sorted({str(p.device) for p in model.parameters()}),
+                       devices=devices, pinned_layers=pinned,
                        verify_seconds=verify_s, load_seconds=load_s)
 
 
