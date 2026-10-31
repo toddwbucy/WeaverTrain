@@ -1,0 +1,17 @@
+# Reference models. Each is downloaded once at a pinned revision, hashed against the
+# publisher's own digests, and never modified. Manifests: manifests/models/<name>.json.
+#
+# local_dir: directory name under both the archive store and the fast-load cache
+# (WEAVER_TRAIN_MODEL_STORE / WEAVER_TRAIN_MODEL_CACHE in .env).
+
+[models."granite-4.0-h-small"]
+repo_id = "ibm-granite/granite-4.0-h-small"
+revision = "b8c0982bab7fde4eb48110f5a069527c008fab39"
+local_dir = "ibm-granite--granite-4.0-h-small"
+
+[models."nemotron-3-nano-30b-a3b"]
+# Verified 2026-10-31: the post-trained bf16 release. Variants not used:
+# ...-Base-BF16 (pre-trained), ...-FP8, ...-NVFP4.
+repo_id = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+revision = "bf77c3174f68ad409e1c2aa60daeb46e32d1c606"
+local_dir = "nvidia--NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
