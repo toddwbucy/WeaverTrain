@@ -7,8 +7,10 @@ Stages, each stopping the script on failure (no fallbacks, no retries at lower s
               visible GPUs. Records placement, timings, memory per GPU.
   2. forward  one forward pass on a short prompt; logits must be finite.
   3. generate greedy generation of --gen-tokens from a chat-templated prompt.
-  4. lora     fresh load through Unsloth (bf16, device_map="balanced", embeddings kept
-              on GPU), LoRA attached to --targets (coverage checked as in the trainer),
+  4. lora     in a fresh subprocess (so the first model's memory is gone and Unsloth is
+              imported before transformers, as in weaver_train.trainer): load through
+              Unsloth (bf16, device_map="balanced", embeddings kept on GPU, no CPU
+              offload), layers pinned, LoRA attached to --targets (coverage checked),
               then ONE optimizer step on a single --seq-len sequence of random token
               ids. Random ids, not data: this measures memory, not learning.
               Records peak allocated and reserved memory per GPU.
@@ -182,9 +184,27 @@ def main(argv=None) -> int:
     ap.add_argument("--targets", default="q_proj,k_proj,v_proj,o_proj")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--skip-lora", action="store_true")
+    ap.add_argument("--lora-only", metavar="MODEL_DIR",
+                    help="internal: run only the LoRA stage on MODEL_DIR and print its JSON")
     ap.add_argument("--min-devices", type=int, default=2,
                     help="GPUs the model must span after load (1 only for dry runs on a tiny model)")
     a = ap.parse_args(argv)
+
+    if a.lora_only:
+        import unsloth  # noqa: F401  (first, before anything imports transformers)
+
+        part: dict = {}
+        try:
+            stage_lora(a.lora_only, part, a.seq_len, a.targets.split(","), a.seed)
+            print("LORA_JSON " + json.dumps({"ok": True, "lora": part["lora"]}))
+            return 0
+        except BaseException as e:  # noqa: BLE001
+            import torch
+
+            print("LORA_JSON " + json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}",
+                                             "traceback": traceback.format_exc(limit=8),
+                                             "memory_at_failure": gpu_mem(torch)}))
+            return 1
 
     import torch
 
@@ -203,14 +223,30 @@ def main(argv=None) -> int:
         model_dir = stage_load_forward_generate(a.name, report, a.gen_tokens, a.min_devices)
         if not a.skip_lora:
             stage = "lora"
-            stage_lora(model_dir, report, a.seq_len, a.targets.split(","), a.seed)
+            import subprocess
+
+            gc.collect()
+            torch.cuda.empty_cache()
+            cmd = [sys.executable, __file__, a.name, "--lora-only", model_dir, "--seq-len", str(a.seq_len),
+                   "--targets", a.targets, "--seed", str(a.seed)]
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("LORA_JSON ")), None)
+            if line is None:
+                raise RuntimeError(f"LoRA subprocess exited {proc.returncode} without a result; "
+                                   f"stderr tail: {proc.stderr[-2000:]}")
+            sub = json.loads(line[len("LORA_JSON "):])
+            if not sub["ok"]:
+                report["memory_at_failure"] = sub.get("memory_at_failure")
+                report["traceback"] = sub.get("traceback")
+                raise RuntimeError(f"LoRA stage: {sub['error']}")
+            report["lora"] = sub["lora"]
         report["ok"] = True
     except BaseException as e:  # noqa: BLE001 - record any failure, then stop
         report["failed_stage"] = stage
         report["error"] = f"{type(e).__name__}: {e}"
-        report["traceback"] = traceback.format_exc(limit=8)
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and "memory_at_failure" not in report:
             report["memory_at_failure"] = gpu_mem(torch)
+        report.setdefault("traceback", traceback.format_exc(limit=8))
     out_path.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({k: v for k, v in report.items() if k != "traceback"}, indent=2))
     print(f"report: {out_path}", file=sys.stderr)
