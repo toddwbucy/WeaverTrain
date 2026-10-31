@@ -3,7 +3,7 @@
 # manifests: manifests/sources/<name>.json. Store: $WEAVER_TRAIN_BENCH_STORE.
 #
 # Model training cutoffs (from the model cards, read 2026-10-31):
-#   granite-4.0-h-small      released 2025-10-02 (no cutoff stated; cannot be later)
+#   granite-4.0-h-small      released 2025-10-02 (no cutoff stated; model retired 2026-10-31)
 #   nemotron-3-nano-30b-a3b  pre-training 2025-06-25, post-training 2025-11-28
 # so evaluation tasks must be created on or after 2025-12-01.
 

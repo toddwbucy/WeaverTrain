@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from tests.conftest import NAME, SPLIT
 from weaver_train import loader
 from weaver_train import manifest as mf
 
@@ -70,7 +71,7 @@ def test_load_forward_bf16(tiny_model):
     model_dir, manifest_path = tiny_model
     lm = loader.load(manifest_path=manifest_path, path=model_dir)
     assert lm.tree_hash == mf.load_tree(manifest_path).tree_hash
-    assert lm.record == {"name": "tiny-granite-hybrid", "tree_hash": lm.tree_hash}
+    assert lm.record == {"name": NAME, "tree_hash": lm.tree_hash}
     assert lm.devices  # parameters landed on at least one GPU
     assert all(p.dtype == torch.bfloat16 for p in lm.model.parameters())
     ids = lm.tokenizer("the model state train", return_tensors="pt").input_ids.to("cuda:0")
@@ -91,9 +92,7 @@ def test_splits_across_two_gpus(tiny_model):
     import torch
 
     model_dir, manifest_path = tiny_model
-    split = {"model.embed_tokens": 0, "model.layers.0": 0, "model.layers.1": 1,
-             "model.norm": 1, "lm_head": 0}
-    lm = loader.load(manifest_path=manifest_path, path=model_dir, device_map=split)
+    lm = loader.load(manifest_path=manifest_path, path=model_dir, device_map=SPLIT)
     assert lm.devices == ["cuda:0", "cuda:1"]
     ids = lm.tokenizer("the model", return_tensors="pt").input_ids.to("cuda:0")
     with torch.no_grad():

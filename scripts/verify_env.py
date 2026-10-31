@@ -174,7 +174,7 @@ def _resolved_impl(fn):
 
 @check("transformers_fast_path")
 def check_transformers_fast_path():
-    """Both model families must bind the installed kernels, not the PyTorch fallback.
+    """The model family must bind the installed kernels, not the PyTorch fallback.
 
     transformers decides at import time (use_kernel_func_from_hub_with_fallback): hub
     kernel, else the installed package, else a slow reference path. Every wrapped
@@ -183,7 +183,7 @@ def check_transformers_fast_path():
     required = {"causal_conv1d_fn", "causal_conv1d_update", "mamba2_chunk_scan",
                 "mamba2_split_conv1d_scan_combined", "mamba2_selective_state_update"}
     result = {}
-    for mod_name in ("granitemoehybrid", "nemotron_h"):
+    for mod_name in ("nemotron_h",):
         mod = importlib.import_module(f"transformers.models.{mod_name}.modeling_{mod_name}")
         bound = {}
         for fname, fn in vars(mod).items():

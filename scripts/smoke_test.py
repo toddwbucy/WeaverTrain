@@ -236,7 +236,7 @@ def main(argv=None) -> int:
     ap.add_argument("name")
     ap.add_argument("--seq-len", type=int, default=32768)
     ap.add_argument("--gen-tokens", type=int, default=64)
-    ap.add_argument("--targets", default="q_proj,k_proj,v_proj,o_proj")
+    ap.add_argument("--targets", default="q_proj,k_proj,v_proj,o_proj,in_proj")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--skip-lora", action="store_true")
     ap.add_argument("--infer-only", action="store_true",

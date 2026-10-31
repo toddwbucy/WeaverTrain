@@ -12,12 +12,16 @@ couplings, shared fixtures or Cargo/Python linkage to `../WeaverAgent`,
 `../CLAUDE.md` (house style, seats, public-repository rules) still apply; its Rust
 commands do not.
 
-Goal: LoRA fine-tune two hybrid Mamba-attention MoE models in bf16, benchmark untrained
-versus trained, and pick one to carry into WeaverTools loop work. Models (pinned in
-`config/models.toml`): `ibm-granite/granite-4.0-h-small` and
-`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16`. Hardware: 2x RTX A6000, NVLinked, one
-model at a time split across both. **Training data is not decided: do not choose,
-build or download any training set.**
+Goal: LoRA fine-tune `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` (pinned in
+`config/models.toml`) in bf16 and benchmark it untrained versus trained, for WeaverTools
+loop work. Granite was dropped on 2026-10-31; why, and every other ruling, is in
+`docs/decisions.md`. Hardware: 2x RTX A6000, NVLinked, the model split across both.
+
+**Training data is chosen by an evaluation the operator has laid out**
+(`docs/decisions.md`): candidates come from NVIDIA's own sets
+(`docs/nemotron-provenance.md`), are filtered against the benchmark snapshots, rewritten
+to STE100 by the model itself and checked. Download only what `config/datasets.toml`
+lists, and add an entry only on the operator's go. Do not request gated access.
 
 ## Commands
 
@@ -33,7 +37,8 @@ uv run --no-sync pytest -q -m "not gpu and not multigpu"
 uv run --no-sync pytest -q tests/test_bench.py::test_resume_skips_finished_tasks
 
 uv run --no-sync python -m weaver_train.manifest verify MANIFEST DIR
-uv run --no-sync python -m weaver_train.loader granite-4.0-h-small
+uv run --no-sync python -m weaver_train.loader nemotron-3-nano-30b-a3b
+scripts/setup-env.sh --only datasets     # fetch + verify config/datasets.toml entries
 ```
 
 Use `uv run --no-sync` (or `.venv/bin/python`), not plain `uv run`: the mamba-ssm and
@@ -57,38 +62,34 @@ reinstalls them. To change a dependency: edit `pyproject.toml`, `uv lock`, then
   (`engine="python-hf"` is enforced). `loader` and `trainer` each verify the full model
   tree before loading. `bench` never loads a model: it calls a runner
   (`module:callable`) per task, so the Docker SWE harness plugs in as a runner.
-- **Committed hashes, no paths:** `manifests/models/*.json` list files relative to the
-  tree root, with the digest confirmed against Hugging Face's own (LFS sha256 or git blob
-  sha1). Locations come only from `.env` (see `.env.example`).
-- **Tests** use a stand-in model built in `tests/conftest.py`: a tiny random
-  GraniteMoeHybrid that runs the real Mamba kernels. Its Mamba projection width must
-  stay a multiple of 8 (a causal-conv1d stride requirement).
+- **Committed hashes, no paths:** `manifests/{models,sources,snapshots,datasets}/*.json`
+  list files relative to the tree root, with the digest confirmed against Hugging Face's own (LFS sha256 or git blob
+  sha1). Locations come only from `.env` (see `.env.example`). The data store also gets
+  one whole-store manifest (`manifests/datasets/STORE.json`, copied into the store as
+  `MANIFEST.json`). Retired artifacts' manifests move, unchanged, to `manifests/retired/`.
+- **Tests** use a stand-in model built in `tests/conftest.py`: a tiny random NemotronH
+  (layers Mamba, MoE, attention, Mamba) that runs the real Mamba kernels. Its Mamba
+  conv width must stay a multiple of 8 (a causal-conv1d stride requirement).
+  `conftest.SPLIT` puts a Mamba layer on the second GPU, where the split race happens.
 
 ## Known gaps (2026-10-31)
 
-- **Unsloth drops Granite's Mamba LoRA targets.** Unsloth rewrites `target_modules`
-  into a regex that only accepts modules under path segments like `self_attn`, `mixer`
-  or `mlp`. Granite names its Mamba blocks `mamba`, so `in_proj` and `out_proj` there
-  (36 of 40 layers) get no adapter; Nemotron's `mixer` blocks are covered. The trainer
-  refuses (`TargetCoverageError`) rather than train a different adapter than the config
-  asks for. Do not work around this without the operator's decision.
+- **LoRA targets are decided:** `q/k/v/o_proj` plus Mamba `in_proj`, no expert
+  adapters (`docs/decisions.md`). The trainer still refuses (`TargetCoverageError`) any
+  run where a requested target exists but was not adapted.
 - **Split models need `pin_layer_devices`.** One mamba-ssm Triton launch
   (`_chunk_scan_fwd_kernel`) has no device guard, so it runs on the current device's
   stream, which stays GPU 0 for layers on GPU 1. Without the hook,
-  both models return NaN logits. The loader and trainer apply it automatically; any
+  the model returns NaN logits. The loader and trainer apply it automatically; any
   new code path that runs a split model (e.g. a bench runner) must apply it too.
   Evidence: `docs/environment.md`, Known gaps.
 - **PEFT refuses Mamba `out_proj` and `conv1d`** on Nemotron (`nemotron_h`); the
   attachable Mamba target is `in_proj`.
-- **Smoke tests (`scripts/smoke_test.py`):** Nemotron passes every stage, including
-  the 32K LoRA step (peaks 33.8 / 36.1 GiB). Granite passes load, forward and
-  generation, but its 32K LoRA step runs out of memory on GPU 0 in the MoE expert path
-  (routed-token buffer 32768 x 10 x 4096 fp32 = 5 GiB). At 16K it passes with about
-  3.5 GiB headroom. The training length is not decided. Each smoke stage runs in its
-  own process because a resident model makes the next load offload to CPU.
-- **Adapter coverage differs by block type** (Granite: Mamba 0/36 under Unsloth;
-  neither model's MoE experts get LoRA). Train runs record `component_coverage`;
-  matching it across models is an open methods decision.
+- **Smoke test (`scripts/smoke_test.py`):** Nemotron passes every stage, including
+  the 32K LoRA step (peaks 33.8 / 36.1 GiB). Each stage runs in its own process because
+  a resident model makes the next load offload to CPU.
+- **MoE experts get no LoRA** (fused parameters, not `nn.Linear`); train runs record
+  `component_coverage` per block type so this stays visible.
 - Benchmark snapshots are frozen; no Docker harness exists yet.
 
 ## Rules that are easy to get wrong

@@ -9,9 +9,9 @@ import inspect
 
 import pytest
 
+from tests.conftest import SPLIT
 from weaver_train import loader, trainer
 
-SPLIT = {"model.embed_tokens": 0, "model.layers.0": 0, "model.layers.1": 1, "model.norm": 1, "lm_head": 0}
 
 
 def test_helper_identical_in_loader_and_trainer():
@@ -48,18 +48,18 @@ def test_pinning_sets_each_layers_device(tiny_model, helper):
     model = AutoModelForCausalLM.from_pretrained(model_dir, dtype=torch.bfloat16, device_map=SPLIT).eval()
     ids = torch.tensor([[2, 5, 6, 7, 8]], device="cuda:0")
 
-    assert _current_device_per_layer(model, ids) == {0: 0, 1: 0}  # the bug's precondition
-    assert helper(model) == 2
+    assert _current_device_per_layer(model, ids) == {0: 0, 1: 0, 2: 0, 3: 0}  # the bug's precondition
+    assert helper(model) == 4
     assert helper(model) == 0  # idempotent
     torch.cuda.set_device(0)
-    assert _current_device_per_layer(model, ids) == {0: 0, 1: 1}
+    assert _current_device_per_layer(model, ids) == {0: 0, 1: 0, 2: 1, 3: 1}
 
 
 @pytest.mark.multigpu
 def test_loader_pins_split_models(tiny_model):
     model_dir, manifest_path = tiny_model
     lm = loader.load(manifest_path=manifest_path, path=model_dir, device_map=SPLIT)
-    assert lm.devices == ["cuda:0", "cuda:1"] and lm.pinned_layers == 2
+    assert lm.devices == ["cuda:0", "cuda:1"] and lm.pinned_layers == 4
 
 
 @pytest.mark.gpu

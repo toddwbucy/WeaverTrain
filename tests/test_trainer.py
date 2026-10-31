@@ -3,6 +3,7 @@ import textwrap
 
 import pytest
 
+from tests.conftest import NAME
 from weaver_train import manifest as mf
 from weaver_train import trainer
 
@@ -11,7 +12,7 @@ CONFIG = textwrap.dedent("""
     r = 4
     alpha = 8
     dropout = 0.0
-    target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+    target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "in_proj"]
 
     [train]
     max_seq_length = 64
@@ -53,7 +54,7 @@ def test_config_parses(config_path):
 
 
 @pytest.mark.parametrize("edit, msg", [
-    (lambda s: s.replace('target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]\n', ""),
+    (lambda s: __import__("re").sub(r"(?m)^target_modules = .*\n", "", s, count=1),
      "target_modules is required"),
     (lambda s: s.replace("r = 4", "r = 0"), "positive"),
     (lambda s: s.replace("max_steps = 2", 'max_steps = "2"'), "wrong type"),
@@ -96,7 +97,7 @@ def test_tiny_lora_writes_adapter_only(tiny_model, dataset_path, config_path, tm
     rec = trainer.train(model_dir, manifest_path, dataset_path, config_path, out)
 
     assert rec.status == "completed" and rec.engine == "python-hf" and rec.kind == "train"
-    assert rec.model == {"name": "tiny-granite-hybrid", "tree_hash": before}
+    assert rec.model == {"name": NAME, "tree_hash": before}
     assert rec.results["global_step"] == 2 and rec.results["reference_verified_after"] is True
     names = {p.name for p in (out / "adapter").iterdir()}
     assert {"adapter_config.json", "adapter_model.safetensors"} <= names
@@ -105,11 +106,13 @@ def test_tiny_lora_writes_adapter_only(tiny_model, dataset_path, config_path, tm
     assert mf.load_run(out / "run.json") == rec
     assert mf.require_tree(mf.load_tree(manifest_path), model_dir) == before
 
-    assert rec.results["lora_coverage"] == {t: {"present": 1, "adapted": 1}
-                                            for t in ("q_proj", "k_proj", "v_proj", "o_proj")}
+    # The decided target set (docs/decisions.md): attention plus Mamba in_proj, all adapted.
+    assert rec.results["lora_coverage"] == {
+        **{t: {"present": 1, "adapted": 1} for t in ("q_proj", "k_proj", "v_proj", "o_proj")},
+        "in_proj": {"present": 2, "adapted": 2}}
     comp = rec.results["component_coverage"]
-    assert comp["attention"]["layers"] == comp["attention"]["adapted_layers"] == 1
-    assert comp["mamba"] == {**comp["mamba"], "layers": 1, "adapted_layers": 0}
+    assert {k: (c["layers"], c["adapted_layers"]) for k, c in comp.items()} == {
+        "mamba": (2, 2), "attention": (1, 1), "moe": (1, 0)}
 
 
 def _peft_on_cpu(model_dir, targets):
@@ -122,33 +125,36 @@ def _peft_on_cpu(model_dir, targets):
 
 
 @pytest.mark.parametrize("targets, adapted", [
-    (["q_proj"], {"attention": 1, "mamba": 0, "moe": 0, "mlp": 0}),
-    (["in_proj"], {"attention": 0, "mamba": 1, "moe": 0, "mlp": 0}),
-    (["q_proj", "in_proj"], {"attention": 1, "mamba": 1, "moe": 0, "mlp": 0}),
+    (["q_proj"], {"attention": 1, "mamba": 0, "moe": 0}),
+    (["in_proj"], {"attention": 0, "mamba": 2, "moe": 0}),
+    (["q_proj", "in_proj"], {"attention": 1, "mamba": 2, "moe": 0}),
 ])
 def test_component_coverage_counts_layers_per_block_type(tiny_model, targets, adapted):
-    """The stand-in has one Mamba and one attention layer, each with an MoE and a shared MLP."""
+    """The stand-in has two Mamba layers, one attention layer and one MoE layer.
+
+    The MoE's shared-expert MLP counts under the MoE, so no separate MLP kind appears.
+    """
     model_dir, _ = tiny_model
     comp = trainer.component_coverage(_peft_on_cpu(model_dir, targets))
-    assert {k: c["layers"] for k, c in comp.items()} == {"attention": 1, "mamba": 1, "moe": 2, "mlp": 2}
+    assert {k: c["layers"] for k, c in comp.items()} == {"attention": 1, "mamba": 2, "moe": 1}
     assert {k: c["adapted_layers"] for k, c in comp.items()} == adapted
     assert all(c["params"] > 0 for c in comp.values())
     assert sum(c["adapted_params"] for c in comp.values()) > 0
 
 
 @pytest.mark.gpu
-def test_refuses_when_mamba_targets_are_dropped(tiny_model, dataset_path, config_path, tmp_path):
-    """Known gap (2026-10-31): Unsloth's target regex skips Granite's `mamba.*_proj`.
+def test_refuses_mamba_out_proj(tiny_model, dataset_path, config_path, tmp_path):
+    """Known limit (2026-10-31, peft 0.21.2): PEFT refuses LoRA on NemotronH's Mamba
+    `out_proj` (and `conv1d`) before attaching anything. The run fails and records it.
 
-    If this starts failing because training succeeds, Unsloth now covers Granite's
-    Mamba blocks: check the coverage numbers and retire this test.
+    If this starts failing because training succeeds, PEFT has lifted the limit: check
+    the coverage numbers and retire this test.
     """
     model_dir, manifest_path = tiny_model
-    config_path.write_text(config_path.read_text().replace(
-        '"o_proj"]', '"o_proj", "in_proj", "out_proj"]'))
+    config_path.write_text(config_path.read_text().replace('"in_proj"]', '"in_proj", "out_proj"]'))
     out = tmp_path / "run"
-    with pytest.raises(trainer.TargetCoverageError, match=r"in_proj 0/1, out_proj 0/1"):
+    with pytest.raises(ValueError, match="incompatible with Mamba"):
         trainer.train(model_dir, manifest_path, dataset_path, config_path, out)
     rec = mf.load_run(out / "run.json")
-    assert rec.status == "failed" and "TargetCoverageError" in rec.results["error"]
+    assert rec.status == "failed" and "out_proj" in rec.results["error"]
     assert not (out / "adapter").exists()
