@@ -1,0 +1,3775 @@
+{
+ "collections": {
+  "post-training": "nvidia/nemotron-post-training-datasets-6939b7b93382bac738eebd17",
+  "pre-training": "nvidia/nemotron-pre-training-datasets-689d9de36f84279d83786b35",
+  "v3-pre-training": "nvidia/nemotron-v3-pre-training-69401eecd9c3e9aae0c6e7dd"
+ },
+ "hf_datasets": [
+  {
+   "bytes": 1234356624,
+   "card_names_nano3": false,
+   "created_at": "2024-07-15",
+   "files": 8,
+   "files_readable": true,
+   "gated": false,
+   "id": "AI-MO/NuminaMath-CoT",
+   "last_modified": "2024-11-25",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "9d8d210c9f6a36c8f3cd84045668c9b7800ef517",
+   "url": "https://huggingface.co/datasets/AI-MO/NuminaMath-CoT"
+  },
+  {
+   "bytes": 7155373657,
+   "card_names_nano3": false,
+   "created_at": "2023-12-20",
+   "files": 23,
+   "files_readable": true,
+   "gated": false,
+   "id": "BAAI/TACO",
+   "last_modified": "2024-06-19",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "d593ed0a2becbbc952230bb89be09189bf1056dc",
+   "url": "https://huggingface.co/datasets/BAAI/TACO"
+  },
+  {
+   "bytes": 299366461,
+   "card_names_nano3": false,
+   "created_at": "2025-03-17",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "BytedTsinghua-SIA/DAPO-Math-17k",
+   "last_modified": "2025-04-18",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "blend:nvidia/Nemotron-3-Nano-RL-Training-Blend"
+   ],
+   "revision": "65877096c24ffa7abc4e4fa5edb95cf3413a5674",
+   "rows": 1791700,
+   "url": "https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k"
+  },
+  {
+   "bytes": 1478810,
+   "card_names_nano3": false,
+   "created_at": "2023-03-08",
+   "files": 13,
+   "files_readable": true,
+   "gated": false,
+   "id": "EleutherAI/arithmetic",
+   "last_modified": "2023-03-09",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "cf5ec4512aaa47cdebf02ca032b7af870528c272",
+   "rows": 20000,
+   "url": "https://huggingface.co/datasets/EleutherAI/arithmetic"
+  },
+  {
+   "bytes": 5464726393,
+   "card_names_nano3": false,
+   "created_at": "2025-01-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "EricLu/SCP-116K",
+   "last_modified": "2026-09-12",
+   "license": "cc-by-nc-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "99acd159e5dcc65c7679def10231b75281989fc1",
+   "rows": 259092,
+   "url": "https://huggingface.co/datasets/EricLu/SCP-116K"
+  },
+  {
+   "bytes": 26170964033077,
+   "card_names_nano3": false,
+   "created_at": "2025-06-17",
+   "files": 100000,
+   "files_readable": true,
+   "gated": false,
+   "id": "EssentialAI/essential-web-v1.0",
+   "last_modified": "2025-10-02",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "ce4eccc7e9604667b6d7f32cb6274b8b41f3113d",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/EssentialAI/essential-web-v1.0"
+  },
+  {
+   "bytes": 16077680,
+   "card_names_nano3": false,
+   "created_at": "2025-02-05",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "GAIR/LIMO",
+   "last_modified": "2025-02-10",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "b60f4462da9d927930b9c9bd43399cf875564416",
+   "rows": 817,
+   "url": "https://huggingface.co/datasets/GAIR/LIMO"
+  },
+  {
+   "bytes": 503856283,
+   "card_names_nano3": false,
+   "created_at": "2025-03-14",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "GPUMODE/KernelBook",
+   "last_modified": "2026-06-09",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "b76504d85f7f14ef4b1fad81f136f638f2ce625b",
+   "rows": 18162,
+   "url": "https://huggingface.co/datasets/GPUMODE/KernelBook"
+  },
+  {
+   "bytes": 5375643185924,
+   "card_names_nano3": false,
+   "created_at": "2025-09-05",
+   "files": 3575,
+   "files_readable": true,
+   "gated": false,
+   "id": "HuggingFaceFW/finepdfs",
+   "last_modified": "2026-04-03",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "220bac3acbf07789502c621d2d33952f51ac7f86",
+   "rows": 476178356,
+   "url": "https://huggingface.co/datasets/HuggingFaceFW/finepdfs"
+  },
+  {
+   "bytes": 20150082682632,
+   "card_names_nano3": false,
+   "created_at": "2024-12-05",
+   "files": 9597,
+   "files_readable": true,
+   "gated": false,
+   "id": "HuggingFaceFW/fineweb-2",
+   "last_modified": "2025-10-27",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "af9c13333eb981300149d5ca60a8e9d659b276b9",
+   "rows": 4484929995,
+   "url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2"
+  },
+  {
+   "bytes": 149447641060,
+   "card_names_nano3": false,
+   "created_at": "2024-11-25",
+   "files": 293,
+   "files_readable": true,
+   "gated": false,
+   "id": "HuggingFaceTB/finemath",
+   "last_modified": "2025-02-06",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "e92b25a616738fe95dc186b64dfb19f9c8525594",
+   "rows": 48283984,
+   "url": "https://huggingface.co/datasets/HuggingFaceTB/finemath"
+  },
+  {
+   "bytes": 1827091,
+   "card_names_nano3": false,
+   "created_at": "2025-02-28",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "II-Vietnam/IChO-IPhO-RL-v2-formated",
+   "last_modified": "2025-03-02",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "b2cb560d96238d8774ba2838fa70248a0a8b1ec3",
+   "rows": 1262,
+   "url": "https://huggingface.co/datasets/II-Vietnam/IChO-IPhO-RL-v2-formated"
+  },
+  {
+   "bytes": 302867985,
+   "card_names_nano3": false,
+   "created_at": "2024-03-30",
+   "files": 315,
+   "files_readable": true,
+   "gated": false,
+   "id": "JailbreakV-28K/JailBreakV-28k",
+   "last_modified": "2024-07-10",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "f949ca582fff13d396ac8fce59596afafb2b78d3",
+   "rows": 30280,
+   "url": "https://huggingface.co/datasets/JailbreakV-28K/JailBreakV-28k"
+  },
+  {
+   "bytes": 1118158270272,
+   "card_names_nano3": false,
+   "created_at": "2025-03-30",
+   "files": 5317,
+   "files_readable": true,
+   "gated": false,
+   "id": "LLM360/MegaMath",
+   "last_modified": "2025-04-09",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "3cbc64616594d6bc8759abaa0b2a71858f880f0d",
+   "url": "https://huggingface.co/datasets/LLM360/MegaMath"
+  },
+  {
+   "bytes": 55682,
+   "card_names_nano3": false,
+   "created_at": "2024-08-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "Nexusflow/MultiverseMathHard",
+   "last_modified": "2024-08-06",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "48cd007a2402436c972b2bf60c9b50276d59a134",
+   "rows": 100,
+   "url": "https://huggingface.co/datasets/Nexusflow/MultiverseMathHard"
+  },
+  {
+   "bytes": 537383587,
+   "card_names_nano3": false,
+   "created_at": "2024-11-08",
+   "files": 7,
+   "files_readable": true,
+   "gated": false,
+   "id": "OpenCoder-LLM/opc-sft-stage2",
+   "last_modified": "2024-11-24",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "7d28f40d579edd7c24402d17d0c7639f991e6f8d",
+   "rows": 436347,
+   "url": "https://huggingface.co/datasets/OpenCoder-LLM/opc-sft-stage2"
+  },
+  {
+   "bytes": 943931659,
+   "card_names_nano3": false,
+   "created_at": "2025-04-11",
+   "files": 10,
+   "files_readable": true,
+   "gated": false,
+   "id": "R2E-Gym/R2E-Gym-Subset",
+   "last_modified": "2026-07-23",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "2e8108ff942f24fcb5686badfaf7f9a8808566d5",
+   "rows": 4578,
+   "url": "https://huggingface.co/datasets/R2E-Gym/R2E-Gym-Subset"
+  },
+  {
+   "bytes": 2861455106,
+   "card_names_nano3": false,
+   "created_at": "2023-04-01",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "RyokoAI/ShareGPT52K",
+   "last_modified": "2023-04-02",
+   "license": "cc0-1.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "6f9b78cc1dd15dbb51d3c51ccc219c558962fd77",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/RyokoAI/ShareGPT52K"
+  },
+  {
+   "bytes": 43648075,
+   "card_names_nano3": false,
+   "created_at": "2024-12-09",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "SWE-Gym/SWE-Gym",
+   "last_modified": "2025-05-10",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "bb94ed9e39bbeb96a7fcbfb533b80f25a7fd59cb",
+   "rows": 2438,
+   "url": "https://huggingface.co/datasets/SWE-Gym/SWE-Gym"
+  },
+  {
+   "bytes": 277771488,
+   "card_names_nano3": false,
+   "created_at": "2025-04-29",
+   "files": 13,
+   "files_readable": true,
+   "gated": false,
+   "id": "SWE-bench/SWE-smith",
+   "last_modified": "2025-12-14",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "ea6d7173829c7ec8fa16c22055699ff2e9188091",
+   "rows": 59136,
+   "url": "https://huggingface.co/datasets/SWE-bench/SWE-smith"
+  },
+  {
+   "bytes": 97680202,
+   "card_names_nano3": false,
+   "created_at": "2024-06-13",
+   "files": 6,
+   "files_readable": true,
+   "gated": "auto",
+   "id": "Salesforce/xlam-function-calling-60k",
+   "last_modified": "2025-01-24",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "26d14ebfe18b1f7b524bd39b404b50af5dc97866",
+   "rows": 60000,
+   "url": "https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k"
+  },
+  {
+   "bytes": 823113220,
+   "card_names_nano3": false,
+   "created_at": "2025-04-12",
+   "files": 6,
+   "files_readable": true,
+   "gated": false,
+   "id": "Skywork/Skywork-OR1-RL-Data",
+   "last_modified": "2025-05-29",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "blend:nvidia/Nemotron-3-Nano-RL-Training-Blend",
+    "card:datasets (public)"
+   ],
+   "revision": "1cdedc52e0e2db85fdf252f9be682e63a5a38c33",
+   "rows": 119112,
+   "url": "https://huggingface.co/datasets/Skywork/Skywork-OR1-RL-Data"
+  },
+  {
+   "bytes": 33156988,
+   "card_names_nano3": false,
+   "created_at": "2025-02-20",
+   "data_status": 403,
+   "files": 6,
+   "files_readable": false,
+   "gated": "auto",
+   "id": "SynthLabsAI/Big-Math-RL-Verified",
+   "last_modified": "2025-03-25",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "c75d2f117cddfecb6bd08756e61e508e59732b21",
+   "url": "https://huggingface.co/datasets/SynthLabsAI/Big-Math-RL-Verified"
+  },
+  {
+   "bytes": 5081249,
+   "card_names_nano3": false,
+   "created_at": "2023-05-30",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "TigerResearch/tigerbot-kaggle-leetcodesolutions-en-2k",
+   "last_modified": "2023-05-31",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "aaf5fce34b1d673a60ea2e1fc49182698c6a65c5",
+   "rows": 2048,
+   "url": "https://huggingface.co/datasets/TigerResearch/tigerbot-kaggle-leetcodesolutions-en-2k"
+  },
+  {
+   "bytes": 534671857,
+   "card_names_nano3": false,
+   "created_at": "2024-07-29",
+   "files": 130,
+   "files_readable": true,
+   "gated": false,
+   "id": "Vikhrmodels/physics_big",
+   "last_modified": "2024-08-04",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "6b3fa02f56d465efb913986ccc7426a58c6d7f9f",
+   "rows": 2332,
+   "url": "https://huggingface.co/datasets/Vikhrmodels/physics_big"
+  },
+  {
+   "bytes": 3360869442,
+   "card_names_nano3": false,
+   "created_at": "2024-05-03",
+   "files": 17,
+   "files_readable": true,
+   "gated": false,
+   "id": "allenai/WildChat-1M",
+   "last_modified": "2024-10-17",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "7d6490e462285cf85d91eabea0f9a954fbddcd1f",
+   "rows": 837989,
+   "url": "https://huggingface.co/datasets/allenai/WildChat-1M"
+  },
+  {
+   "bytes": 13804400336989,
+   "card_names_nano3": false,
+   "created_at": "2022-03-02",
+   "files": 69221,
+   "files_readable": true,
+   "gated": false,
+   "id": "allenai/c4",
+   "last_modified": "2024-01-09",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "1588ec454efa1a09f29cd18ddd04fe05fc8653a2",
+   "rows": 114005516,
+   "url": "https://huggingface.co/datasets/allenai/c4"
+  },
+  {
+   "bytes": 12999,
+   "card_names_nano3": false,
+   "created_at": "2022-03-02",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "allenai/cosmos_qa",
+   "last_modified": "2024-01-18",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "28d9d5e2aae025e73e11177891a88dba51190013",
+   "url": "https://huggingface.co/datasets/allenai/cosmos_qa"
+  },
+  {
+   "bytes": 307709288741,
+   "card_names_nano3": false,
+   "created_at": "2023-06-29",
+   "files": 248,
+   "files_readable": true,
+   "gated": false,
+   "id": "allenai/peS2o",
+   "last_modified": "2024-10-13",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "636a503e44a3ca1b58e01fb61eab0825cd574de0",
+   "url": "https://huggingface.co/datasets/allenai/peS2o"
+  },
+  {
+   "bytes": 126171198,
+   "card_names_nano3": false,
+   "created_at": "2025-01-21",
+   "files": 6,
+   "files_readable": true,
+   "gated": false,
+   "id": "bespokelabs/Bespoke-Stratos-17k",
+   "last_modified": "2025-01-31",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "9e9adba943911a9fc44dffcb30aaa18dc96ae6df",
+   "rows": 16710,
+   "url": "https://huggingface.co/datasets/bespokelabs/Bespoke-Stratos-17k"
+  },
+  {
+   "bytes": 270035224,
+   "card_names_nano3": false,
+   "created_at": "2022-03-02",
+   "files": 181,
+   "files_readable": true,
+   "gated": false,
+   "id": "cais/mmlu",
+   "last_modified": "2024-03-08",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "c30699e8356da336a370243923dbaf21066bb9fe",
+   "rows": 231400,
+   "url": "https://huggingface.co/datasets/cais/mmlu"
+  },
+  {
+   "bytes": 52005614,
+   "card_names_nano3": false,
+   "created_at": "2022-03-02",
+   "files": 8,
+   "files_readable": true,
+   "gated": false,
+   "id": "deepmind/aqua_rat",
+   "last_modified": "2024-01-09",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "33301c6a050c96af81f63cad5562cb5363e88971",
+   "rows": 195950,
+   "url": "https://huggingface.co/datasets/deepmind/aqua_rat"
+  },
+  {
+   "bytes": 258925862,
+   "card_names_nano3": false,
+   "created_at": "2022-07-14",
+   "files": 105,
+   "files_readable": true,
+   "gated": false,
+   "id": "demelin/moral_stories",
+   "last_modified": "2022-07-17",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "b830cf56eb00bc4edd1860dd544a192216eb3587",
+   "rows": 720000,
+   "url": "https://huggingface.co/datasets/demelin/moral_stories"
+  },
+  {
+   "bytes": 7132878,
+   "card_names_nano3": false,
+   "created_at": "2024-10-19",
+   "files": 162,
+   "files_readable": true,
+   "gated": false,
+   "id": "garrethlee/simple-arithmetic-problems",
+   "last_modified": "2024-10-19",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "471db51fbe01d99cde51dfb4f392d944f1f08c75",
+   "rows": 400000,
+   "url": "https://huggingface.co/datasets/garrethlee/simple-arithmetic-problems"
+  },
+  {
+   "bytes": 271192546,
+   "card_names_nano3": false,
+   "created_at": "2023-08-15",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "glaiveai/glaive-function-calling-v2",
+   "last_modified": "2023-09-27",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "e7f4b6456019f5d8bcb991ef0dd67d8ff23221ac",
+   "rows": 112960,
+   "url": "https://huggingface.co/datasets/glaiveai/glaive-function-calling-v2"
+  },
+  {
+   "bytes": 16718541,
+   "card_names_nano3": false,
+   "created_at": "2024-11-12",
+   "files": 17,
+   "files_readable": true,
+   "gated": false,
+   "id": "gretelai/gretel-safety-alignment-en-v1",
+   "last_modified": "2025-12-17",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "7f220b493d7027919d9d4489b43ca2f75fb6f718",
+   "rows": 16722,
+   "url": "https://huggingface.co/datasets/gretelai/gretel-safety-alignment-en-v1"
+  },
+  {
+   "bytes": 255189001,
+   "card_names_nano3": false,
+   "created_at": "2023-12-03",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "ise-uiuc/Magicoder-Evol-Instruct-110K",
+   "last_modified": "2023-12-28",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "b0079beaa0361d82412520b873715bee59cc7dd4",
+   "rows": 111183,
+   "url": "https://huggingface.co/datasets/ise-uiuc/Magicoder-Evol-Instruct-110K"
+  },
+  {
+   "bytes": 4702679974,
+   "card_names_nano3": false,
+   "created_at": "2024-06-04",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "kensho/DocFinQA",
+   "last_modified": "2024-11-19",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "64ebaff62f692495bcc182f45cf9a9606251b19b",
+   "rows": 7437,
+   "url": "https://huggingface.co/datasets/kensho/DocFinQA"
+  },
+  {
+   "bytes": 1613811702,
+   "card_names_nano3": false,
+   "created_at": "2025-08-01",
+   "files": 9,
+   "files_readable": true,
+   "gated": false,
+   "id": "lmarena-ai/arena-human-preference-140k",
+   "last_modified": "2025-08-01",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "6322995ab34d7c2693e3f47dd13fa5caa0789a74",
+   "rows": 135634,
+   "url": "https://huggingface.co/datasets/lmarena-ai/arena-human-preference-140k"
+  },
+  {
+   "bytes": 1488861436,
+   "card_names_nano3": false,
+   "created_at": "2023-09-20",
+   "data_status": 403,
+   "files": 8,
+   "files_readable": false,
+   "gated": "auto",
+   "id": "lmsys/lmsys-chat-1m",
+   "last_modified": "2024-07-27",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "200748d9d3cddcc9d782887541057aca0b18c5da",
+   "url": "https://huggingface.co/datasets/lmsys/lmsys-chat-1m"
+  },
+  {
+   "bytes": 8867,
+   "card_names_nano3": false,
+   "created_at": "2023-01-12",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "lucasmccabe/logiqa",
+   "last_modified": "2023-02-08",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "3c19b0488d794d30c36f73d132d8a22e64f42f2e",
+   "rows": 8678,
+   "url": "https://huggingface.co/datasets/lucasmccabe/logiqa"
+  },
+  {
+   "bytes": 395633240,
+   "card_names_nano3": false,
+   "created_at": "2023-09-21",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "meta-math/MetaMathQA",
+   "last_modified": "2023-12-21",
+   "license": "mit",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "aa4f34d3d2d3231299b5b03d9b3e5a20da45aa18",
+   "rows": 395000,
+   "url": "https://huggingface.co/datasets/meta-math/MetaMathQA"
+  },
+  {
+   "bytes": 28459894,
+   "card_names_nano3": false,
+   "created_at": "2025-01-10",
+   "files": 7,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Aegis-AI-Content-Safety-Dataset-2.0",
+   "last_modified": "2025-06-09",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "d86bb8bedff51d25ac834ab7838f1cc61acb7a2c",
+   "rows": 33416,
+   "url": "https://huggingface.co/datasets/nvidia/Aegis-AI-Content-Safety-Dataset-2.0"
+  },
+  {
+   "bytes": 40632942,
+   "card_names_nano3": false,
+   "created_at": "2024-06-02",
+   "files": 6,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/HelpSteer2",
+   "last_modified": "2024-12-18",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "990b2711a36180dd19d9c94b8627844866f8982a",
+   "rows": 21362,
+   "url": "https://huggingface.co/datasets/nvidia/HelpSteer2"
+  },
+  {
+   "bytes": 303557326,
+   "card_names_nano3": false,
+   "created_at": "2025-03-13",
+   "files": 12,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/HelpSteer3",
+   "last_modified": "2025-11-16",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "revision": "f6d145777bcbde96137596340fab89793acd1031",
+   "rows": 132937,
+   "url": "https://huggingface.co/datasets/nvidia/HelpSteer3"
+  },
+  {
+   "bytes": 6924519899,
+   "card_names_nano3": true,
+   "created_at": "2025-12-13",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-3-Nano-RL-Training-Blend",
+   "last_modified": "2026-09-28",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:post-training"
+   ],
+   "nano3_context": "--- license: odc-by language: - en tags: - nemo-gym --- ## Dataset Description: Nemotron-3-Nano-RL-Training-Blend is a curated dataset blend used to train the Nemotron-3-Nano-30B-A3B model. The b",
+   "revision": "74d1844434885be8237369edaaf534f84fd53d87",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-3-Nano-RL-Training-Blend"
+  },
+  {
+   "bytes": 5786925876,
+   "card_names_nano3": false,
+   "created_at": "2025-12-14",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Agentic-v1",
+   "last_modified": "2025-12-15",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:post-training"
+   ],
+   "revision": "650d590978ca35c8f1ecea2faf136e5fac421b62",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Agentic-v1"
+  },
+  {
+   "bytes": 563191618698,
+   "card_names_nano3": true,
+   "created_at": "2025-12-06",
+   "data_status": 403,
+   "files": 170,
+   "files_readable": false,
+   "gated": "manual",
+   "id": "nvidia/Nemotron-CC-Code-v1",
+   "last_modified": "2026-10-28",
+   "license": "cc-by-4.0, cc-by-sa-4.0, gfdl, other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "nano3_context": "a high-level overview of the data slices. For more details, please view the [NVIDIA Nemotron 3 Nano tech report](https://research.nvidia.com/labs/nemotron/files/NVIDIA-Nemotron-3-Nano-Technical-Rep",
+   "revision": "a3f1fc2502ab7862e22b18095f5b6e45678978c5",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-CC-Code-v1"
+  },
+  {
+   "bytes": 259937855799,
+   "card_names_nano3": false,
+   "created_at": "2025-08-14",
+   "data_status": 403,
+   "files": 196,
+   "files_readable": false,
+   "gated": "auto",
+   "id": "nvidia/Nemotron-CC-Math-v1",
+   "last_modified": "2025-12-23",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "revision": "397a2502f2028c659ba411a6c4935b464a7f03aa",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-CC-Math-v1"
+  },
+  {
+   "bytes": 10333000464784,
+   "card_names_nano3": false,
+   "created_at": "2025-08-14",
+   "data_status": 403,
+   "files": 8974,
+   "files_readable": false,
+   "gated": "manual",
+   "id": "nvidia/Nemotron-CC-v2",
+   "last_modified": "2026-07-07",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "revision": "2669787c66d18601c0e91167fd520be6c1245865",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-CC-v2"
+  },
+  {
+   "bytes": 4590657117351,
+   "card_names_nano3": true,
+   "created_at": "2025-12-12",
+   "data_status": 403,
+   "files": 2484,
+   "files_readable": false,
+   "gated": "manual",
+   "id": "nvidia/Nemotron-CC-v2.1",
+   "last_modified": "2025-12-22",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "nano3_context": "a high-level overview of the data slices. For more details, please view the [NVIDIA Nemotron 3 Nano tech report](https://research.nvidia.com/labs/nemotron/files/NVIDIA-Nemotron-3-Nano-Technical-Rep",
+   "revision": "ba6f2aaef7ada865bb08fc08640ca292150097db",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-CC-v2.1"
+  },
+  {
+   "bytes": 189768024806,
+   "card_names_nano3": false,
+   "created_at": "2025-12-15",
+   "files": 8,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Competitive-Programming-v1",
+   "last_modified": "2025-12-15",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:post-training"
+   ],
+   "revision": "d6e7c6b404ed5db6e1104b41d0f80a0c7dad7bf8",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Competitive-Programming-v1"
+  },
+  {
+   "bytes": 28087768874,
+   "card_names_nano3": false,
+   "created_at": "2026-10-07",
+   "files": 87,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Image-Training-v3.5",
+   "last_modified": "2026-10-28",
+   "license": "openmdw-1.1",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "70b27e021e64bd97641597dc1f127a208b58be0e",
+   "rows": 5196735,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Image-Training-v3.5"
+  },
+  {
+   "bytes": 7095077089,
+   "card_names_nano3": false,
+   "created_at": "2025-12-14",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Instruction-Following-Chat-v1",
+   "last_modified": "2025-12-15",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata"
+   ],
+   "revision": "83dcd3aded0d289b0bbc018d3f9af4c5dd4005df",
+   "rows": 320426,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Instruction-Following-Chat-v1"
+  },
+  {
+   "bytes": 263703619912,
+   "card_names_nano3": false,
+   "created_at": "2025-04-18",
+   "files": 242,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-MIND",
+   "last_modified": "2025-04-24",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "4b506f297762367fb05cac773fa41af672482160",
+   "rows": 2992528,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-MIND"
+  },
+  {
+   "bytes": 29525169258,
+   "card_names_nano3": true,
+   "created_at": "2025-12-14",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Math-Proofs-v1",
+   "last_modified": "2026-01-05",
+   "license": "cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:post-training"
+   ],
+   "nano3_context": "-7B, Kimina-Prover-8B, and Goedel-Prover-V2-8B. This dataset was used as part of the SFT data for [Nemotron-Nano-3](https://huggingface.co/collections/nvidia/nvidia-nemotron-v3). The final model achieves the follow",
+   "revision": "97229c590831adfe96202f5cd071d444d535bf91",
+   "rows": 243314,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Math-Proofs-v1"
+  },
+  {
+   "bytes": 17131387139,
+   "card_names_nano3": false,
+   "created_at": "2026-06-01",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Math-Proofs-v2",
+   "last_modified": "2026-06-16",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "7665d7f1d006fd89aa852a9dab8060c60b63f814",
+   "rows": 23799,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Math-Proofs-v2"
+  },
+  {
+   "bytes": 204571413201,
+   "card_names_nano3": false,
+   "created_at": "2025-12-15",
+   "files": 13,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Math-v2",
+   "last_modified": "2026-02-11",
+   "license": "cc-by-4.0, cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:post-training"
+   ],
+   "revision": "8e793210e175b6406c752a870f585f62de98c0d3",
+   "rows": 7085839,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Math-v2"
+  },
+  {
+   "bytes": 2689226423,
+   "card_names_nano3": false,
+   "created_at": "2025-06-09",
+   "files": 22,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Personas-USA",
+   "last_modified": "2025-12-16",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "5b4cd35ab46490c1da1bd2b5a2324d6f871be180",
+   "rows": 1000000,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Personas-USA"
+  },
+  {
+   "bytes": 246187066521,
+   "card_names_nano3": false,
+   "created_at": "2025-08-14",
+   "data_status": 403,
+   "files": 1533,
+   "files_readable": false,
+   "gated": "manual",
+   "id": "nvidia/Nemotron-Pretraining-Code-v1",
+   "last_modified": "2025-12-23",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "revision": "01393d3bd890ddc5c15da8a2c9afb57391277659",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Code-v1"
+  },
+  {
+   "bytes": 907124100086,
+   "card_names_nano3": true,
+   "created_at": "2025-11-25",
+   "data_status": 403,
+   "files": 451,
+   "files_readable": false,
+   "gated": "manual",
+   "id": "nvidia/Nemotron-Pretraining-Code-v2",
+   "last_modified": "2025-12-22",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "nano3_context": "a high-level overview of the data slices. For more details, please view the [NVIDIA Nemotron 3 Nano tech report](https://research.nvidia.com/labs/nemotron/files/NVIDIA-Nemotron-3-Nano-Technical-Rep",
+   "revision": "7b1a453d43e3c0df9749834b04f1a9510c0f5e5b",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Code-v2"
+  },
+  {
+   "bytes": 8220044612,
+   "card_names_nano3": false,
+   "created_at": "2026-05-28",
+   "files": 67,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Pretraining-Code-v3",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:pre-training"
+   ],
+   "revision": "9b42feaec991c69006452e6654d91a58a04d935a",
+   "rows": 146323609,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Code-v3"
+  },
+  {
+   "bytes": 47494550,
+   "card_names_nano3": false,
+   "created_at": "2025-08-14",
+   "files": 13,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Pretraining-Dataset-sample",
+   "last_modified": "2025-12-22",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "revision": "3ad096e6394e487bb4f778733300da85275bb449",
+   "rows": 27706,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Dataset-sample"
+  },
+  {
+   "bytes": 9508173305157,
+   "card_names_nano3": false,
+   "created_at": "2026-09-04",
+   "data_status": 403,
+   "files": 72265,
+   "files_readable": false,
+   "gated": "manual",
+   "id": "nvidia/Nemotron-Pretraining-Indic-CC-v1",
+   "last_modified": "2026-10-29",
+   "license": "other",
+   "license_name": "nvidia-data-agreement-for-model-training",
+   "listed_in": [
+    "collection:pre-training"
+   ],
+   "revision": "b91ee38c472e89b1e3ec7f91d54b6c2d2f1ca5d2",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Indic-CC-v1"
+  },
+  {
+   "bytes": 1253140758546,
+   "card_names_nano3": false,
+   "created_at": "2026-10-26",
+   "files": 10961,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Pretraining-Indic-Specialized-v1",
+   "last_modified": "2026-10-29",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "collection:pre-training"
+   ],
+   "revision": "72d7d77ab56569cf0a09069542df42d0a39c6185",
+   "rows": 167954507,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Indic-Specialized-v1"
+  },
+  {
+   "bytes": 6990718433,
+   "card_names_nano3": true,
+   "created_at": "2026-06-03",
+   "files": 24,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Pretraining-Legal-v1",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:pre-training"
+   ],
+   "nano3_context": "asets intended to improve the legal capabilities of LLMs. In one ablation, adding these datasets to Nemotron 3 Nano pretraining boosted a proxy LegalBench average accuracy from 64.6 to 74.7. This dataset is ready f",
+   "revision": "3d91d58a5c0c46fe9944300ec46719f97a385b13",
+   "rows": 9616568,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Legal-v1"
+  },
+  {
+   "bytes": 315604856049,
+   "card_names_nano3": false,
+   "created_at": "2025-08-14",
+   "data_status": 403,
+   "files": 307,
+   "files_readable": false,
+   "gated": "manual",
+   "id": "nvidia/Nemotron-Pretraining-SFT-v1",
+   "last_modified": "2025-12-23",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "revision": "3f1a5b884d0b890f02ead979ce698dc95debd953",
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-SFT-v1"
+  },
+  {
+   "bytes": 350922852617,
+   "card_names_nano3": true,
+   "created_at": "2025-12-14",
+   "files": 332,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Pretraining-Specialized-v1",
+   "last_modified": "2026-10-28",
+   "license": "cc-by-sa-4.0, cc-by-4.0, gfdl, other",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata",
+    "collection:pre-training",
+    "collection:v3-pre-training"
+   ],
+   "nano3_context": "a high-level overview of the data slices. For more details, please view the [NVIDIA Nemotron 3 Nano tech report](https://research.nvidia.com/labs/nemotron/files/NVIDIA-Nemotron-3-Nano-Technical-Rep",
+   "revision": "e66d69f57fdc95d4b50506e3968debb0e0cd74af",
+   "rows": 60655840,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Specialized-v1"
+  },
+  {
+   "bytes": 34883354799,
+   "card_names_nano3": false,
+   "created_at": "2026-01-16",
+   "files": 70,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Pretraining-Specialized-v1.1",
+   "last_modified": "2026-03-11",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:pre-training"
+   ],
+   "revision": "13fa979be2e7f7e62913eee0ec5e97c8fd6e24af",
+   "rows": 19772096,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Specialized-v1.1"
+  },
+  {
+   "bytes": 53621168956,
+   "card_names_nano3": true,
+   "created_at": "2026-06-03",
+   "files": 92,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Pretraining-Specialized-v1.2",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0, cc-by-2.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:pre-training"
+   ],
+   "nano3_context": "inewiki](https://huggingface.co/datasets/HuggingFaceFW/finewiki). In an ablation on an intermediate Nemotron 3 Nano base model checkpoint, training with this data improved a proxy SimpleQA score from 40.2 to 50.2. -",
+   "revision": "807afc1fa65c441d46ebc7d9b95295a35499a527",
+   "rows": 599514257,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Pretraining-Specialized-v1.2"
+  },
+  {
+   "bytes": 7164722459,
+   "card_names_nano3": false,
+   "created_at": "2025-05-12",
+   "files": 39,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-PrismMath",
+   "last_modified": "2025-05-27",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "8a35a0602167ad1f1ec9d6db5e72281e486738a7",
+   "rows": 1002595,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-PrismMath"
+  },
+  {
+   "bytes": 443282490,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 6,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-ARC-AGI-v1",
+   "last_modified": "2026-10-28",
+   "license": "apache-2.0, cc-by-4.0, mit",
+   "license_name": "pending-legal-review",
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "be3040b0ad5109d754f938b99f2fd2479ef03127",
+   "rows": 21028,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-ARC-AGI-v1"
+  },
+  {
+   "bytes": 1750308733,
+   "card_names_nano3": false,
+   "created_at": "2026-03-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Agentic-Conversational-Tool-Use-Pivot-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "bfc7a4dd55ec1424cc3761ceacdd85a5743b4f4e",
+   "rows": 96968,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Agentic-Conversational-Tool-Use-Pivot-v1"
+  },
+  {
+   "bytes": 165667788,
+   "card_names_nano3": false,
+   "created_at": "2026-10-14",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Agentic-Finance-v1",
+   "last_modified": "2026-10-28",
+   "license": "openmdw-1.1",
+   "license_name": "openmdw-1.1",
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "1f0014d9db3a9102d5e0821edac1a2416dd0b975",
+   "rows": 10185,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Agentic-Finance-v1"
+  },
+  {
+   "bytes": 285499370,
+   "card_names_nano3": false,
+   "created_at": "2026-03-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Agentic-Function-Calling-Pivot-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "0ac34ec81bb6976d3746407df306a57ce48f0bd8",
+   "rows": 9620,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Agentic-Function-Calling-Pivot-v1"
+  },
+  {
+   "bytes": 11719170,
+   "card_names_nano3": true,
+   "created_at": "2026-06-02",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Agentic-Indirect-Prompt-Injection-v1",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "nano3_context": "motron-3-Super-120B-A12B-BF16) * LLM defender used (the model the injections were tuned to break): [Nemotron Nano 3](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16) #### Curation and Filtering Re",
+   "revision": "d738d4f361cc38bb4d7a42b9066776dade5332f5",
+   "rows": 1272,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Agentic-Indirect-Prompt-Injection-v1"
+  },
+  {
+   "bytes": 5101900981,
+   "card_names_nano3": false,
+   "created_at": "2026-03-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Agentic-SWE-Pivot-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "d2b67746ca0087e73c4675b56bcc139b99354963",
+   "rows": 50308,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Agentic-SWE-Pivot-v1"
+  },
+  {
+   "bytes": 1372472348,
+   "card_names_nano3": false,
+   "created_at": "2026-08-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Agentic-Terminal-Pivot-v1",
+   "last_modified": "2026-08-28",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "eaef26944643644c8a3dbbf361ce6128142f5976",
+   "rows": 31111,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Agentic-Terminal-Pivot-v1"
+  },
+  {
+   "bytes": 49622553,
+   "card_names_nano3": true,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-CFBench-v1",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "nano3_context": "Gym environment. The seed data comes from manually collected instruction-following sources. NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 and Qwen/Qwen3-235B-A22B-Thinking-2507 are used as SDG models, and GPT-5 is used for f",
+   "revision": "7de374a40dd15b003717c069fa69b3cf5d763f98",
+   "rows": 1121,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-CFBench-v1"
+  },
+  {
+   "bytes": 1231726750,
+   "card_names_nano3": false,
+   "created_at": "2026-10-14",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Finance-Tool-Calling-v1",
+   "last_modified": "2026-10-14",
+   "license": "openmdw-1.1",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "1df6491d013a39359d94eeaccf993f4f31cdb742",
+   "rows": 90307,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Finance-Tool-Calling-v1"
+  },
+  {
+   "bytes": 16307146,
+   "card_names_nano3": false,
+   "created_at": "2026-03-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Identity-Following-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "44d1f2956ca0889347d39bf13629e0827e4e7250",
+   "rows": 21660,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Identity-Following-v1"
+  },
+  {
+   "bytes": 8420984,
+   "card_names_nano3": false,
+   "created_at": "2026-03-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Instruction-Following-Adversarial-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "9351db68e1d3ceb9ad7ad717a9dcfa43b7cb9589",
+   "rows": 1000,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Instruction-Following-Adversarial-v1"
+  },
+  {
+   "bytes": 139789837,
+   "card_names_nano3": false,
+   "created_at": "2026-03-06",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Instruction-Following-Calendar-v2",
+   "last_modified": "2026-09-28",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "7c88e10b753924822089786bd586a1b41e7b99e9",
+   "rows": 9915,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Instruction-Following-Calendar-v2"
+  },
+  {
+   "bytes": 58266475,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Instruction-Following-Citation-Formatting-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "06ef53e2f2ddbac6b7c45dba9f522e3ce3b02584",
+   "rows": 9540,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Instruction-Following-Citation-Formatting-v1"
+  },
+  {
+   "bytes": 42706708,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Instruction-Following-Free-Form-Formatting-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "cc50bed77acc58bd710499402c8903c873db3577",
+   "rows": 9037,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Instruction-Following-Free-Form-Formatting-v1"
+  },
+  {
+   "bytes": 187417599,
+   "card_names_nano3": false,
+   "created_at": "2026-03-06",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Instruction-Following-MultiTurnChat-v1",
+   "last_modified": "2026-09-28",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "b5d12c032618a34e8e72ff592aba6833508e8063",
+   "rows": 2011,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Instruction-Following-MultiTurnChat-v1"
+  },
+  {
+   "bytes": 762954877,
+   "card_names_nano3": false,
+   "created_at": "2026-06-02",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Instruction-Following-Structured-Outputs-v2",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "b0187e1802944a6dd01560f74d124ce9c19fe0e8",
+   "rows": 62696,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Instruction-Following-Structured-Outputs-v2"
+  },
+  {
+   "bytes": 13285413,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-InverseIFEval-v1",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "6958020c40dc3df170ed3ef90f88d6c290427148",
+   "rows": 1000,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-InverseIFEval-v1"
+  },
+  {
+   "bytes": 3885252246,
+   "card_names_nano3": false,
+   "created_at": "2026-08-07",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Lightning-Training-Blend",
+   "last_modified": "2026-08-28",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "262eb58c9e8d6f527bbcc7a7fdc2811a92f5592e",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Lightning-Training-Blend"
+  },
+  {
+   "bytes": 6887923,
+   "card_names_nano3": false,
+   "created_at": "2026-06-01",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Math-v2",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "804418c1d4eceeaa453d895954887c0975e79121",
+   "rows": 7732,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Math-v2"
+  },
+  {
+   "bytes": 281908183,
+   "card_names_nano3": true,
+   "created_at": "2026-05-26",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Multichallenge-v1",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "nano3_context": "lex multi-turn tasks are designed, then four candidate responses are produced for each task. NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 / Nemotron-Nano-V2 is used for approximately 60% of the data, and Qwen/Qwen3-235B-A22B",
+   "revision": "4df9901a1f8b2996431ca841245ac67f93c7743d",
+   "rows": 2118,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Multichallenge-v1"
+  },
+  {
+   "bytes": 4676916,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-QA-Abstention-v1",
+   "last_modified": "2026-06-22",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "7c2ead1dcfd549874c106c0da8a24554cc4dc746",
+   "rows": 3150,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-QA-Abstention-v1"
+  },
+  {
+   "bytes": 30738920,
+   "card_names_nano3": false,
+   "created_at": "2026-03-10",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-ReasoningGym-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "4c25c3b67c94c2201339232139b0315a03ac84f7",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-ReasoningGym-v1"
+  },
+  {
+   "bytes": 295395067,
+   "card_names_nano3": false,
+   "created_at": "2026-03-10",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Safety-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "667e4fec9ff8b77488793192ecdc43885e0e03ce",
+   "rows": 89068,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Safety-v1"
+  },
+  {
+   "bytes": 265641935,
+   "card_names_nano3": false,
+   "created_at": "2026-06-03",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Science-v1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "cc485d0ec5b53d430a43c756db0a4d6f00dc4cee",
+   "rows": 150644,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Science-v1"
+  },
+  {
+   "bytes": 26844483058,
+   "card_names_nano3": false,
+   "created_at": "2026-03-11",
+   "files": 9,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Super-Training-Blends",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "79c4debbb2b5205f9c8b005e2a2b708409f66fe0",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Super-Training-Blends"
+  },
+  {
+   "bytes": 48848468,
+   "card_names_nano3": true,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-SysBench-v1",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "nano3_context": "Gym environment. The seed data comes from manually collected instruction-following sources. NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 and Qwen/Qwen3-235B-A22B-Thinking-2507 are used as SDG models, and GPT-5 is used for f",
+   "revision": "7083ab2bdd5928c7001914f028f7fdeb0e727e58",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-SysBench-v1"
+  },
+  {
+   "bytes": 17061225368,
+   "card_names_nano3": false,
+   "created_at": "2026-06-02",
+   "files": 10,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-Ultra-Training-Blends",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "482392c14c6418e26804ea2e5d10359df9877df4",
+   "rows": 54201,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-Ultra-Training-Blends"
+  },
+  {
+   "bytes": 30015314,
+   "card_names_nano3": false,
+   "created_at": "2025-11-14",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-agent-workplace_assistant",
+   "last_modified": "2026-09-23",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "blend:nvidia/Nemotron-3-Nano-RL-Training-Blend"
+   ],
+   "revision": "f674d9bba17820d90f14eefe9156fdc018a0db60",
+   "rows": 1800,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-agent-workplace_assistant"
+  },
+  {
+   "bytes": 15680321425,
+   "card_names_nano3": false,
+   "created_at": "2025-12-12",
+   "files": 15,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-coding-competitive_coding",
+   "last_modified": "2026-09-28",
+   "license": "cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "blend:nvidia/Nemotron-3-Nano-RL-Training-Blend"
+   ],
+   "revision": "755d5910fc8646b385e3926eec08c152051cdc07",
+   "rows": 16083,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-coding-competitive_coding"
+  },
+  {
+   "bytes": 77885624,
+   "card_names_nano3": false,
+   "created_at": "2025-11-14",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-instruction_following",
+   "last_modified": "2026-09-29",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "blend:nvidia/Nemotron-3-Nano-RL-Training-Blend"
+   ],
+   "revision": "bcdec57a62a1c817dfc7d1796efd6838b4a173e1",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-instruction_following"
+  },
+  {
+   "bytes": 95915637,
+   "card_names_nano3": false,
+   "created_at": "2025-11-13",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-instruction_following-structured_outputs",
+   "last_modified": "2026-09-28",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "blend:nvidia/Nemotron-3-Nano-RL-Training-Blend"
+   ],
+   "revision": "4ed3d0e404c03dd47453217ce498c3511aa90a44",
+   "rows": 9949,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-instruction_following-structured_outputs"
+  },
+  {
+   "bytes": 757226237,
+   "card_names_nano3": false,
+   "created_at": "2025-11-14",
+   "files": 7,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-knowledge-mcqa",
+   "last_modified": "2026-10-28",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "blend:nvidia/Nemotron-3-Nano-RL-Training-Blend"
+   ],
+   "revision": "197160a9368263ee9129b336228c1c0aaffd3008",
+   "rows": 685573,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-knowledge-mcqa"
+  },
+  {
+   "bytes": 5693045,
+   "card_names_nano3": false,
+   "created_at": "2026-06-01",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RL-litmus-bench-v0.1",
+   "last_modified": "2026-09-29",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "5e41e712b75aa15871484ff48ec3a58a2772d9cc",
+   "rows": 5714,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RL-litmus-bench-v0.1"
+  },
+  {
+   "bytes": 5410848841,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-RLHF-GenRM-v1",
+   "last_modified": "2026-03-11",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "cfe81c2f6aa258e30c8ff7864d33e57fdf6e4794",
+   "rows": 273038,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-RLHF-GenRM-v1"
+  },
+  {
+   "bytes": 18432690214,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 10,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-ARC-AGI-v1",
+   "last_modified": "2026-10-28",
+   "license": "apache-2.0, cc-by-4.0, mit",
+   "license_name": "pending-legal-review",
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "33a40d3c350ed65cf529b1623028bf1152648790",
+   "rows": 121614,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-ARC-AGI-v1"
+  },
+  {
+   "bytes": 28054340,
+   "card_names_nano3": false,
+   "created_at": "2026-10-14",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Agentic-Finance-v1",
+   "last_modified": "2026-10-28",
+   "license": "openmdw-1.1",
+   "license_name": "openmdw-1.1",
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "89c28060e486dab306f46410c11ca99cee8e4c6c",
+   "rows": 7878,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Agentic-Finance-v1"
+  },
+  {
+   "bytes": 21860711626,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 6,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Agentic-v2",
+   "last_modified": "2026-08-10",
+   "license": "cc-by-4.0, apache-2.0, mit",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "7c804833427f633ccd53b582dbf02525fd680f78",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Agentic-v2"
+  },
+  {
+   "bytes": 18881629804,
+   "card_names_nano3": false,
+   "created_at": "2026-10-14",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Agentic-v4",
+   "last_modified": "2026-10-15",
+   "license": "openmdw-1.1",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "a4593a26ea83a700035bbe0ec1edc9ef3810669d",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Agentic-v4"
+  },
+  {
+   "bytes": 7999230,
+   "card_names_nano3": false,
+   "created_at": "2026-10-15",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-BBQ-v1",
+   "last_modified": "2026-10-15",
+   "license": "openmdw-1.1",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "4efdb045cda11918f29065a2e0fd5000b73b8c22",
+   "rows": 6000,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-BBQ-v1"
+  },
+  {
+   "bytes": 82836275,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-CUDA-v1",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "1a06167a6e1e90d928094184173898cbb9bf42de",
+   "rows": 2276,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-CUDA-v1"
+  },
+  {
+   "bytes": 97312364452,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 8,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Competitive-Programming-v2",
+   "last_modified": "2026-03-11",
+   "license": "cc-by-4.0, odc-by, mit",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "778afc98a9e027e10b3cd78020c120e93e142ef2",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Competitive-Programming-v2"
+  },
+  {
+   "bytes": 1010582209,
+   "card_names_nano3": false,
+   "created_at": "2026-10-14",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Finance-Document-Grounded-Reasoning-v1",
+   "last_modified": "2026-10-14",
+   "license": "openmdw-1.1",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "292812d664c918bcd2e9103a4b17ed6883ae8458",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Finance-Document-Grounded-Reasoning-v1"
+  },
+  {
+   "bytes": 16019288825,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Instruction-Following-Chat-v2",
+   "last_modified": "2026-03-11",
+   "license": "odc-by",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "1a9454ed054b8544503ab8d8c0a519d141a44c5b",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Instruction-Following-Chat-v2"
+  },
+  {
+   "bytes": 20250320539,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Instruction-Following-Chat-v3",
+   "last_modified": "2026-06-04",
+   "license": "odc-by, cc-by-4.0, apache-2.0, other",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "be3b3e04ef605ac9d3f8f35b9d5a632f4a3a3402",
+   "rows": 407362,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Instruction-Following-Chat-v3"
+  },
+  {
+   "bytes": 1221889998,
+   "card_names_nano3": false,
+   "created_at": "2026-10-14",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Long-Context-Transduction-v1",
+   "last_modified": "2026-10-14",
+   "license": "openmdw-1.1",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "90fa9816dd6e9a6bdb123a73fc1a2ed6408783e0",
+   "rows": 10000,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Long-Context-Transduction-v1"
+  },
+  {
+   "bytes": 2220071895,
+   "card_names_nano3": false,
+   "created_at": "2026-10-14",
+   "files": 6,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Long-Context-Translation-PG19-v1",
+   "last_modified": "2026-10-14",
+   "license": "openmdw-1.1, apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "4b601663c57c9d83c667df7e40ca46c3ee98f2f6",
+   "rows": 4335,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Long-Context-Translation-PG19-v1"
+  },
+  {
+   "bytes": 154135301849,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Math-v3",
+   "last_modified": "2026-04-28",
+   "license": "cc-by-4.0, cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "ff4439c1073c87e006ab7ee5f1e5e28c4790dab3",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Math-v3"
+  },
+  {
+   "bytes": 5537906877,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 14,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Math-v4",
+   "last_modified": "2026-08-12",
+   "license": "cc-by-4.0, cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "84d42ad0cb960f07f951b9baa9ed2b46a5a18c66",
+   "rows": 545431,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Math-v4"
+  },
+  {
+   "bytes": 94570413142,
+   "card_names_nano3": false,
+   "created_at": "2026-03-10",
+   "files": 20,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Multilingual-v1",
+   "last_modified": "2026-03-11",
+   "license": "cc-by-4.0, cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "22c86505762a7c595abee309d720084351c9f4ba",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Multilingual-v1"
+  },
+  {
+   "bytes": 12460650867,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 14,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Multilingual-v2",
+   "last_modified": "2026-06-05",
+   "license": "cc-by-4.0, cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "971a252224b75414b1b67c55dbe0446d8b6606a0",
+   "rows": 370081,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Multilingual-v2"
+  },
+  {
+   "bytes": 32693547863,
+   "card_names_nano3": false,
+   "created_at": "2026-03-13",
+   "files": 9,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-OpenCode-v1",
+   "last_modified": "2026-03-23",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "556d5237acff203f3e1a0be49428634c3606cda2",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-OpenCode-v1"
+  },
+  {
+   "bytes": 18083658824,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-SWE-v2",
+   "last_modified": "2026-03-11",
+   "license": "cc-by-4.0, apache-2.0, mit, bsd-3-clause, bsd-2-clause",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "bd151f3f2d89c4804dda0083d912bd9f6a0a9fb7",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-SWE-v2"
+  },
+  {
+   "bytes": 11677936466,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 98,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-SWE-v3",
+   "last_modified": "2026-06-06",
+   "license": "cc-by-4.0, apache-2.0, mit, bsd-3-clause, bsd-2-clause",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "3f73de64c1fe928a8f538fe45ccc10c228cc4c6a",
+   "rows": 237970,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-SWE-v3"
+  },
+  {
+   "bytes": 268806319,
+   "card_names_nano3": false,
+   "created_at": "2026-08-11",
+   "files": 12,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-SWE-v3.5",
+   "last_modified": "2026-08-28",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "ad64129216649f86179a759a6df65d0975c5df07",
+   "rows": 5115,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-SWE-v3.5"
+  },
+  {
+   "bytes": 155126341,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Safety-v1",
+   "last_modified": "2026-03-11",
+   "license": "cc-by-4.0, apache-2.0, mit",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "913fd7c803a9378dab0ce4fef80297ce115781f6",
+   "rows": 45145,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Safety-v1"
+  },
+  {
+   "bytes": 576037953,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Safety-v2",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-4.0, apache-2.0, mit",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "8a40a63c9a1a340874b874f980953be53bff0a07",
+   "rows": 0,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Safety-v2"
+  },
+  {
+   "bytes": 52685440155,
+   "card_names_nano3": false,
+   "created_at": "2026-05-26",
+   "files": 6,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SFT-Science-v2",
+   "last_modified": "2026-06-04",
+   "license": "cc-by-sa-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "6536a5021222a94126968e8c92f29ee47fc8a7df",
+   "rows": 1186516,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SFT-Science-v2"
+  },
+  {
+   "bytes": 11141247963,
+   "card_names_nano3": false,
+   "created_at": "2025-12-14",
+   "files": 3,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SWE-v1",
+   "last_modified": "2026-01-12",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "0fe17a965b297a9c943a59050a14c42d5f0083ce",
+   "rows": 24875,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SWE-v1"
+  },
+  {
+   "bytes": 2601479166,
+   "card_names_nano3": false,
+   "created_at": "2025-12-14",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-Science-v1",
+   "last_modified": "2025-12-15",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card-metadata"
+   ],
+   "revision": "82e1af468197076b4f0f392c239274eac032adc7",
+   "rows": 226334,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-Science-v1"
+  },
+  {
+   "bytes": 31922912639,
+   "card_names_nano3": false,
+   "created_at": "2026-03-08",
+   "files": 4,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/Nemotron-SpecializedDomains-Finance-v1",
+   "last_modified": "2026-03-11",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "collection:post-training"
+   ],
+   "revision": "5a21b106168facb96ced11b883c2a9b4788ee939",
+   "rows": 50616,
+   "url": "https://huggingface.co/datasets/nvidia/Nemotron-SpecializedDomains-Finance-v1"
+  },
+  {
+   "bytes": 9731582805,
+   "card_names_nano3": false,
+   "created_at": "2025-04-01",
+   "files": 42,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/OpenCodeReasoning",
+   "last_modified": "2025-05-04",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "20a1ca19c0d050fe9057fc08339d6b370ec1c67a",
+   "rows": 337766,
+   "url": "https://huggingface.co/datasets/nvidia/OpenCodeReasoning"
+  },
+  {
+   "bytes": 49411866253,
+   "card_names_nano3": false,
+   "created_at": "2025-05-03",
+   "files": 131,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/OpenCodeReasoning-2",
+   "last_modified": "2025-05-17",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "eadf535931451525f3e5621d0f960c240bc62fd9",
+   "rows": 220000,
+   "url": "https://huggingface.co/datasets/nvidia/OpenCodeReasoning-2"
+  },
+  {
+   "bytes": 49525388931,
+   "card_names_nano3": false,
+   "created_at": "2025-04-22",
+   "files": 234,
+   "files_readable": true,
+   "gated": false,
+   "id": "nvidia/OpenMathReasoning",
+   "last_modified": "2025-05-27",
+   "license": "cc-by-4.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "d3d08664755704f422af97d43a7ff0ded4bd95df",
+   "rows": 5678317,
+   "url": "https://huggingface.co/datasets/nvidia/OpenMathReasoning"
+  },
+  {
+   "bytes": 12649350862,
+   "card_names_nano3": false,
+   "created_at": "2025-02-10",
+   "files": 63,
+   "files_readable": true,
+   "gated": false,
+   "id": "open-r1/OpenR1-Math-220k",
+   "last_modified": "2025-02-18",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "e4e141ec9dea9f8326f4d347be56105859b2bd68",
+   "rows": 450258,
+   "url": "https://huggingface.co/datasets/open-r1/OpenR1-Math-220k"
+  },
+  {
+   "bytes": 27432202217,
+   "card_names_nano3": false,
+   "created_at": "2023-09-06",
+   "files": 121,
+   "files_readable": true,
+   "gated": false,
+   "id": "open-web-math/open-web-math",
+   "last_modified": "2023-10-17",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "fde8ef8de2300f5e778f56261843dab89f230815",
+   "rows": 6315233,
+   "url": "https://huggingface.co/datasets/open-web-math/open-web-math"
+  },
+  {
+   "bytes": 88323753,
+   "card_names_nano3": false,
+   "created_at": "2022-05-06",
+   "files": 5,
+   "files_readable": true,
+   "gated": false,
+   "id": "openlifescienceai/medmcqa",
+   "last_modified": "2024-01-04",
+   "license": "apache-2.0",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "91c6572c454088bf71b679ad90aa8dffcd0d5868",
+   "rows": 193155,
+   "url": "https://huggingface.co/datasets/openlifescienceai/medmcqa"
+  },
+  {
+   "bytes": 25839,
+   "card_names_nano3": false,
+   "created_at": "2022-03-02",
+   "files": 9,
+   "files_readable": true,
+   "gated": false,
+   "id": "sagnikrayc/mctest",
+   "last_modified": "2022-10-25",
+   "license": "other",
+   "license_name": null,
+   "listed_in": [
+    "card:datasets (public)"
+   ],
+   "revision": "00355bee8104a40d80665be0e4570f4a8b2c96f7",
+   "rows": 2640,
+   "url": "https://huggingface.co/datasets/sagnikrayc/mctest"
+  },
+  {
+   "bytes": 147423779,
+   "created_at": "2023-02-03",
+   "files": 2,
+   "files_readable": true,
+   "gated": false,
+   "id": "tasksource/social-chemestry-101",
+   "last_modified": "2023-02-03",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets",
+    "card:datasets (public)"
+   ],
+   "readme_status": 404,
+   "revision": "a329cc50d3ae66b7f221415df3b1c4cb26f71c61",
+   "rows": 355922,
+   "url": "https://huggingface.co/datasets/tasksource/social-chemestry-101"
+  },
+  {
+   "bytes": 455067,
+   "card_names_nano3": false,
+   "created_at": "2023-07-21",
+   "files": 24,
+   "files_readable": true,
+   "gated": false,
+   "id": "xw27/scibench",
+   "last_modified": "2024-05-06",
+   "license": null,
+   "license_name": null,
+   "listed_in": [
+    "card:NVIDIA-Sourced Synthetic Datasets"
+   ],
+   "revision": "93931252bc1b71d495e67390235940643d926958",
+   "rows": 692,
+   "url": "https://huggingface.co/datasets/xw27/scibench"
+  }
+ ],
+ "model": {
+  "repo_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+  "revision": "bf77c3174f68ad409e1c2aa60daeb46e32d1c606"
+ },
+ "named_only": [
+  {
+   "cells": [
+    "4/23/2025"
+   ],
+   "name": "GSM8K",
+   "section": "datasets (public)",
+   "url": "https://github.com/openai/grade-school-math"
+  },
+  {
+   "cells": [
+    "4/23/2025"
+   ],
+   "name": "CC-NEWS",
+   "section": "datasets (public)",
+   "url": "https://commoncrawl.org/blog/news-dataset-available"
+  },
+  {
+   "cells": [
+    "4/23/2025"
+   ],
+   "name": "Common Crawl",
+   "section": "datasets (public)",
+   "url": "https://commoncrawl.org/"
+  },
+  {
+   "cells": [
+    "4/23/2025"
+   ],
+   "name": "Wikimedia",
+   "section": "datasets (public)",
+   "url": "https://dumps.wikimedia.org/"
+  },
+  {
+   "cells": [
+    "4/23/2025"
+   ],
+   "name": "Open Textbook Library - CC BY-SA & GNU subset and OpenStax - CC BY-SA subset",
+   "section": "datasets (public)",
+   "url": "https://open.umn.edu/opentextbooks/textbooks/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "Court Listener",
+   "section": "datasets (public)",
+   "url": "https://www.courtlistener.com/help/api/bulk-data/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "BioRxiv",
+   "section": "datasets (public)",
+   "url": "https://www.biorxiv.org/tdm"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "PMC Open Access Subset",
+   "section": "datasets (public)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/tools/openftlist/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "OpenWebText2",
+   "section": "datasets (public)",
+   "url": "https://openwebtext2.readthedocs.io/en/latest/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "Stack Exchange Data Dump",
+   "section": "datasets (public)",
+   "url": "https://archive.org/details/stackexchange"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "PubMed Abstracts",
+   "section": "datasets (public)",
+   "url": "https://github.com/thoppe/The-Pile-PubMed"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "NIH ExPorter",
+   "section": "datasets (public)",
+   "url": "https://exporter.nih.gov/ExPORTER_Catalog.aspx"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "arXiv",
+   "section": "datasets (public)",
+   "url": "https://info.arxiv.org/help/bulk_data/index.html"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "BigScience Workshop Datasets",
+   "section": "datasets (public)",
+   "url": "https://github.com/bigscience-workshop/bigscience/tree/master/train/tr11-176B-ml#datasets"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "Reddit Dataset",
+   "section": "datasets (public)",
+   "url": "https://files.pushshift.io/reddit/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "SEC's Electronic Data Gathering, Analysis, and Retrieval (EDGAR)",
+   "section": "datasets (public)",
+   "url": "https://www.sec.gov/search-filings"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "Advanced Mathematical Problem Solving",
+   "section": "datasets (public)",
+   "url": "https://github.com/hendrycks/math?tab=readme-ov-file"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "MathPile",
+   "section": "datasets (public)",
+   "url": "https://github.com/GAIR-NLP/MathPile/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "PMC Article",
+   "section": "datasets (public)",
+   "url": "https://pmc.ncbi.nlm.nih.gov/tools/textmining/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "FLAN",
+   "section": "datasets (public)",
+   "url": "https://github.com/google-research/FLAN"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "Advanced Reasoning Benchmark",
+   "section": "datasets (public)",
+   "url": "https://github.com/TheDuckAI/arb"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "SciBench",
+   "section": "datasets (public)",
+   "url": "https://github.com/mandyyyyii/scibench"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "WikiTableQuestions",
+   "section": "datasets (public)",
+   "url": "https://huggingface.co/datasets/wikitablequestions"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "FinQA",
+   "section": "datasets (public)",
+   "url": "https://finqasite.github.io/"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "Riddles",
+   "section": "datasets (public)",
+   "url": "https://github.com/crawsome/riddles"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "Problems in Elementary Mathematics for Home Study",
+   "section": "datasets (public)",
+   "url": "https://archive.org/details/AntonovVygodskyNikitinSankinProblemsInElementaryMathematicsForHomeStudyMir1982"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "AI2's Reasoning Challenge",
+   "section": "datasets (public)",
+   "url": "https://huggingface.co/datasets/ai2_arc"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "OpenBookQA",
+   "section": "datasets (public)",
+   "url": "https://github.com/allenai/OpenBookQA"
+  },
+  {
+   "cells": [
+    "Legacy Download"
+   ],
+   "name": "The Common Pile v0.1",
+   "section": "datasets (public)",
+   "url": "https://huggingface.co/common-pile"
+  },
+  {
+   "cells": [
+    "10/2/2025"
+   ],
+   "name": "WorkBench",
+   "section": "datasets (public)",
+   "url": "https://github.com/olly-styles/WorkBench/tree/main/data/raw"
+  },
+  {
+   "cells": [
+    "10/2/2025"
+   ],
+   "name": "News Commentary",
+   "section": "datasets (public)",
+   "url": "https://opus.nlpl.eu/News-Commentary.php"
+  },
+  {
+   "cells": [
+    "10/2/2025"
+   ],
+   "name": "FastChat",
+   "section": "datasets (public)",
+   "url": "https://github.com/lm-sys/FastChat/blob/main/playground/data/dummy.json"
+  },
+  {
+   "cells": [
+    "10/2/2025"
+   ],
+   "name": "HotpotQA",
+   "section": "datasets (public)",
+   "url": "https://huggingface.co/hotpot_qa/datasets"
+  },
+  {
+   "cells": [
+    "10/2/2025"
+   ],
+   "name": "SQuAD2.0",
+   "section": "datasets (public)",
+   "url": "https://rajpurkar.github.io/SQuAD-explorer/"
+  },
+  {
+   "cells": [
+    "10/2/2025"
+   ],
+   "name": "NLTK Words Lists",
+   "section": "datasets (public)",
+   "url": "https://www.nltk.org/nltk_data/"
+  },
+  {
+   "cells": [],
+   "name": "Global Regulation",
+   "section": "Private Non-publicly Accessible Datasets of Third Parties",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "TAUS Translation Memory",
+   "section": "Private Non-publicly Accessible Datasets of Third Parties",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "Scale HLE",
+   "section": "Private Non-publicly Accessible Datasets of Third Parties",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "HackerRank Coding",
+   "section": "Private Non-publicly Accessible Datasets of Third Parties",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "Simple Minesweeper",
+   "section": "Private Non-publicly Accessible Datasets by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "Simple Sudoku",
+   "section": "Private Non-publicly Accessible Datasets by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "Multitool Typewriter Hard",
+   "section": "Private Non-publicly Accessible Datasets by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "Machine Translation of News Commentary and TAUS Translation Memory",
+   "section": "Private Non-publicly Accessible Datasets by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [],
+   "name": "Machine Translation of STEM data using Qwen2.5-14B-Instruct",
+   "section": "Private Non-publicly Accessible Datasets by NVIDIA",
+   "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct"
+  },
+  {
+   "cells": [
+    "Text",
+    "3.36T",
+    "4/8/2025",
+    "NVIDIA Advanced Deep Learning Research"
+   ],
+   "name": "English Common Crawl",
+   "section": "Crawled and Scraped from Online Sources by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Not disclosed",
+    "10/2/2025",
+    "NVIDIA Advanced Deep Learning Research"
+   ],
+   "name": "English Common Crawl 1.1",
+   "section": "Crawled and Scraped from Online Sources by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "812.7B",
+    "5/1/2025",
+    "NVIDIA Advanced Deep Learning Research"
+   ],
+   "name": "Multilingual Common Crawl",
+   "section": "Crawled and Scraped from Online Sources by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "747.4B",
+    "4/29/2025",
+    "NVIDIA Advanced Deep Learning Research"
+   ],
+   "name": "GitHub Crawl",
+   "section": "Crawled and Scraped from Online Sources by NVIDIA",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "40B",
+    "Art of Problem Solving; American Mathematics Competitions 8; American Mathematics Competitions 10;",
+    "DeepSeek-R1"
+   ],
+   "name": "Synthetic Art of Problem Solving from DeepSeek-R1",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "327M",
+    "social-chemestry-101; Moral Stories",
+    "Mixtral-8x22B-v0.1"
+   ],
+   "name": "Synthetic Moral Stories and Social Chemistry from Mixtral-8x22B-v0.1",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "83.6M",
+    "OpenStax - CC BY-SA subset",
+    "DeepSeek-V3; Mixtral-8x22B-v0.1; Qwen2.5-72B"
+   ],
+   "name": "Synthetic Social Sciences seeded with OpenStax from DeepSeek-V3, Mixtral-8x22B-v0.1, and Qwen2.5-72B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "9.7M",
+    "OpenStax - CC BY-SA subset",
+    "DeepSeek-V3; Mixtral-8x22B-v0.1; Qwen2.5-72B"
+   ],
+   "name": "Synthetic Health Sciences seeded with OpenStax from DeepSeek-V3, Mixtral-8x22B-v0.1, and Qwen2.5-72B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "175M",
+    "OpenStax - CC BY-SA subset; GSM8K; Open Textbook Library - CC BY-SA & GNU subset",
+    "DeepSeek-R1, DeepSeek-V3; DeepSeek-V3-0324; Qwen2.5-72B"
+   ],
+   "name": "Synthetic STEM seeded with OpenStax, Open Textbook Library, and GSM8K from DeepSeek-R1, DeepSeek-V3, DeepSeek-V3-0324, and Qwen2.5-72B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "350M",
+    "arXiv; National Institutes of Health ExPorter; BioRxiv; PMC Article; USPTO Backgrounds; peS2o; Global Regulation; CORE; PG-19; DOAB CC BY & CC BY-SA subset; NDLTD",
+    "Qwen2.5-72B-Instruct"
+   ],
+   "name": "Synthetic Question Answering Data from Papers and Permissible Books from Qwen2.5-72B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "52.3B",
+    "Common Crawl",
+    "phi-4"
+   ],
+   "name": "Nemotron-CC-Math-4plus",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "80.9B",
+    "Common Crawl",
+    "phi-4"
+   ],
+   "name": "Nemotron-CC-Math-3",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "4.0B",
+    "AQUA-RAT; LogiQA; AR-LSAT",
+    "DeepSeek-V3; DeepSeek-V3-0324"
+   ],
+   "name": "Synthetic AGIEval seeded with AQUA-RAT, LogiQA, and AR-LSAT from DeepSeek-V3 and DeepSeek-V3-0324",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "4.2B",
+    "AQUA-RAT; LogiQA; AR-LSAT",
+    "Qwen3-30B-A3B"
+   ],
+   "name": "Synthetic AGIEval seeded with AQUA-RAT, LogiQA, and AR-LSAT from Qwen3-30B-A3B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "",
+    "Art of Problem Solving; American Mathematics Competitions 8; American Mathematics Competitions 10; GSM8K; PRM800K",
+    "Qwen2.5-32B-Instruct; Qwen2.5-Math-72B; Qwen2.5-Math-7B; Qwen2.5-72B-Instruct"
+   ],
+   "name": "Synthetic Art of Problem Solving from Qwen2.5-32B-Instruct, Qwen2.5-Math-72B, Qwen2.5-Math-7B, and Qwen2.5-72B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "0.5B",
+    "MMLU Auxiliary Train",
+    "DeepSeek-R1"
+   ],
+   "name": "Synthetic MMLU Auxiliary Train from DeepSeek-R1",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "",
+    "arXiv; National Institutes of Health ExPorter; BioRxiv; PMC Article; USPTO Backgrounds; peS2o; Global Regulation; CORE; PG-19; DOAB CC BY & CC BY-SA subset; NDLTD",
+    "Qwen2.5-72B-Instruct"
+   ],
+   "name": "Synthetic Long Context Continued Post-Training Data from Papers and Permissible Books from Qwen2.5-72B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "415.8B",
+    "Common Crawl",
+    "Qwen3-30B-A3B; Mistral-NeMo-12B-Instruct"
+   ],
+   "name": "Synthetic Common Crawl from Qwen3-30B-A3B and Mistral-Nemo-12B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "",
+    "Common Crawl",
+    "Qwen3-30B-A3B"
+   ],
+   "name": "Synthetic Multilingual Data from Common Crawl from Qwen3-30B-A3B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "",
+    "Wikimedia",
+    "Qwen3-30B-A3B"
+   ],
+   "name": "Synthetic Multilingual Data from Wikimedia from Qwen3-30B-A3B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "",
+    "-",
+    "Nemotron-4-340B-Instruct"
+   ],
+   "name": "Synthetic Math Data from Wikimedia from Nemotron-4-340B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "427.9B",
+    "Common Crawl",
+    "phi-4"
+   ],
+   "name": "Synthetic Common Crawl Code from phi-4",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "1.2B",
+    "Wikimedia",
+    "Qwen3-235B-A22B"
+   ],
+   "name": "Synthetic Scientific Coding from Qwen3-235B-A22B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "26.2B",
+    "",
+    "Qwen3-235B-A22B-2507; gpt-oss-120b"
+   ],
+   "name": "Tool Calling Data",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "28.1B",
+    "Essential-Web",
+    "QwQ-32B"
+   ],
+   "name": "Synthetic Essential-Web from QwQ-32B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "389.9B",
+    "Common Crawl",
+    "Qwen3-30B-A3B"
+   ],
+   "name": "Translated Synthetic Crawl",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "7.9B",
+    "Wikimedia",
+    "Qwen3-30B-A3B"
+   ],
+   "name": "Translated Synthetic Wikipedia",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Art of Problem Solving; American Mathematics Competitions 8; American Mathematics Competitions 10",
+    "gpt-oss-120b; Qwen2.5-32B-Instruct"
+   ],
+   "name": "Synthetic Art of Problem Solving from gpt-oss-120b and Qwen2.5-32B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Stack Exchange",
+    "gpt-oss-120b; Qwen2.5-32B-Instruct"
+   ],
+   "name": "Synthetic Stack Exchange from gpt-oss-120b and Qwen2.5-32B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "OpenCodeReasoning",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic OpenCodeReasoning from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "HackerRank Coding Dataset",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic HackerRank Coding from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "SWE-Gym",
+    "Qwen3-Coder-480B-A35B-Instruct"
+   ],
+   "name": "Synthetic SWE-Gym from Qwen3-Coder-480B-A35B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Art of Problem Solving; American Mathematics Competitions 8; American Mathematics Competitions 10; Stack Exchange",
+    "gpt-oss-120b; Qwen2.5-32B-Instruct; Goedel-Prover-V2-32B"
+   ],
+   "name": "Synthetic Art of Problem Solving and Stack Exchange from gpt-oss-120b, Qwen2.5-32B-Instruct, and Goedel-Prover-V2-32B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Stack Exchange; SCP-116K; LIMO; TACO; Code Contest; Codeforces",
+    "DeepSeek-R1; DeepSeek-R1-0528; Qwen2.5-32B-Instruct; Qwen3-235B-A22B;"
+   ],
+   "name": "Synthetic Multilingual Science and Code data from DeepSeek-R1, DeepSeek-R1-0528, Qwen2.5-32B-Instruct, and Qwen3-235B-A22B, translated with Qwen2.5-32B-Instruct and Qwen2.5-14B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Nemotron Content Safety Dataset V2; Gretel Synthetic Safety Alignment Dataset; RedTeam-2K; Malicious Tasks; Nemotron-Personas-USA",
+    "DeepSeek-R1-0528; gpt-oss-120b; Mixtral-8x7B-v0.1"
+   ],
+   "name": "Synthetic Safety from DeepSeek-R1-0528, gpt-oss-120b and Mixtral-8x7B-v0.1",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "arXiv; National Institutes of Health ExPorter; BioRxiv; PMC Article; USPTO Backgrounds; peS2o; Global Regulation; CORE; PG-19; DOAB CC BY & CC BY-SA subset; NDLTD",
+    "Qwen3-235B-A22B-Instruct-2507; gpt-oss-120b"
+   ],
+   "name": "Synthetic STEM from Qwen3-235B-A22B-Instruct-2507 and gpt-oss-120b",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "KernelBook",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic KernelBook from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "ToolBench; glaive-function-calling-v2; APIGen Function-Calling; Nemotron-Personas-USA",
+    "Qwen3-235B-A22B-Thinking-2507; Qwen3-Next-80B-A3B-Thinking"
+   ],
+   "name": "Synthetic Tool Calling from Qwen3-235B-A22B-Thinking-2507 and Qwen3-Next-80B-A3B-Thinking",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "C4; LMSYS-Chat-1M; ShareGPT; GSM8K; PRM800K; FinQA; WikiTableQuestions; Riddles; glaive-function-calling-v2; SciBench; tigerbot-kaggle-leetcodesolutions-en-2k; OpenBookQA; Advanced Reasoning Benchmark; Software Heritage; Khan Academy Math Keywords; WildChat-1M; Nemotron-Personas-USA",
+    "gpt-oss-120b; Mixtral-8x22B-Instruct-v0.1; Qwen3-235B-A22B-Instruct-2507; Qwen3-235B-A22B-Thinking-2507"
+   ],
+   "name": "Synthetic Chat from gpt-oss-120b, Mixtral-8x22B-Instruct-v0.1, Qwen3-235B-A22B-Instruct-2507 , and Qwen3-235B-A22B-Thinking-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "CORE; PG-19; DOAB CC BY & CC BY-SA subset; NDLTD",
+    "Qwen3-235B-A22B-Instruct-2507"
+   ],
+   "name": "Synthetic Long Context from Qwen3-235B-A22B-Instruct-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "NVIDIA Internal",
+    "gpt-oss-120b; DeepSeek-R1-0528; Qwen3-32B; and Qwen3-235B-A22B-Thinking-2507"
+   ],
+   "name": "Synthetic Tool Use Interactive Agent from gpt-oss-120b, DeepSeek-R1-0528, Qwen3-32B, and Qwen3-235B-A22B-Thinking-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "ICHO-IPH0; Physics Big; Scale HLE; OpenMathReasoning; OpenCodeReasoning",
+    "Qwen3-235B-A22B-Thinking-2507"
+   ],
+   "name": "Synthetic STEM from Qwen3-235B-A22B-Thinking-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "DocFinQA; SWE-smith",
+    "Qwen3-Coder-480B-A35B-Instruct; Kimi-K2-Thinking"
+   ],
+   "name": "Synthetic DocFinQA and SWE-smith from Qwen3-Coder-480B-A35B-Instruct and Kimi-K2-Thinking",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "gpt-oss-120b; Qwen2.5-32B-Instruct"
+   ],
+   "name": "Synthetic Math from gpt-oss-120b and Qwen2.5-32B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Essential-Web",
+    "gpt-oss-120b"
+   ],
+   "name": "Synthetic Essential-Web from gpt-oss-120b",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Scale HLE",
+    "gpt-oss-120b"
+   ],
+   "name": "Synthetic Scale HLE from gpt-oss-120b",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "CDQuestions",
+    "gpt-oss-120b"
+   ],
+   "name": "Synthetic CDQuestions from gpt-oss-120b",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Stack Exchange",
+    "gpt-oss-120b"
+   ],
+   "name": "Synthetic Stack Exchange from gpt-oss-120b",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Stack Exchange",
+    "gpt-oss-120b; Qwen2.5-32B-Instruct"
+   ],
+   "name": "Synthetic GPQA from gpt-oss-120b and Qwen2.5-32B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Vedantu",
+    "gpt-oss-120b"
+   ],
+   "name": "Synthetic Vedantu from gpt-oss-120b",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "SWE-Gym; R2E-Gym-Subset",
+    "Qwen3-Coder-480B-A35B-Instruct"
+   ],
+   "name": "Synthetic SWE-Gym and R2E-Gym-Subset from Qwen3-Coder-480B-A35B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "SWE-Gym",
+    "Qwen3-Coder-480B-A35B-Instruct"
+   ],
+   "name": "Synthetic SWE-Gym from Qwen3-Coder-480B-A35B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "SWE-Gym; R2E-Gym-Subset",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic SWE-Gym and R2E-Gym-Subset from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "HelpSteer2; HelpSteer3; LMSYS-Chat-1M; Nemotron-Personas-USA",
+    "gpt-oss-120b; Qwen3-235B-A22B-Instruct-2507; Qwen3-235B-A22B-Thinking-2507"
+   ],
+   "name": "Synthetic HelpSteer, LMSYS-Chat-1M, and Nemotron-Personas-USA from gpt-oss-120b, Qwen3-235B-A22B-Instruct-2507, and Qwen3-235B-A22B-Thinking-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "Qwen3-30B-A3B-Instruct-2507; Qwen3-30B-A3B-Thinking-2507; Qwen3-235B-A22B-Instruct-2507; Qwen3-235B-A22B-Thinking-2507"
+   ],
+   "name": "Synthetic Structured Outputs from Qwen3-30B-A3B-Instruct-2507, Qwen3-30B-A3B-Thinking-2507, Qwen3-235B-A22B-Instruct-2507, and Qwen3-235B-A22B-Thinking-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "Qwen3-235B-A22B; DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic Search STEM MCQ from Qwen3-235B-A22B and DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic Search STEM OPENQ from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "Qwen2.5-32B-Instruct; DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic OpenSTEM from Qwen2.5-32B-Instruct and DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "Qwen2.5-32B-Instruct; DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic MCQ from Qwen2.5-32B-Instruct and DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic MCQ10 from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "Qwen3-235B-A22B; DeepSeek-R1-0528; Qwen3-235B-A22B-Instruct-2507"
+   ],
+   "name": "Synthetic MCQ4 from Qwen3-235B-A22B, DeepSeek-R1-0528, and Qwen3-235B-A22B-Instruct-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "OpenMathReasoning",
+    "gpt-oss-120b; Qwen2.5-32B-Instruct"
+   ],
+   "name": "Synthetic OpenMathReasoning from gpt-oss-120b and Qwen2.5-32B-Instruct",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic Offline Search MCQA HLE from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "Qwen3-235B-A22B; DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic Offline Search MCQA GPQA from Qwen3-235B-A22B and DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "-",
+    "QwQ-32B; Qwen3-30B-A3B; Qwen3-235B-A22B; Qwen3-235B-A22B-Instruct-2507; Mistral-Small-3.1-24B-Instruct-2503; Mistral-Small-3.2-24B-Instruct-2506; MiniMax-M1-80k; MiniMax-M1-40k; Kimi-K2-Instruct; DeepSeek-V3-0324; DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic Human Preference from QwQ-32B, Qwen3-30B-A3B, Qwen3-235B-A22B, Qwen3-235B-A22B-Instruct-2507, Mistral-Small-3.1-24B-Instruct-2503, Mistral-Small-3.2-24B-Instruct-2506, MiniMax-M1-80k, MiniMax-M1-40k, Kimi-K2-Instruct, DeepSeek-V3-0324, DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "WildChat-1M; arena-human-preference-140k",
+    "DeepSeek-R1; gemma-2-2b-it; gemma-3-27b-it; gpt-oss-20b; gpt-oss-120b; Mistral-7B-Instruct-v0.3; Mixtral-8x22B-Instruct-v0.1; Nemotron-4-340B-Instruct; NVIDIA-Nemotron-Nano-9B-v2; Phi-4-mini-instruct; Phi-3-small-8k-instruct; Phi-3-medium-4k-instruct; Qwen3-235B-A22B; QwQ-32B"
+   ],
+   "name": "Synthetic WildChat-1M and arena-human-preference-140k from DeepSeek-R1, gemma-2-2b-it, gemma-3-27b-it, gpt-oss-20b, gpt-oss-120b, Mistral-7B-Instruct-v0.3, Mixtral-8x22B-Instruct-v0.1, Nemotron-4-340B-Instruct, NVIDIA-Nemotron-Nano-9B-v2, Phi-4-mini-instruct, Phi-3-small-8k-instruct, Phi-3-medium-4k-instruct, Qwen3-235B-A22B, QwQ-32B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Nemotron Content Safety Dataset V2; Gretel Synthetic Safety Alignment Dataset; RedTeam-2K; Malicious Tasks;",
+    "DeepSeek-R1-0528; gpt-oss-120b; DeepSeek-R1-Distill-Qwen-7B; Qwen3-30B-A3B-Thinking-2507; Qwen3-235B-A22B-Instruct-2507; Mixtral-8x7B-v0.1"
+   ],
+   "name": "Synthetic Safety from DeepSeek-R1-0528, gpt-oss-120b, DeepSeek-R1-Distill-Qwen-7B, and Mixtral-8x7B-v0.1",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "English Common Crawl; English Common Crawl 1.1",
+    "Qwen3-32B"
+   ],
+   "name": "Synthetic Code from Qwen3-32B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "OpenCodeReasoning",
+    "DeepSeek-R1"
+   ],
+   "name": "Synthetic OpenCodeReasoning from DeepSeek-R1",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "LIMO",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic LIMO from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "SCP-116K",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic SCP from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Stack Exchange",
+    "DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic Stack Exchange from DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Common Crawl",
+    "Qwen3-30B-A3B"
+   ],
+   "name": "Synthetic Common Crawl from Qwen3-30B-A3B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Wikimedia",
+    "Qwen3-30B-A3B"
+   ],
+   "name": "Synthetic Wikipedia from Qwen3-30B-A3B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Essential-Web",
+    "Qwen3-30B-A3B; Qwen3-235B-A22B-Thinking-2507"
+   ],
+   "name": "Synthetic Essential-Web from Qwen3-30B-A3B and Qwen3-235B-A22B-Thinking-2507",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Common Crawl; FineMath",
+    "Qwen3-30B-A3B; Qwen3-235B-A22B; phi-4"
+   ],
+   "name": "Synthetic Textbook Math from Qwen3-30B-A3B, Qwen3-235B-A22B, phi-4",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Magicoder-Evol-Instruct-110K; opc-sft-stage2; TACO; OpenCodeReasoning; OpenMathReasoning; NuminaMath CoT",
+    "DeepSeek-R1; DeepSeek-R1-0528"
+   ],
+   "name": "Synthetic Math and Code from DeepSeek-R1 and DeepSeek-R1-0528",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  },
+  {
+   "cells": [
+    "Text",
+    "Undisclosed",
+    "Nemotron-Personas-USA",
+    "gpt-oss-120b; Qwen3-8B"
+   ],
+   "name": "Synthetic Nemotron-Personas-USA from gpt-oss-120b and Qwen3-8B",
+   "section": "NVIDIA-Sourced Synthetic Datasets",
+   "url": null
+  }
+ ],
+ "read_at": "2026-10-31T17:22:38+00:00"
+}
