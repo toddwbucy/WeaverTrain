@@ -1,12 +1,19 @@
-"""Fetch, verify and stage pinned Hugging Face repositories: models and benchmark sources.
+"""Fetch, verify and stage pinned Hugging Face repositories: models, benchmarks, datasets.
 
     python scripts/fetch_artifacts.py --set models        # config/models.toml
     python scripts/fetch_artifacts.py --set benchmarks    # config/benchmarks.toml
+    python scripts/fetch_artifacts.py --set datasets      # config/datasets.toml
 
 | set        | config                  | manifests              | store env var             | cache env var            |
 |------------|-------------------------|------------------------|---------------------------|--------------------------|
 | models     | config/models.toml      | manifests/models/      | WEAVER_TRAIN_MODEL_STORE  | WEAVER_TRAIN_MODEL_CACHE |
 | benchmarks | config/benchmarks.toml  | manifests/sources/     | WEAVER_TRAIN_BENCH_STORE  | (none)                   |
+| datasets   | config/datasets.toml    | manifests/datasets/    | WEAVER_TRAIN_DATA_STORE   | (none)                   |
+
+The datasets set also writes a manifest of the whole store: every file of every entry
+in config/datasets.toml, with paths relative to the store root. It is composed from the
+per-entry manifests (no re-hash), committed as manifests/datasets/STORE.json and
+written read-only to <store>/MANIFEST.json. ``verify_store`` checks the store against it.
 
 Each entry pins ``repo_id``, ``revision`` and ``local_dir``; optional ``repo_type``
 (default "model") and ``allow_patterns`` (only those files are fetched and manifested).
@@ -54,7 +61,51 @@ SETS = {
                "stamp": "model", "store": "WEAVER_TRAIN_MODEL_STORE", "cache": "WEAVER_TRAIN_MODEL_CACHE"},
     "benchmarks": {"config": "config/benchmarks.toml", "manifests": "manifests/sources", "kind": "source",
                    "stamp": "source", "store": "WEAVER_TRAIN_BENCH_STORE", "cache": None},
+    "datasets": {"config": "config/datasets.toml", "manifests": "manifests/datasets", "kind": "dataset",
+                 "stamp": "dataset", "store": "WEAVER_TRAIN_DATA_STORE", "cache": None},
 }
+STORE_MANIFEST = "MANIFEST.json"  # the whole-store manifest's name, in the store and manifests dir as STORE.json
+
+
+def store_manifest(entries: dict, cfg: dict) -> mf.TreeManifest:
+    """One manifest for the whole store, composed from the per-entry manifests."""
+    files, sources = [], {}
+    for name, spec in sorted(entries.items()):
+        m = mf.load_tree(REPO / cfg["manifests"] / f"{name}.json")
+        for f in m.files:
+            files.append(mf.FileEntry(f"{spec['local_dir']}/{f.path}", f.size, f.sha256, f.upstream))
+        sources[name] = {"local_dir": spec["local_dir"], "tree_hash": m.tree_hash, **m.source}
+    from datetime import datetime, timezone
+
+    return mf.TreeManifest(kind="store", name="data-store", files=sorted(files, key=lambda f: f.path),
+                           source={"entries": sources},
+                           created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+
+
+def verify_store(m: mf.TreeManifest, store: Path) -> list[str]:
+    """Problems with the store against its manifest; the in-store manifest file is exempt."""
+    problems = mf.verify_tree(m, store)
+    return [p for p in problems if p != f"unexpected: {STORE_MANIFEST}"]
+
+
+def write_store_manifest(entries: dict, cfg: dict, store: Path) -> None:
+    m = store_manifest(entries, cfg)
+    committed = REPO / cfg["manifests"] / "STORE.json"
+    if committed.exists():
+        old = mf.load_tree(committed)
+        if old.tree_hash == m.tree_hash:
+            m = old  # unchanged contents: keep the original created_at
+    problems = verify_store(m, store)
+    if problems:
+        raise FetchError(f"store does not match its manifest: {problems[:5]}")
+    m.save(committed)
+    dest = store / STORE_MANIFEST
+    if dest.exists():
+        dest.chmod(0o644)
+    m.save(dest)
+    dest.chmod(0o444)
+    log(f"store manifest: {len(m.files)} files, {m.total_bytes / 1e9:.1f} GB, tree {m.tree_hash[:16]} "
+        f"-> {committed.relative_to(REPO)} and {dest.name}")
 
 
 def log(msg: str) -> None:
@@ -277,6 +328,8 @@ def main(argv=None) -> int:
                 raise FetchError(f"unknown {a.set_} entry {name!r}; known: {sorted(entries)}")
             stage_store(name, entries[name], store, state_dir, a.rehash, cfg)
             stage_cache(name, entries[name], store, cache, state_dir, a.rehash, cfg)
+        if a.set_ == "datasets":
+            write_store_manifest(entries, cfg, store)
     except (FetchError, mf.ManifestError, subprocess.CalledProcessError) as e:
         log(f"FAILED: {e}")
         return 1

@@ -1,0 +1,34 @@
+{
+  "kind": "dataset",
+  "name": "nemotron-swe-v1",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "size": 2552,
+      "sha256": "06b643993cbffcb0a7bba41643b7f6145cf417cfff806577b0defc35fa577636",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "README.md",
+      "size": 3349,
+      "sha256": "74210a717778f5494c65edabbca75166b7924734632720ab05a7905e8207bfe1",
+      "upstream": "hf-git-blob-sha1"
+    },
+    {
+      "path": "data/r2e_gym.jsonl",
+      "size": 11141242062,
+      "sha256": "1e0fb6d9a8d955fb0f2160e44a4946e5f2c4eb3931e80dadb724ff823cdbc14c",
+      "upstream": "hf-lfs-sha256"
+    }
+  ],
+  "source": {
+    "repo_id": "nvidia/Nemotron-SWE-v1",
+    "revision": "0fe17a965b297a9c943a59050a14c42d5f0083ce",
+    "repo_type": "dataset"
+  },
+  "local_dir_name": "nvidia--Nemotron-SWE-v1",
+  "schema": "weaver-train/tree-manifest/v1",
+  "created_at": "2026-10-31T18:15:15+00:00",
+  "tree_hash": "0b57228b7e2c77819ed9bef98a043a71c70a2eabed81d5f5215be8ffcacb0129",
+  "total_bytes": 11141247963
+}
