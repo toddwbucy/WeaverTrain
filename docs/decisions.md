@@ -3,6 +3,31 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-10-31: the data pipeline is the selection evaluation
+
+The pipeline the operator laid out decides which training data is used: candidates
+from NVIDIA's own sets are filtered against the benchmark snapshots
+(`scripts/contamination.py`), rewritten to STE100 by the model itself, and checked. A
+set enters training only through that evaluation.
+
+Access and download limits, as ruled:
+
+- `nvidia/Nemotron-SWE-v1` is downloaded first (done; 0 contamination hits against both
+  snapshots).
+- Gated pretraining sets: hold. Do not request access.
+- The 2026 SFT sets (SFT-SWE-v2, SFT-SWE-v3, SFT-OpenCode-v1) are candidates:
+  inventoried, not downloaded.
+- Competitive-programming and math sets wait.
+- Stop and ask before any download over 500 GB.
+- The STE pilot stops after its first run and reports; no scale-up without the
+  operator's go.
+
+## 2026-10-31: vLLM in its own environment
+
+The rewriting step serves the model with vLLM from a separate environment
+(`vllm/`, own `pyproject.toml`, `uv.lock` and `.venv`), so vLLM's torch and
+transformers pins never touch the training environment's verified builds.
+
 ## 2026-10-31: Nemotron 3 Nano 30B only; Granite dropped
 
 weaver-train now targets `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` only.

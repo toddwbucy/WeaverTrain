@@ -157,6 +157,13 @@ device guard, with no pin hook, made three forward passes finite on each model;
 without it all three were NaN. Remove the hook once mamba-ssm guards that launch, and
 keep the smoke test as the check.
 
+Reported upstream 2026-10-31 as state-spaces/mamba#1072, with the fix as #1073 (one
+guarded launch). The repro in the issue uses the real Nemotron config with random
+weights, split 26/26: unguarded, 3 of 3 passes NaN; guarded, 3 of 3 finite and
+bit-identical to a run that synchronizes both devices around the launch. A sync before
+each decoder layer is not enough, since the unordered reads happen inside the Mamba
+mixer.
+
 **PEFT refuses `out_proj` and `conv1d` on Nemotron's Mamba blocks** (found 2026-10-31,
 peft 0.21.2): "Module 'out_proj' is incompatible with Mamba-based models
 (model_type='nemotron_h'). Incompatible modules: {'conv1d', 'out_proj'}". PEFT raises
