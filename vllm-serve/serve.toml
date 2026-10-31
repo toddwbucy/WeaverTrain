@@ -1,4 +1,4 @@
-# vLLM serving configuration for the STE100 data conversion. vllm/serve.py reads it,
+# vLLM serving configuration for the STE100 data conversion. vllm-serve/serve.py reads it,
 # verifies the model tree against its manifest, then starts `vllm serve`. Every
 # conversion run record copies the effective values. Change values here, not on the
 # command line, so the record and the config agree.

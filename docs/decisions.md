@@ -64,7 +64,7 @@ Access and download limits, as ruled:
 ## 2026-10-31: vLLM in its own environment
 
 The rewriting step serves the model with vLLM from a separate environment
-(`vllm/`, own `pyproject.toml`, `uv.lock` and `.venv`), so vLLM's torch and
+(`vllm-serve/`, own `pyproject.toml`, `uv.lock` and `.venv`), so vLLM's torch and
 transformers pins never touch the training environment's verified builds.
 
 ## 2026-10-31: Nemotron 3 Nano 30B only; Granite dropped

@@ -1,8 +1,8 @@
-"""Start vLLM for the STE100 data conversion, from vllm/serve.toml.
+"""Start vLLM for the STE100 data conversion, from vllm-serve/serve.toml.
 
-    vllm/.venv/bin/python vllm/serve.py [--set engine.max_num_seqs=8] [--print]
+    vllm-serve/.venv/bin/python vllm-serve/serve.py [--set engine.max_num_seqs=8] [--print]
 
-Runs in the vLLM environment (vllm/.venv), never the training one. Before serving it
+Runs in the vLLM environment (vllm-serve/.venv), never the training one. Before serving it
 verifies the full model tree against manifests/models/<model>.json, as the loader
 does, then writes the effective configuration to
 $WEAVER_TRAIN_STATE_DIR/vllm/serve-<UTC>.json and replaces itself with `vllm serve`.
@@ -37,7 +37,7 @@ def coerce(value: str):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--config", default=str(REPO / "vllm" / "serve.toml"))
+    ap.add_argument("--config", default=str(REPO / "vllm-serve" / "serve.toml"))
     ap.add_argument("--set", action="append", default=[], metavar="engine.KEY=VALUE",
                     help="override one engine value for this launch (recorded)")
     ap.add_argument("--print", action="store_true", help="print the command and exit")

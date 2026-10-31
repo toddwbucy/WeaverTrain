@@ -27,6 +27,9 @@ def build_id(dist: md.Distribution) -> str:
         for line in record.splitlines()
         if line.count(",") >= 2 and line.rsplit(",", 2)[1]  # skip entries with no hash
         and ".dist-info/" not in line.rsplit(",", 2)[0]  # installer metadata varies
+        # entry-point scripts are generated at install with the venv's absolute path
+        # in the shebang, so they change when the venv moves; the package files do not
+        and not line.startswith("../../../bin/")
     )
     return hashlib.sha256("\n".join(hashes).encode()).hexdigest()[:16]
 
@@ -54,8 +57,9 @@ def main() -> int:
         lines.append(line)
     print("# weaver-train environment lock: what is actually installed in .venv.")
     print("# Resolution comes from uv.lock; this file pins the result down to the build")
-    print("# (build = hash of each package's installed files). scripts/setup-env.sh checks")
-    print("# the venv against it on every run; change it only with --update-lock.")
+    print("# (build = hash of each package's installed files, less its generated bin/")
+    print("# scripts). scripts/setup-env.sh checks the venv against it on every run;")
+    print("# change it only with --update-lock.")
     print(f"# python {platform.python_version()} {sys.platform} {platform.machine()}")
     for line in sorted(set(lines)):
         print(line)

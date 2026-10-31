@@ -8,7 +8,9 @@ How the weaver-train environment is built, why each version is pinned, and what
 1. **Reproducible.** `uv.lock` pins the resolution, including a hash per artifact.
    `environment.lock` pins what was actually installed, down to the build: every line
    carries a hash of the package's installed files, so two builds of the same version
-   (for example a CUDA 12.8 and a CUDA 13.0 xformers, both `0.0.35`) differ.
+   (for example a CUDA 12.8 and a CUDA 13.0 xformers, both `0.0.35`) differ. The hash
+   leaves out the `bin/` entry scripts the installer generates, since their shebangs
+   hold the venv's absolute path and change when the venv moves.
 2. **Re-runnable.** Each stage records a stamp under `$WEAVER_TRAIN_STATE_DIR/stamps`
    when it succeeds, and skips when the stamp still matches. A re-run with nothing to
    do takes under a second.
