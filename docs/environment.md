@@ -179,10 +179,43 @@ roughly 2.5 times Nemotron's transient memory. Nemotron's step fits (peaks 33.8 
 GPU 1. Moving layers between GPUs therefore probably does not free enough room on its
 own; that is an estimate, not tested. Options include splitting the expert computation
 into token chunks, a different memory placement, offload, or a shorter sequence. Each
-changes the run or the code path, so none was tried. That choice is the operator's.
+changes the run or the code path, so none was tried.
+
+At 16K (tried on the operator's suggestion, 2026-10-31) Granite's LoRA step passes:
+56 s, peaks 41.9 GiB on GPU 0 and 44.0 GiB on GPU 1, so about 3.5 GiB of headroom at
+batch size 1. The training length waits on the training data. If 32K turns out to be
+required, splitting the expert computation into token chunks is the likely fix.
+
+**Label shift, checked on real text.** The smoke step's loss on random ids (12.8 for
+Nemotron, 13.3 for Granite) sits above ln(vocab), which is expected: a trained model
+assigns confident probability to real continuations, so random targets score worse
+than uniform. `check_label_shift` in the smoke test runs 512 tokens of ordinary text
+through the same Unsloth forward with `labels=input_ids`. The loss is 2.95 for Granite
+and 2.96 for Nemotron, against 11.52 and 11.78 for uniform, and the check fails the
+stage above half of uniform. A loss scored without the shift would be far above that. Unsloth's
+training forward returns no logits, so the stronger check (equality with the
+cross-entropy of `logits[t]` against `ids[t+1]`) is coded but did not run.
 
 **Smoke-test stages run in separate processes.** A model left resident in the parent
 made the second load in the same process offload to CPU: Granite came up with `meta`
 parameters and Nemotron failed with a weight "CONVERSION" error. `smoke_test.py` now
 runs load/forward/generate and the LoRA step each in a fresh child process. The parent
 creates no CUDA context, and each stage writes its own log next to the JSON report.
+
+**Adapter coverage differs between the models, by block type** (measured 2026-10-31
+by building each architecture on the meta device and attaching LoRA r=16 with plain
+PEFT). Parameters are base weights excluding embeddings.
+
+| Model, targets | Mamba layers adapted | Attention | MoE | Shared MLP |
+|---|---|---|---|---|
+| Granite, `q/k/v/o_proj` | 0 of 36 (11.6% of params) | 4 of 4 (0.5%) | 0 of 40 (85.5%) | 0 of 40 (2.4%) |
+| Granite, plus `in_proj` (plain PEFT) | 36 of 36 | 4 of 4 | 0 of 40 | 0 of 40 |
+| Nemotron, `q/k/v/o_proj, in_proj` | 23 of 23 (2.9%) | 6 of 6 (0.5%) | 0 of 23 (96.7%) | n/a |
+
+Plain PEFT does attach `in_proj` to Granite's Mamba blocks; only Unsloth's target
+filter drops it. No current target reaches the MoE experts in either model: they are
+fused parameters, not `nn.Linear` modules. A difference between the two trained
+models can therefore come from where they were adapted, not from the models. Every
+train run records `component_coverage` (per block type: layers, adapted layers, base
+and LoRA parameters) next to `lora_coverage` in `run.json`, and the smoke test
+reports it too. Whether to match coverage across the models is a methods decision.

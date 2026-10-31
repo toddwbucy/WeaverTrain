@@ -37,7 +37,14 @@ what run records cite.
 | Snapshot | Tasks | Created | Language | Caveat |
 |---|---|---|---|---|
 | `swe-rebench-post-cutoff-2026-10-31` | 263 from 172 repos | 2025-12-01 .. 2026-05-12 | Python | none: all post-cutoff |
-| `multi-swe-bench-rust-2026-10-31` | 239 from 10 repos | not recorded (dataset published 2025-04) | Rust | **all pre-cutoff; contamination not excluded** |
+| `multi-swe-bench-rust-2026-10-31` | 239 from 10 repos | not recorded (dataset published 2025-04) | Rust | **all pre-cutoff; contamination not excluded; delta-only** |
+
+**Reading the Rust snapshot: delta-only** (operator's ruling, 2026-10-31). Its absolute
+scores are not evidence of capability and are never reported alone. Only the
+difference between trained and untrained runs of the same model is read, because both
+runs share the same contamination. Comparing the two models' absolute Rust scores is
+not a valid use of this snapshot. The snapshot itself is unchanged; this ruling governs
+how its results are reported.
 
 ## Findings
 
