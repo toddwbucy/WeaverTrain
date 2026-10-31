@@ -148,7 +148,7 @@ fi
 if want verify; then
   say "verify (kernels, fast path, Unsloth)"
   [[ -f environment.lock ]] || die "environment.lock missing; run the lock stage first"
-  key="$(cat environment.lock <(echo "driver=$driver_ver gpus=$CUDA_VISIBLE_DEVICES") | sha256sum | cut -d' ' -f1)"
+  key="$(cat environment.lock <(echo "driver=$driver_ver gpus=$CUDA_VISIBLE_DEVICES expect=${WEAVER_TRAIN_EXPECT_GPUS:-} name=${WEAVER_TRAIN_EXPECT_GPU_NAME:-}"; sha256sum scripts/verify_env.py) | sha256sum | cut -d' ' -f1)"
   stamp="$WEAVER_TRAIN_STATE_DIR/stamps/verify-env.ok"
   report="$WEAVER_TRAIN_STATE_DIR/env-report.json"
   if [[ $reverify -eq 0 && -f "$stamp" && "$(cat "$stamp")" == "$key" ]]; then
@@ -192,7 +192,7 @@ fi
 if want tests; then
   say "tests (unit suite on the stand-in model)"
   src_key="$( { cat environment.lock; echo "driver=$driver_ver gpus=$CUDA_VISIBLE_DEVICES";
-               find src tests pyproject.toml -type f \( -name '*.py' -o -name '*.toml' \) -print0 \
+               find src tests scripts pyproject.toml -type f \( -name '*.py' -o -name '*.toml' \) -print0 \
                  | LC_ALL=C sort -z | xargs -0 sha256sum; } | sha256sum | cut -d' ' -f1)"
   stamp="$WEAVER_TRAIN_STATE_DIR/stamps/tests.ok"
   if [[ $retest -eq 0 && -f "$stamp" && "$(cat "$stamp")" == "$src_key" ]]; then

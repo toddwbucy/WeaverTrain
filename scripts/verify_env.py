@@ -45,14 +45,21 @@ def check(name):
 
 
 def max_err(a, b):
-    return (a.float() - b.float()).abs().max().item()
+    """Largest absolute difference; a non-finite value on either side is a failure,
+    since NaN compares false against every tolerance."""
+    import torch
+
+    a, b = a.float(), b.float()
+    if not (torch.isfinite(a).all() and torch.isfinite(b).all()):
+        raise RuntimeError("non-finite values in kernel output or reference")
+    return (a - b).abs().max().item()
 
 
 @check("driver")
 def check_driver():
     out = subprocess.run(
         ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, check=True, timeout=60,
     ).stdout.split()[0]
     return {"driver_version": out}
 
@@ -222,16 +229,28 @@ def check_xformers():
     return {"xformers": xformers.__version__, "fwd_max_err": err}
 
 
+UNSLOTH_PROBE = """
+import json
+import unsloth  # first, as the trainer imports it: the import patches transformers
+from unsloth.models import _utils as uu
+print(json.dumps({"xformers_attention": uu.xformers_attention is not None}))
+"""
+
+
 @check("unsloth")
 def check_unsloth():
-    import unsloth  # noqa: F401  (import patches transformers; must succeed on this stack)
-    from unsloth.models import _utils as uu
-
+    """Import Unsloth in a fresh interpreter, before anything else, as the trainer does.
+    In this process transformers is already imported by the earlier checks, and Unsloth
+    patches at import, so its result here could differ from the trainer's."""
+    proc = subprocess.run([sys.executable, "-c", UNSLOTH_PROBE], capture_output=True,
+                          text=True, timeout=600)
+    if proc.returncode != 0:
+        raise RuntimeError(f"import unsloth failed: {proc.stderr.strip()[-2000:]}")
+    probe = json.loads(proc.stdout.strip().splitlines()[-1])
     # Unsloth decides at import whether xformers works and sets
     # unsloth.models._utils.xformers_attention to None when it falls back.
-    if uu.xformers_attention is None:
+    if not probe["xformers_attention"]:
         raise RuntimeError("Unsloth disabled xformers at import (see UNSLOTH_ENABLE_LOGGING=1)")
-
     return {"unsloth": md.version("unsloth"), "unsloth_zoo": md.version("unsloth_zoo")}
 
 

@@ -223,7 +223,11 @@ def run_stage(a, extra: list[str], marker: str, log_path: Path) -> dict:
 
     cmd = [sys.executable, str(Path(__file__).resolve()), a.name, *extra]
     with open(log_path, "w") as log:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=log, text=True)
+        try:
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=log, text=True,
+                                  timeout=a.stage_timeout)
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(f"stage subprocess timed out after {a.stage_timeout} s; see {log_path}") from e
         log.write(proc.stdout)
     line = next((ln for ln in proc.stdout.splitlines() if ln.startswith(marker)), None)
     if line is None:
@@ -238,6 +242,9 @@ def main(argv=None) -> int:
     ap.add_argument("--gen-tokens", type=int, default=64)
     ap.add_argument("--targets", default="q_proj,k_proj,v_proj,o_proj,in_proj")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--stage-timeout", type=int, default=7200,
+                    help="seconds before a stage subprocess is ended (default 2 h: hashing and "
+                         "loading the 30B model is slow)")
     ap.add_argument("--skip-lora", action="store_true")
     ap.add_argument("--infer-only", action="store_true",
                     help="internal: run only load/forward/generate and print its JSON")

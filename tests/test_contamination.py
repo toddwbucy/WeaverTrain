@@ -43,3 +43,9 @@ def test_multi_swe_bench_issue_body_is_the_statement():
     rows = [row("u1", "org/rr", "Bug: Panics on an empty glob. Please help.")]
     out = contamination.match([MSB_TASK], rows)
     assert [(h["task"], h["keys"]) for h in out["hits"]] == [("org__rr-7", ["issue_text"])]
+
+
+def test_example_without_uuid_is_refused():
+    import pytest
+    with pytest.raises(ValueError, match="uuid"):
+        contamination._example({"repo": "r", "messages": []}, "{}")

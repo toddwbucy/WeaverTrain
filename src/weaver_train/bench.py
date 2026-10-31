@@ -124,7 +124,7 @@ def run_bench(snapshot_dir: str | os.PathLike, manifest_path: str | os.PathLike,
         if run_path.exists():
             rec = mf.load_run(run_path)
             same = (rec.snapshot == snapshot and rec.model == model and rec.sampler == sampler
-                    and rec.seed == rep_seed and rec.adapter == adapter)
+                    and rec.seed == rep_seed and rec.adapter == adapter and rec.config == config)
             if not same:
                 raise BenchError(f"{rep_dir} holds a different run; use a fresh out_dir")
         else:
@@ -149,7 +149,7 @@ def run_bench(snapshot_dir: str | os.PathLike, manifest_path: str | os.PathLike,
                            "traceback": traceback.format_exc(limit=5)}
                 res.update(task_id=tid, repetition=rep, seed=rep_seed,
                            duration_s=round(time.monotonic() - t0, 3))
-                out.write(json.dumps(res, sort_keys=True) + "\n")
+                out.write(json.dumps(res, sort_keys=True, default=str) + "\n")
                 out.flush()
                 done[tid] = res
 

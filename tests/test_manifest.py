@@ -71,6 +71,15 @@ def test_symlink_refused(tree):
         mf.build_tree(tree, "model", "t")
 
 
+def test_symlinked_directory_refused(tree, tmp_path):
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    (other / "hidden.bin").write_bytes(b"x")
+    (tree / "linked").symlink_to(other, target_is_directory=True)
+    with pytest.raises(mf.ManifestError, match="symlink"):
+        mf.build_tree(tree, "model", "t")
+
+
 def _rec(**kw):
     base = dict(kind="bench", model={"name": "m", "tree_hash": "h" * 64},
                 snapshot={"name": "s", "tree_hash": "s" * 64}, seed=1)

@@ -12,7 +12,6 @@ split-model race happens (docs/environment.md, Known gaps).
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -37,11 +36,10 @@ def _have_gpus(n: int) -> bool:
 
 
 def pytest_collection_modifyitems(config, items):
-    gpus = int(os.environ.get("WEAVER_TRAIN_EXPECT_GPUS", "1"))
     no_gpu = pytest.mark.skip(reason="needs CUDA GPU(s)")
     for item in items:
         need = 2 if "multigpu" in item.keywords else 1
-        if ("gpu" in item.keywords or "multigpu" in item.keywords) and not _have_gpus(min(need, gpus)):
+        if ("gpu" in item.keywords or "multigpu" in item.keywords) and not _have_gpus(need):
             item.add_marker(no_gpu)
 
 

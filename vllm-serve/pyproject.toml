@@ -8,7 +8,7 @@ dependencies = [
     # caching on the Mamba layers needs. It pins torch==2.13.0; the training
     # environment (../pyproject.toml) stays on torch 2.10, so the two never share a venv.
     "vllm==0.32.0",
-    "httpx",
+    "httpx==0.28.1",
 ]
 
 [tool.uv]

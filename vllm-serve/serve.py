@@ -45,9 +45,9 @@ def main(argv=None) -> int:
 
     cfg = tomllib.loads(Path(a.config).read_text())
     for item in a.set:
-        key, _, value = item.partition("=")
+        key, sep, value = item.partition("=")
         section, _, name = key.partition(".")
-        if section != "engine" or not name:
+        if not sep or section != "engine" or not name:
             ap.error(f"--set takes engine.KEY=VALUE, got {item!r}")
         cfg["engine"][name] = coerce(value)
 

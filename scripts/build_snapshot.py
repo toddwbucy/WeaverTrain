@@ -88,6 +88,9 @@ def collect(spec: dict, src_root: Path, src_manifest: mf.TreeManifest) -> tuple[
                         raise SnapshotError(f"task {tid} appears twice with different content")
                 continue
             tasks[tid] = row
+    if not tasks:
+        raise SnapshotError(f"selection is empty: {seen} rows read, {dropped_date} dropped by date "
+                            f"(date_field={date_field!r}, created_at_min={floor!r})")
     stats = {"rows_read": seen, "dropped_by_date": dropped_date, "tasks": len(tasks), "files": files}
     if date_field and tasks:
         dates = sorted(str(t.get(date_field)) for t in tasks.values())

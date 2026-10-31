@@ -108,7 +108,10 @@ def _example(row: dict, raw: str):
     msgs = row.get("messages") or []
     users = [m.get("content") or "" for m in msgs if m.get("role") in ("user", "human")]
     users = [u if isinstance(u, str) else json.dumps(u) for u in users]
-    return row.get("uuid"), row.get("repo"), users, raw
+    uuid = row.get("uuid")
+    if not isinstance(uuid, str) or not uuid:
+        raise ValueError("example without a uuid: a hit on it could not be dropped from training")
+    return uuid, row.get("repo"), users, raw
 
 
 def match(raw_tasks: list[dict], rows) -> dict:

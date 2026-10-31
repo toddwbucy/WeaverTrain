@@ -47,7 +47,7 @@ as outdated on every check and reinstalls them on every sync. The stage stamps
 | causal_conv1d_kernel | Forward and backward pass, bf16, compared with `causal_conv1d_ref` |
 | mamba_selective_scan_kernel | `selective_scan_fn` compared with `selective_scan_ref` |
 | mamba2_ssd_kernel | Mamba-2 chunked scan (the path both models use) compared with `ssd_chunk_scan_combined_ref`; backward pass is finite |
-| transformers_fast_path | Every kernel wrapper in `granitemoehybrid` and `nemotron_h` resolves to `causal_conv1d` or `mamba_ssm`, not to the PyTorch fallback |
+| transformers_fast_path | Every kernel wrapper in `nemotron_h` resolves to `causal_conv1d` or `mamba_ssm`, not to the PyTorch fallback |
 | xformers_kernel | `memory_efficient_attention` compared with PyTorch SDPA |
 | unsloth | Imports, and did not disable xformers at import |
 

@@ -85,10 +85,10 @@ def test_resume_skips_finished_tasks(snapshot, tmp_path):
         return {"status": "resolved"}
 
     with pytest.raises(KeyboardInterrupt):
-        bench.run_bench(d, p, stops_after_two, model=MODEL, out_dir=tmp_path / "out")
+        bench.run_bench(d, p, stops_after_two, model=MODEL, out_dir=tmp_path / "out", runner_name="r:f")
     calls.clear()
     (rec,) = bench.run_bench(d, p, lambda t, **k: calls.append(t["task_id"]) or {"status": "resolved"},
-                             model=MODEL, out_dir=tmp_path / "out")
+                             model=MODEL, out_dir=tmp_path / "out", runner_name="r:f")
     assert calls == ["t2", "t3"]
     assert rec.results["tasks"] == 4 and rec.results["resolved"] == 4
 
@@ -99,6 +99,22 @@ def test_refuses_to_mix_runs_in_one_out_dir(snapshot, tmp_path):
     with pytest.raises(bench.BenchError, match="different run"):
         bench.run_bench(d, p, parity_runner, model={"name": "other", "tree_hash": "x" * 64},
                         out_dir=tmp_path / "out")
+
+
+@pytest.mark.parametrize("change", [{"runner_name": "other:runner"}, {"task_ids": ["t0"]}])
+def test_resume_refuses_other_runner_or_task_selection(snapshot, tmp_path, change):
+    d, p, _ = snapshot
+    first = {"runner_name": "r:f", "task_ids": ["t0", "t1"]}
+    bench.run_bench(d, p, parity_runner, model=MODEL, out_dir=tmp_path / "out", **first)
+    with pytest.raises(bench.BenchError, match="different run"):
+        bench.run_bench(d, p, parity_runner, model=MODEL, out_dir=tmp_path / "out", **{**first, **change})
+
+
+def test_unserializable_runner_field_is_recorded(snapshot, tmp_path):
+    d, p, _ = snapshot
+    (rec,) = bench.run_bench(d, p, lambda t, **k: {"status": "resolved", "where": tmp_path},
+                             model=MODEL, out_dir=tmp_path / "out")
+    assert rec.results["resolved"] == 4
 
 
 def test_task_subset_and_bad_tasks(snapshot, tmp_path):

@@ -68,6 +68,9 @@ def list_tree(root: str | os.PathLike) -> list[str]:
     out = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in IGNORED_DIRS)
+        for d in dirnames:  # os.walk lists a linked directory here and does not descend
+            if Path(dirpath, d).is_symlink():
+                raise ManifestError(f"symlink in tree, refusing to follow: {Path(dirpath, d).relative_to(root)}")
         for name in filenames:
             if name in IGNORED_FILES:
                 continue

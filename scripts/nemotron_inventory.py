@@ -168,7 +168,7 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=str(REPO / "var" / "inventory" / "nemotron-datasets.json"))
     a = ap.parse_args(argv)
     card_path, spec = model_card()
-    meta, linked, named = parse_card(card_path.read_text())
+    meta, linked, named = parse_card(card_path.read_text(encoding="utf-8"))
     cols = collection_members()
     ids: dict[str, set[str]] = {}
     for i in meta:

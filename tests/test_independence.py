@@ -20,6 +20,8 @@ def weaver_imports(module: str) -> set[str]:
                 found.add(node.module.split(".")[1])
             elif node.level:  # relative import
                 found.add(node.module.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.level:  # from . import loader
+            found |= {a.name for a in node.names}
         elif isinstance(node, ast.Import):
             found |= {a.name.split(".")[1] for a in node.names if a.name.startswith("weaver_train.")}
     return found
