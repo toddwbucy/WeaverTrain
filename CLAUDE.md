@@ -77,8 +77,16 @@ reinstalls them. To change a dependency: edit `pyproject.toml`, `uv lock`, then
   both models return NaN logits. The loader and trainer apply it automatically; any
   new code path that runs a split model (e.g. a bench runner) must apply it too.
   Evidence: `docs/environment.md`, Known gaps.
-- The 30B smoke tests have not passed yet (they stop at the NaN above) (load, generation, 32K LoRA step, peak
-  VRAM). No benchmark snapshot or Docker harness exists yet.
+- **PEFT refuses Mamba `out_proj` and `conv1d`** on Nemotron (`nemotron_h`); the
+  attachable Mamba target is `in_proj`.
+- **Smoke tests (`scripts/smoke_test.py`):** Nemotron passes every stage, including
+  the 32K LoRA step (peaks 33.8 / 36.1 GiB). Granite passes load, forward and
+  generation, but its 32K LoRA step runs out of memory on GPU 0 in the MoE expert path:
+  its routed-token buffer is 32768 x 10 x 4096 fp32 = 5 GiB per allocation. Do not
+  shorten the sequence or change placement to get past it; that is the operator's
+  call. Each smoke stage runs in its own process because a resident model makes the
+  next load offload to CPU.
+- Benchmark snapshots are frozen; no Docker harness exists yet.
 
 ## Rules that are easy to get wrong
 

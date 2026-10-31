@@ -148,3 +148,41 @@ it to the Unsloth path too. It patches no library code and adds no synchronizati
 on GPU 1 runs with GPU 0 current; with it, every layer runs with its own GPU current.
 Remove it once mamba-ssm guards the device in its Triton wrappers, and keep the
 smoke test as the check.
+
+**PEFT refuses `out_proj` and `conv1d` on Nemotron's Mamba blocks** (found 2026-10-31,
+peft 0.21.2): "Module 'out_proj' is incompatible with Mamba-based models
+(model_type='nemotron_h'). Incompatible modules: {'conv1d', 'out_proj'}". PEFT raises
+this before attaching anything. The Mamba projection PEFT accepts is `in_proj`. With
+targets `q/k/v/o_proj, in_proj`, all 23 Mamba `in_proj` and all 6 of each attention
+projection are adapted. Whether a run that adapts `in_proj` only is the intended Mamba
+target set is part of the open targets decision.
+
+**Granite's 32K LoRA step runs out of memory on GPU 0** (found 2026-10-31; seq 32768,
+targets `q/k/v/o_proj`, r=16, Unsloth gradient checkpointing, one AdamW step). The
+failing allocation is 5.00 GiB at `weighted_out[inv_perm]` in transformers'
+`grouped_mm_experts_forward` (`integrations/moe.py`), reached through Unsloth's
+compiled `GraniteMoeHybridMoE_forward`. At failure GPU 0 had 42.92 GiB allocated
+(28.9 GiB after load), and GPU 1 was still at its post-load 31.11 GiB, so the
+forward pass had not yet reached the GPU 1 layers.
+
+The size follows from the routed-token buffer: tokens x experts per token x hidden x
+4 bytes. It is fp32 because the fp32 routing weights promote the bf16 expert output.
+
+| Model | Tokens x top-k x hidden | One routed buffer (fp32) |
+|---|---|---|
+| granite-4.0-h-small | 32768 x 10 x 4096 | 5.00 GiB |
+| Nemotron-3-Nano | 32768 x 6 x 2688 | 1.97 GiB |
+
+The expert path holds several such buffers at once, so Granite's MoE layer needs
+roughly 2.5 times Nemotron's transient memory. Nemotron's step fits (peaks 33.8 and
+36.1 GiB). After load, Granite leaves about 18.5 GiB free on GPU 0 and 16 GiB on
+GPU 1. Moving layers between GPUs therefore probably does not free enough room on its
+own; that is an estimate, not tested. Options include splitting the expert computation
+into token chunks, a different memory placement, offload, or a shorter sequence. Each
+changes the run or the code path, so none was tried. That choice is the operator's.
+
+**Smoke-test stages run in separate processes.** A model left resident in the parent
+made the second load in the same process offload to CPU: Granite came up with `meta`
+parameters and Nemotron failed with a weight "CONVERSION" error. `smoke_test.py` now
+runs load/forward/generate and the LoRA step each in a fresh child process. The parent
+creates no CUDA context, and each stage writes its own log next to the JSON report.
