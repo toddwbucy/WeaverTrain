@@ -3,6 +3,44 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-10-31: STE100 technical verbs, SQL verbs and boolean names (candidate)
+
+Rulings for the candidate scheme file `ste/ste100-scheme.candidate.json`
+(`ste100-scheme/1` shape). Every entry stays candidate and unratified. The base is
+WeaverAgent's verb dictionary v0.6, which this repository reads and does not modify.
+
+Technical verbs:
+
+- **run**: provisional. Sense: to execute a program, a test, or a command. Condition:
+  execute must not already be an approved STE100 verb. If it is, stop and report, and do
+  not admit run.
+- **commit**: admitted. One sense: to make a set of changes permanent in a repository or
+  a database. It covers both Git and SQL, since Git is a store of changes.
+- **merge**: to combine branches, or to combine changes into a store. Whether SQL MERGE
+  is the same act under this sense is to be checked and reported.
+- **push**: to send changes to a remote repository.
+
+SQL verbs, candidate set: select, insert, update, delete, join, create, drop, alter,
+rollback. Add grant and revoke only if permission work is in scope; ask first.
+
+Boolean terms (and, or, not, and others) are technical names, not verbs, each with one
+fixed meaning.
+
+Synonym check before anything is admitted. For each new verb, search the STE100
+approved-word list (the operator's local copy, path in `.env` as
+`WEAVER_TRAIN_STE100_SOURCE`, nothing committed) and the existing dictionary for a word
+with the same meaning. Report each verb as one of:
+
+1. no overlap: admit;
+2. an exact approved match exists: use the approved word, do not admit;
+3. a near-synonym or shared meaning: list it, and the operator rules.
+
+Also flag any new verb that is itself an approved everyday word, and say whether its
+approved meaning fits the SQL sense. Flag rollback against git revert.
+
+Owed by the operator, not decided here: the sentence limit (20 for all emissions, or 20
+for instructions and 25 for descriptions).
+
 ## 2026-10-31: the data pipeline is the selection evaluation
 
 The pipeline the operator laid out decides which training data is used: candidates
