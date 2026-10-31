@@ -166,6 +166,21 @@ bit-identical to a run that synchronizes both devices around the launch. A sync 
 each decoder layer is not enough, since the unordered reads happen inside the Mamba
 mixer.
 
+**Importing Unsloth rewrites a mamba-ssm file on disk** (found 2026-10-31, unsloth-zoo
+2026.10.11). `unsloth_zoo/temporary_patches/misc.py:fix_mamba_ssm_float32` rewrites the
+installed `mamba_ssm/ops/triton/ssd_chunk_scan.py`, upcasting each `tl.dot` operand to
+fp32, and replaces the file by atomic rename. No setting turns it off. It happens on the
+first `import unsloth` (setup's verify stage), so every later run in the training
+environment, Unsloth or not, uses the upcast kernel. `environment.lock` did not show
+it, because it hashes RECORD entries, which keep the install-time hashes. The lock stage
+now also runs `freeze_env.py --check-files`, which hashes every installed file against
+its RECORD entry and fails on anything `config/known-modified-files.toml` does not list.
+That file lists this one modification, by its content hash, plus two vLLM-environment
+files whose wheel RECORD is wrong. A path shipped by two wheels (`build_backend.py`, from
+flashinfer-python and torch_c_dlpack_ext) may match either owner. The multi-GPU repro
+was re-run on the unmodified release file with Unsloth never imported; the result is
+the same (state-spaces/mamba#1072, correction comment).
+
 **PEFT refuses `out_proj` and `conv1d` on Nemotron's Mamba blocks** (found 2026-10-31,
 peft 0.21.2): "Module 'out_proj' is incompatible with Mamba-based models
 (model_type='nemotron_h'). Incompatible modules: {'conv1d', 'out_proj'}". PEFT raises

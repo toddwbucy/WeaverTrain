@@ -9,6 +9,12 @@ own hash), so two builds of the same version -- e.g. xformers for CUDA 12.8 vers
 13.0, both "0.0.35" -- get different lines. ``pip freeze`` cannot tell them apart.
 
 setup-env.sh writes this to environment.lock on first run and diffs it on every run.
+
+The lock alone cannot see a file changed after install: RECORD keeps the hash the
+installer wrote. ``--check-files`` hashes every installed file against its RECORD entry
+and fails on any difference that config/known-modified-files.toml does not list (a
+listed file may hold its RECORD content or the one recorded modified content). Found
+2026-10-31: importing unsloth rewrites mamba_ssm's ssd_chunk_scan.py on disk.
 """
 
 from __future__ import annotations
@@ -16,8 +22,13 @@ from __future__ import annotations
 import hashlib
 import importlib.metadata as md
 import json
+import base64
 import platform
 import sys
+import tomllib
+from pathlib import Path
+
+ALLOW = Path(__file__).resolve().parents[1] / "config" / "known-modified-files.toml"
 
 
 def build_id(dist: md.Distribution) -> str:
@@ -44,7 +55,54 @@ def source(dist: md.Distribution) -> str | None:
     return d.get("url")
 
 
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
+
+
+def check_files(env: str) -> int:
+    """Hash every installed file against RECORD; report what the allowlist does not cover."""
+    allow = {(e["dist"].lower(), e["path"]): e
+             for e in tomllib.loads(ALLOW.read_text()).get("file", []) if e["env"] == env}
+    seen, problems, checked = set(), [], 0
+    # a path two wheels both ship (flashinfer-python and torch_c_dlpack_ext each install a
+    # top-level build_backend.py): the last install wins, so either owner's hash is valid
+    owners: dict[str, set[str]] = {}
+    for dist in md.distributions():
+        for f in dist.files or []:
+            if f.hash:
+                owners.setdefault(str(f), set()).add(f.hash.value)
+    for dist in md.distributions():
+        if source(dist) == "editable":
+            continue
+        name = dist.metadata["Name"].lower()
+        for f in dist.files or []:
+            rel = str(f)
+            if not f.hash or f.hash.mode != "sha256" or rel.startswith("../../../bin/"):
+                continue
+            path = Path(dist.locate_file(f))
+            checked += 1
+            if not path.exists():
+                problems.append(f"missing  {name} {rel}")
+                continue
+            data = path.read_bytes()
+            if _b64(data) in owners.get(rel, {f.hash.value}):
+                continue
+            entry = allow.get((name, rel))
+            if entry and hashlib.sha256(data).hexdigest() == entry["sha256"]:
+                seen.add((name, rel))
+                continue
+            problems.append(f"modified {name} {rel} sha256={hashlib.sha256(data).hexdigest()}"
+                            + ("  (listed, but with other content)" if entry else ""))
+    for p in problems:
+        print(p, file=sys.stderr)
+    print(f"{checked} files checked; {len(seen)} known modifications present; "
+          f"{len(problems)} unexplained", file=sys.stderr)
+    return 1 if problems else 0
+
+
 def main() -> int:
+    if sys.argv[1:2] == ["--check-files"]:
+        return check_files(sys.argv[2] if len(sys.argv) > 2 else "training")
     lines = []
     for dist in md.distributions():
         name = dist.metadata["Name"]

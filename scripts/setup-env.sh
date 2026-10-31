@@ -139,6 +139,9 @@ if want lock; then
     diff -u environment.lock <(printf '%s\n' "$current") >&2 || true
     die "installed packages drifted from environment.lock (above). Repair with 'uv sync --locked --reinstall', or accept a deliberate change with --update-lock"
   fi
+  # The lock reads RECORD, which keeps the install-time hashes; this hashes the files.
+  "$PY" scripts/freeze_env.py --check-files training \
+    || die "installed files differ from their RECORD hashes (above) and config/known-modified-files.toml does not list them. Repair with 'uv sync --locked --reinstall-package <name>'"
 fi
 
 # ------------------------------------------------------------------------ verify

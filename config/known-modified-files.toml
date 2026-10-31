@@ -1,0 +1,26 @@
+# Installed files allowed to differ from their RECORD hash (scripts/freeze_env.py
+# --check-files). Each entry names the environment, the distribution, the path as
+# RECORD lists it, and the sha256 of the one modified content allowed. A listed file
+# may also hold its RECORD content (a fresh install, before the modification).
+# Add an entry only with the cause found and recorded in docs/environment.md.
+
+[[file]]
+env = "training"
+dist = "mamba-ssm"
+path = "mamba_ssm/ops/triton/ssd_chunk_scan.py"
+sha256 = "8d25c78ebfbbff308243cf2399538fdd21dab4d268ec814d028feb53ce964236"
+reason = "unsloth-zoo 2026.10.11 fix_mamba_ssm_float32 rewrites it on import: each tl.dot operand upcast to fp32 (operator: keep Unsloth, 2026-10-31)"
+
+[[file]]
+env = "vllm-serve"
+dist = "pynvvideocodec"
+path = "PyNvVideoCodec/PyNvVideoCodec_121.cpython-312-x86_64-linux-gnu.so"
+sha256 = "2fb85f8bcd33c13e240ef2a8c6277f4d5a0260b629ecf9a242a04f1403f582a8"
+reason = "differs from RECORD straight after a fresh install: the wheel's RECORD is wrong"
+
+[[file]]
+env = "vllm-serve"
+dist = "pynvvideocodec"
+path = "PyNvVideoCodec/PyNvVideoCodec_130.cpython-312-x86_64-linux-gnu.so"
+sha256 = "14f12a7977c2f681fb01693e41434308bfb5cf0e2c31ed2c29d1176337c86462"
+reason = "differs from RECORD straight after a fresh install: the wheel's RECORD is wrong"

@@ -3,6 +3,14 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-10-31: keep Unsloth; its mamba-ssm file patch is a known modification
+
+Importing Unsloth rewrites one installed mamba-ssm file (`docs/environment.md`, Known
+gaps). The operator keeps Unsloth: the trainer is built on it, and the 32K LoRA step
+fits with its gradient checkpointing. The modification is listed in
+`config/known-modified-files.toml`, and the lock stage now hashes every installed file
+against its RECORD entry, so any other change to a library file fails setup.
+
 ## 2026-10-31: STE100 technical verbs, SQL verbs and boolean names (candidate)
 
 Rulings for the candidate scheme file `ste/ste100-scheme.candidate.json`
