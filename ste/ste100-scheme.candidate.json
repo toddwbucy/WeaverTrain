@@ -276,34 +276,10 @@
    "note": "SQL candidate. The verb is two words (roll back); rollback is the noun. Flagged against git revert."
   }
  ],
- "technical_names": [
-  {
-   "name": "AND",
-   "sense": "Boolean conjunction: true when both operands are true.",
-   "check": {
-    "found": "AND (conj) is an approved function word; the technical name collides with its ordinary use.",
-    "ruling": "pending"
-   }
-  },
-  {
-   "name": "OR",
-   "sense": "Boolean disjunction, inclusive: true when one or both operands are true.",
-   "check": {
-    "found": "OR (conj) is an approved function word; the technical name collides with its ordinary use.",
-    "ruling": "pending"
-   }
-  },
-  {
-   "name": "NOT",
-   "sense": "Boolean negation: true when its operand is false.",
-   "check": {
-    "found": "NOT (adv) is an approved word; the technical name collides with every DO NOT.",
-    "ruling": "pending"
-   }
-  }
- ],
+ "technical_names": [],
  "conditions": {
-  "owed": "O02-1"
+  "owed": "O02-1",
+  "booleans": "and, or, not get no special handling: approved STE100 meanings in prose; operators inside code, not checked. Deferred to the conditions grammar (operator, 2026-10-31)."
  },
  "recall_keys": {
   "owed": "O02-1; dictionary v0.6 proposes recall"

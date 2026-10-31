@@ -23,8 +23,9 @@ Technical verbs:
 SQL verbs, candidate set: select, insert, update, delete, join, create, drop, alter,
 rollback. Add grant and revoke only if permission work is in scope; ask first.
 
-Boolean terms (and, or, not, and others) are technical names, not verbs, each with one
-fixed meaning.
+Boolean terms get no special handling. and, or, not keep their approved STE100
+meanings in prose. Inside code they are operators and are not checked. Deferred to the
+conditions grammar under O02-1.
 
 Synonym check before anything is admitted. For each new verb, search the STE100
 approved-word list (the operator's local copy, path in `.env` as
