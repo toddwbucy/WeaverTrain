@@ -223,6 +223,50 @@ def target_coverage(model, targets: list[str]) -> dict[str, dict[str, int]]:
     return cov
 
 
+# Block types, matched against the class name of the outermost submodule of a decoder
+# layer that names one, after removing the model-family prefix it shares with the layer
+# class (GraniteMoeHybridMambaLayer -> MambaLayer, NemotronHMoE -> MoE): the Granite
+# family name itself contains "Moe". An MoE's shared-expert MLP counts under the MoE.
+COMPONENT_KINDS = ("mamba", "attention", "moe", "mlp")
+
+
+def component_coverage(model) -> dict[str, dict[str, int]]:
+    """Per block type: decoder layers containing it, how many got any LoRA, and parameters.
+
+    Requested-target counts (target_coverage) cannot show a block type that no target
+    names, such as Granite's Mamba blocks under attention-only targets, or MoE experts
+    held as fused parameters. Two models compared after training must be compared with
+    this record in view. ``params`` counts base weights, ``adapted_params`` LoRA weights.
+    """
+    import torch
+
+    layers = next((m for n, m in model.named_modules()
+                   if n.endswith("layers") and isinstance(m, torch.nn.ModuleList)), None)
+    if layers is None:
+        raise RuntimeError("no decoder layer list found in the model")
+    cov = {k: {"layers": 0, "adapted_layers": 0, "params": 0, "adapted_params": 0} for k in COMPONENT_KINDS}
+    for layer in layers:
+        family = type(layer).__name__
+        claimed: list[str] = []
+        for name, mod in layer.named_modules():
+            if not name or any(name == c or name.startswith(c + ".") for c in claimed):
+                continue
+            cls = type(mod).__name__
+            cls = cls[len(os.path.commonprefix([cls, family])):].lower()
+            kind = next((k for k in COMPONENT_KINDS if k in cls), None)
+            if kind is None:
+                continue
+            claimed.append(name)
+            base = sum(p.numel() for n, p in mod.named_parameters() if "lora_" not in n)
+            lora = sum(p.numel() for n, p in mod.named_parameters() if "lora_" in n)
+            c = cov[kind]
+            c["layers"] += 1
+            c["params"] += base
+            c["adapted_params"] += lora
+            c["adapted_layers"] += lora > 0
+    return {k: c for k, c in cov.items() if c["layers"]}
+
+
 def check_coverage(cov: dict[str, dict[str, int]]) -> None:
     absent = sorted(t for t, c in cov.items() if c["present"] == 0)
     dropped = {t: c for t, c in cov.items() if c["adapted"] < c["present"]}
@@ -307,6 +351,7 @@ def _run_unsloth(model_dir: Path, dataset_path: Path, cfg: TrainConfig, out_dir:
         pin_layer_devices(model)  # required for split hybrid models; see its docstring
     coverage = target_coverage(model, cfg.lora.target_modules)
     check_coverage(coverage)  # before any training step
+    components = component_coverage(model)
     ds = load_dataset("json", data_files=str(dataset_path), split="train")
     if cfg.text_field not in ds.column_names:
         raise TrainConfigError(f"dataset has no field {cfg.text_field!r}; columns {ds.column_names}")
@@ -332,6 +377,7 @@ def _run_unsloth(model_dir: Path, dataset_path: Path, cfg: TrainConfig, out_dir:
         json.dumps(trainer.state.log_history, indent=1) + "\n")
     return {
         "lora_coverage": coverage,
+        "component_coverage": components,
         "train_loss": out.training_loss,
         "global_step": out.global_step,
         "peak_vram_gib": {f"cuda:{i}": round(torch.cuda.max_memory_allocated(i) / 2**30, 2)

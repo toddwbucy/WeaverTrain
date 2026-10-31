@@ -107,6 +107,33 @@ def test_tiny_lora_writes_adapter_only(tiny_model, dataset_path, config_path, tm
 
     assert rec.results["lora_coverage"] == {t: {"present": 1, "adapted": 1}
                                             for t in ("q_proj", "k_proj", "v_proj", "o_proj")}
+    comp = rec.results["component_coverage"]
+    assert comp["attention"]["layers"] == comp["attention"]["adapted_layers"] == 1
+    assert comp["mamba"] == {**comp["mamba"], "layers": 1, "adapted_layers": 0}
+
+
+def _peft_on_cpu(model_dir, targets):
+    import torch
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoModelForCausalLM
+
+    model = AutoModelForCausalLM.from_pretrained(model_dir, dtype=torch.bfloat16)
+    return get_peft_model(model, LoraConfig(r=4, target_modules=targets))
+
+
+@pytest.mark.parametrize("targets, adapted", [
+    (["q_proj"], {"attention": 1, "mamba": 0, "moe": 0, "mlp": 0}),
+    (["in_proj"], {"attention": 0, "mamba": 1, "moe": 0, "mlp": 0}),
+    (["q_proj", "in_proj"], {"attention": 1, "mamba": 1, "moe": 0, "mlp": 0}),
+])
+def test_component_coverage_counts_layers_per_block_type(tiny_model, targets, adapted):
+    """The stand-in has one Mamba and one attention layer, each with an MoE and a shared MLP."""
+    model_dir, _ = tiny_model
+    comp = trainer.component_coverage(_peft_on_cpu(model_dir, targets))
+    assert {k: c["layers"] for k, c in comp.items()} == {"attention": 1, "mamba": 1, "moe": 2, "mlp": 2}
+    assert {k: c["adapted_layers"] for k, c in comp.items()} == adapted
+    assert all(c["params"] > 0 for c in comp.values())
+    assert sum(c["adapted_params"] for c in comp.values()) > 0
 
 
 @pytest.mark.gpu
