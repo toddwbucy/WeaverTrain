@@ -72,8 +72,9 @@ reinstalls them. To change a dependency: edit `pyproject.toml`, `uv lock`, then
   (36 of 40 layers) get no adapter; Nemotron's `mixer` blocks are covered. The trainer
   refuses (`TargetCoverageError`) rather than train a different adapter than the config
   asks for. Do not work around this without the operator's decision.
-- **Split models need `pin_layer_devices`.** mamba-ssm's Triton kernels launch on the
-  current device's stream, which stays GPU 0 for layers on GPU 1. Without the hook,
+- **Split models need `pin_layer_devices`.** One mamba-ssm Triton launch
+  (`_chunk_scan_fwd_kernel`) has no device guard, so it runs on the current device's
+  stream, which stays GPU 0 for layers on GPU 1. Without the hook,
   both models return NaN logits. The loader and trainer apply it automatically; any
   new code path that runs a split model (e.g. a bench runner) must apply it too.
   Evidence: `docs/environment.md`, Known gaps.

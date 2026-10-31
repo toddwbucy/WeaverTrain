@@ -61,12 +61,13 @@ def pin_layer_devices(model) -> int:
     """Make each decoder layer run with its own GPU as the current CUDA device.
 
     Works around a race found 2026-10-31 (docs/environment.md, Known gaps): mamba-ssm
-    launches its Triton kernels on the *current* device's stream with no device
-    guard. After a multi-GPU split, the current device stays cuda:0, so Mamba kernels
-    for layers on cuda:1 run on cuda:0's stream, unordered with cuda:1's own work,
-    and read unfinished inputs (NaN logits). A forward pre-hook per decoder layer sets
-    the current device; it adds no synchronization. Backward needs nothing: autograd
-    runs each device's work with that device current.
+    2.3.2.post1 launches one Triton kernel, ``_chunk_scan_fwd_kernel``, without the
+    device guard its other launches have, so it runs on the *current* device's stream.
+    After a multi-GPU split the current device stays cuda:0, so for layers on cuda:1
+    that kernel runs on cuda:0's stream, unordered with cuda:1's own work, and reads
+    unfinished inputs (NaN logits). A forward pre-hook per decoder layer sets the
+    current device; it adds no synchronization. Backward needs nothing: autograd runs
+    each device's work with that device current.
 
     Hooks every child of each ``nn.ModuleList`` named ``layers``. Idempotent.
     Returns the number of layers hooked. Kept identical in loader.py and trainer.py

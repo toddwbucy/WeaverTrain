@@ -128,10 +128,16 @@ Root cause, established step by step:
    GPU 1 (Granite layer 20). Its input is finite; only its first 4 of 14 positions are.
 3. While the layers on GPU 1 run, `torch.cuda.current_device()` is still 0. accelerate's
    layer dispatch does not change the current device.
-4. mamba-ssm launches its Triton kernels on the current device's stream, with no
-   device guard. With peer access over NVLink, a GPU 0 stream can read GPU 1 memory, so
-   the kernel runs unordered with GPU 1's own work. causal-conv1d (a C++ extension with a
-   device guard) and torch's `grouped_mm` were each tested and are not affected.
+4. Every Triton launch was logged with the current device next to its tensors'
+   devices. mamba-ssm 2.3.2.post1 wraps its launches in
+   `with torch.cuda.device(x.device.index)`, except one: `_chunk_scan_fwd` in
+   `ops/triton/ssd_chunk_scan.py` launches `_chunk_scan_fwd_kernel` unguarded. It was
+   the only launch that ran with GPU 1 tensors while GPU 0 was current (19 times, once
+   per Mamba layer on GPU 1). Triton launches on the current device's stream; with peer
+   access over NVLink, a GPU 0 stream can read GPU 1 memory, so the kernel runs
+   unordered with GPU 1's own work. The launch is still unguarded on upstream `main`
+   (checked 2026-10-31). causal-conv1d (a C++ extension with a device guard) and
+   torch's `grouped_mm` were each tested and are not affected.
 5. Setting the current device to each decoder layer's device in a forward pre-hook, with
    no added synchronization, makes both models' logits finite. Granite's logits then
    match the `CUDA_LAUNCH_BLOCKING=1` result: identical argmax at every position, max
@@ -146,8 +152,10 @@ the current device, applied automatically to any split model; the smoke test app
 it to the Unsloth path too. It patches no library code and adds no synchronization.
 `tests/test_devices.py` checks the precondition directly: without the hook, the layer
 on GPU 1 runs with GPU 0 current; with it, every layer runs with its own GPU current.
-Remove it once mamba-ssm guards the device in its Triton wrappers, and keep the
-smoke test as the check.
+In a diagnostic process (no library files changed), wrapping only `_chunk_scan_fwd` in a
+device guard, with no pin hook, made three forward passes finite on each model;
+without it all three were NaN. Remove the hook once mamba-ssm guards that launch, and
+keep the smoke test as the check.
 
 **PEFT refuses `out_proj` and `conv1d` on Nemotron's Mamba blocks** (found 2026-10-31,
 peft 0.21.2): "Module 'out_proj' is incompatible with Mamba-based models
