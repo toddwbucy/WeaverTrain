@@ -1,0 +1,8 @@
+Wrote 30 rewrites to round1.jsonl (one JSON object per line, ids s01..s30 in input order).
+
+What I did: read PROMPT.md and RULES.md, then rewrote each record's "text" into ASD-STE100 Simplified Technical English by hand (no scripts, no other model, no checker/scorer). I kept every [[Cn]] placeholder exactly once and unchanged, kept Markdown structure (headings, lists, bold markers, the checkmark symbols), and rewrote non-approved verbs to approved alternatives (e.g. check->examine, test/run->do a test/operate, fix->repair/correct, return->give, create->make, expect->want, suggest->"This is an indication that", should->"I think/recommend"). I used a short Python script only to serialize my finished text to the JSON file.
+
+Records rewritten: 30.
+Records I could not rewrite under the rules: none.
+
+Problem/none: no blocking problems. Minor note: I used json.dumps in a one-off script to escape the newlines in the output strings correctly (this is the allowed "short script to write finished text to the JSON file"). The file has exactly 30 lines.

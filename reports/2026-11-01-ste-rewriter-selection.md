@@ -25,8 +25,8 @@ what cost.
 
 **The kit.** 60 segments taken from the pilot sample of Nemotron-SWE-v1:
 
-- 30 narration segments (the agent's notes on what it does): 10 under 200
-  characters, 10 of 200 to 500, and 10 over 500;
+- 30 narration segments (the agent's notes on what it does): 11 under 200
+  characters, 9 of 200 to 500, and 10 over 500, measured on the masked text;
 - 15 issue texts;
 - 15 tool-call `think` fields.
 

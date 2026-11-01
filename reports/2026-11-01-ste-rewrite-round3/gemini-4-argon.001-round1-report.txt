@@ -1,0 +1,1 @@
+Rewrote all 30 records from input.jsonl into ASD-STE100 Simplified Technical English in batches of 10 and wrote the 30 JSON lines to round1.jsonl. All 30 records were rewritten under the rules with no problems.

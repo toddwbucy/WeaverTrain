@@ -1,0 +1,19 @@
+{
+ "made_at": "2026-11-01T15:20:19+00:00",
+ "prompt": "prompt-bf8d74c7c10b.json",
+ "prompt_sha256": "bf8d74c7c10b9b4c83a97c98fa688e5d0ccc319dcbe56b8e56f08e5c765edcc1",
+ "limits": [
+  20,
+  25
+ ],
+ "source": "source.jsonl 74543f1f110d556850aa2e3290d395195fbada9fd564970e479793e65f0527e9",
+ "kinds": "narration",
+ "segments": 30,
+ "files": {
+  "input.jsonl": "5997ec5e265142b337de0c8c368857260bdbedace3d18f4df7449ce245b28891",
+  "RULES.md": "d32f398387efd2cb1c0655ef65c13c3dc5d57c450600b3e28c0425590e510fab",
+  "PROMPT.md": "ac8039e5e2508c2021c5a05292fb299e9de46962dd66c9d24795b12278869f67",
+  "REPAIR-PROMPT.md": "56ba14fe8753abd1cc67bc809a3e655b1e07e90b54153c4b14a8833dddac10c9",
+  "MONITOR.md": "c07ebaec3c00b79d4a14e12a859652fd6152121f8e86534e889063fb4d423a5f"
+ }
+}
