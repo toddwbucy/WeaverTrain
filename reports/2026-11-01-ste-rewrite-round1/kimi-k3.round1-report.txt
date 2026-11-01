@@ -1,0 +1,23 @@
+Task done.
+
+What I did:
+- Read RULES.md fully, then input.jsonl (60 records).
+- Rewrote the "text" of all 60 records into STE, by hand, following the rules:
+  approved verbs and technical verbs only, no -ing verb forms, simple tenses,
+  active voice, no contractions, no semicolons, Markdown structure kept,
+  each [[Cn]] placeholder copied exactly once, persons "I"/"you" kept.
+- Wrote the rewrites to round1.jsonl in batches of 10 (6 batches, appended).
+
+Files written:
+- round1.jsonl: 60 lines, one JSON object {"id", "output"} per line, same order as input.jsonl.
+
+Verification:
+- 60 lines present, ids match input order, JSON valid on every line.
+- Placeholder multiset of each output matches its input exactly.
+- No semicolons. Contraction scan: only false positives ("its", "lets", "were")
+  and one "can't" inside a quoted UnicodeEncodeError message kept as program output.
+
+Problems:
+- None. All 60 records could be rewritten under the rules. A few idioms needed
+  rephrasing (e.g. "hardcode" -> "write as a constant", "handle" -> "process",
+  "raise an exception" -> "give an error"), but no record was impossible.

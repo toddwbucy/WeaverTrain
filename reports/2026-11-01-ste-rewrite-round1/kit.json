@@ -1,0 +1,16 @@
+{
+ "made_at": "2026-11-01T13:20:01+00:00",
+ "prompt": "prompt-0a17857ecd6e.json",
+ "prompt_sha256": "0a17857ecd6e2cc1229801a9a7bbe250420402441c4c7a9bb29fc503c7207dec",
+ "limits": [
+  20,
+  25
+ ],
+ "files": {
+  "input.jsonl": "4cc16c49c2f159490306eb4552158faa85e73e92bcb48593ffd9679039370748",
+  "RULES.md": "ac20226dc1b22c80521d15b997f4fcdbcf406983cb0b499d2307275f0dc41bd2",
+  "PROMPT.md": "7f500b49945c81587dd4b9cbd71fd98283a6badeffd039f53716d5800eadca66",
+  "REPAIR-PROMPT.md": "56ba14fe8753abd1cc67bc809a3e655b1e07e90b54153c4b14a8833dddac10c9",
+  "MONITOR.md": "c07ebaec3c00b79d4a14e12a859652fd6152121f8e86534e889063fb4d423a5f"
+ }
+}

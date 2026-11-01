@@ -1,0 +1,9 @@
+Wrote round1.jsonl: 60 rewrite records, one JSON object per line, in the order of input.jsonl (ids s01..s60).
+
+What I did: read RULES.md and input.jsonl, then rewrote each "text" into ASD-STE100 style by hand into batches, writing the finished text to round1.jsonl (via a short helper script that only serializes my finished text, as allowed).
+
+Files written: round1.jsonl (60 lines); write_round1.py (helper used only to write the finished text to JSON).
+
+Verification: all 433 [[Cx]] placeholders are copied exactly once (multiset match against input), no contractions, no semicolons, simple/approved verb forms, Markdown structure kept, "I"/"you" persons kept. The checkmark/arrow and \xff content is preserved where the source carried it.
+
+Problems: none. Every record could be rewritten under the rules; none were left undone.
