@@ -32,3 +32,8 @@ Round files: `round1.jsonl` (first pass), `repair-1.jsonl` (failures with the ch
 notes), `round2.jsonl` (corrections), and so on. A model never runs the checker;
 `repair` does it for all models in the same round. A model directory refuses to score
 if its kit differs from `kit/`. Runs made before this layout are in `_earlier/`.
+
+`--experiment NAME` (before the command) works in `experiments/NAME/` instead of
+`ste-rewrite/`, so a changed kit starts a new experiment. Round 3 (2026-11-01) is
+`ste-rewrite-r3`: the 30 narration segments only, masked from their raw source
+(`var/ste/kit-r3/source.jsonl`, local) with `kit --source ... --kinds narration`.
