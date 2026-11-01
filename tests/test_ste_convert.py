@@ -150,3 +150,16 @@ def test_kit_segments_mask_their_literals_when_the_source_is_present():
     for sid, words in banned.items():
         p = prose(rows[sid])
         assert not [w for w in words if w in p], (sid, p[-400:])
+
+
+def test_finish_message_is_a_segment_and_apply_writes_it_back():
+    import json
+    row = {"messages": [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "<issue_description>\nBug.\n</issue_description>"},
+        {"role": "assistant", "content": "Done.", "tool_calls": [
+            {"function": {"name": "finish", "arguments": json.dumps({"message": "I fixed it."})}}]}]}
+    segs = list(conv.segments(row))
+    assert ({"msg": 2, "field": "finish", "call": 0}, "I fixed it.") in segs
+    conv.apply(row, {"msg": 2, "field": "finish", "call": 0}, "I repaired it.")
+    assert json.loads(row["messages"][2]["tool_calls"][0]["function"]["arguments"]) == {"message": "I repaired it."}

@@ -53,6 +53,7 @@ import ste_convert  # noqa: E402
 ROOT = REPO / "experiments" / "ste-rewrite"
 KIT = ROOT / "kit"
 KIND_TEXT = {"narration": '"narration" (an agent\'s note about its work)',
+             "final": '"final" (the agent\'s final report to the user when its work is done)',
              "issue": '"issue" (a bug report)', "think": '"think" (an agent\'s reasoning before a tool call)'}
 KIT_FILES = ["input.jsonl", "RULES.md", "PROMPT.md", "REPAIR-PROMPT.md", "MONITOR.md", "kit.json"]
 MESSAGE = re.compile(r"^(\d{3})-([a-z0-9][a-z0-9-]*)\.md$")
@@ -100,7 +101,7 @@ Files in this directory:
 Do these steps:
 
 1. Read all of RULES.md before you write anything. Obey every rule in it.
-2. Read input.jsonl.
+2. Read input.jsonl.@BATCHED@
 3. Rewrite the "text" of each record. Keep the full meaning. Add nothing and remove
    nothing. Each [[Cn]] placeholder stands for code: copy each one exactly once,
    unchanged, and use it as a noun. Keep Markdown structure (headings, lists) where the
@@ -139,6 +140,8 @@ Do these steps:
 
 1. For each record, write a new complete rewrite of "text". Start from "previous" and
    correct every item in "problems". Do not make other changes that you do not need.
+   If the repair file has more than 100 records, read it 10 records at a time, and
+   read RULES.md again before each 100 records.
 2. Where "problems" gives alternatives in capital letters (for example GO (v)), they
    are dictionary entries. Write the word in normal lowercase in your sentence, and
    change the sentence so that the word has its approved meaning. If no alternative
@@ -208,7 +211,11 @@ def cmd_kit(a) -> int:
     kinds_line = ("The kind is " if len(present) == 1 else "The kinds are ") + ", ".join(
         KIND_TEXT[k] for k in present) + "."
     (KIT / "RULES.md").write_text(render_rules(prompt))
-    (KIT / "PROMPT.md").write_text(PROMPT.replace("@N@", str(len(recs))).replace("@KINDS@", kinds_line))
+    batched = "" if len(recs) <= 100 else (
+        " It is long: read it 10 records at a time (for example with sed -n),\n"
+        "   not all at once. Before each 100 records, read RULES.md again.")
+    (KIT / "PROMPT.md").write_text(PROMPT.replace("@N@", str(len(recs))).replace("@KINDS@", kinds_line)
+                                   .replace("@BATCHED@", batched))
     (KIT / "REPAIR-PROMPT.md").write_text(REPAIR_PROMPT)
     (KIT / "MONITOR.md").write_text(MONITOR)
     meta = {"made_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -304,10 +311,12 @@ def altered_literals(out: str | None, text: str) -> list[str]:
 
 
 def incomplete(d: Path, n: int) -> tuple[int, int] | None:
-    """(written, wanted) when round n has fewer records than the repair file it answers."""
-    if n == 1 or not (d / f"repair-{n - 1}.jsonl").exists():
+    """(written, wanted) when round n has fewer records than it answers: round 1 the
+    model directory's input.jsonl, a later round the repair file before it."""
+    src = d / ("input.jsonl" if n == 1 else f"repair-{n - 1}.jsonl")
+    if not src.exists():
         return None
-    want = {json.loads(line)["id"] for line in open(d / f"repair-{n - 1}.jsonl", encoding="utf-8") if line.strip()}
+    want = {json.loads(line)["id"] for line in open(src, encoding="utf-8") if line.strip()}
     got, _ = read_jsonl(d / f"round{n}.jsonl")
     return (len(want & set(got)), len(want)) if not want <= set(got) else None
 

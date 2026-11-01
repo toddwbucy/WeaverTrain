@@ -4,8 +4,8 @@
         [--prompt var/ste/prompt-<sha12>.json] [--repairs 2] [--concurrency 32]
 
 Per example, the prose segments are: the issue text inside <issue_description> in the
-first user message, every assistant message's text, and the `thought` of each `think`
-tool call. The system prompt, the rest of the user template, tool calls' other arguments
+first user message, every assistant message's text, the `thought` of each `think`
+tool call, and the `message` of the `finish` call (the agent's final report). The system prompt, the rest of the user template, tool calls' other arguments
 and tool output stay byte-identical.
 
 Per segment: code-like spans (fenced blocks, inline code, quoted strings, URLs, paths,
@@ -192,6 +192,10 @@ def segments(row: dict):
                 args = json.loads(tc["function"]["arguments"])
                 if (args.get("thought") or "").strip():
                     yield {"msg": i, "field": "think", "call": k}, args["thought"]
+            elif tc["function"]["name"] == "finish":  # the agent's final report to the user
+                args = json.loads(tc["function"]["arguments"])
+                if (args.get("message") or "").strip():
+                    yield {"msg": i, "field": "finish", "call": k}, args["message"]
 
 
 def apply(row: dict, loc: dict, new: str) -> None:
@@ -204,7 +208,7 @@ def apply(row: dict, loc: dict, new: str) -> None:
     else:
         tc = msg["tool_calls"][loc["call"]]
         args = json.loads(tc["function"]["arguments"])
-        args["thought"] = new
+        args["thought" if loc["field"] == "think" else "message"] = new
         tc["function"]["arguments"] = json.dumps(args)
 
 

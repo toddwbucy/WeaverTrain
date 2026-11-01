@@ -31,4 +31,6 @@ def test_incomplete_round_is_reported(tmp_path):
     assert exp.incomplete(tmp_path, 2) == (1, 2)
     (tmp_path / "round2.jsonl").write_text('{"id": "s1", "output": "x"}\n{"id": "s2", "output": "y"}\n')
     assert exp.incomplete(tmp_path, 2) is None
-    assert exp.incomplete(tmp_path, 1) is None
+    (tmp_path / "input.jsonl").write_text('{"id": "s1"}\n{"id": "s2"}\n{"id": "s3"}\n')
+    (tmp_path / "round1.jsonl").write_text('{"id": "s1", "output": "x"}\n{"id": "s3", "output": "z"}\n')
+    assert exp.incomplete(tmp_path, 1) == (2, 3)
