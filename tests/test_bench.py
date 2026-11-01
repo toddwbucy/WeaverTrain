@@ -148,3 +148,15 @@ def test_default_runner_identity_is_module_qualified():
     for unnamed in (lambda t, **k: {}, type("R", (), {"__call__": lambda s, t, **k: {}})()):
         with pytest.raises(bench.BenchError, match="runner_name"):
             bench.runner_identity(unnamed)
+
+
+class Harness:
+    @staticmethod
+    def run(task, **kw):
+        return {"status": "resolved"}
+
+
+def test_cli_loads_the_identity_it_records():
+    ident = bench.runner_identity(Harness.run)
+    assert ident == f"{__name__}:Harness.run"
+    assert bench.load_runner(ident) is Harness.run

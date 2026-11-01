@@ -71,10 +71,18 @@ def mask_brackets(text: str, codes: list[str]) -> str:
             continue
         depth, j = 0, m.end() - 1
         pairs = {"(": ")", "[": "]", "{": "}"}
-        stack = []
+        stack, quote = [], None
         while j < len(text) and text[j] != "\n":
             c = text[j]
-            if c in pairs:
+            if quote:  # inside a string literal, brackets are content
+                if c == "\\":
+                    j += 2
+                    continue
+                if c == quote:
+                    quote = None
+            elif c in "'\"" and stack:
+                quote = c
+            elif c in pairs:
                 stack.append(pairs[c])
             elif stack and c == stack[-1]:
                 stack.pop()

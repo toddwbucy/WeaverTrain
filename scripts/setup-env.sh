@@ -148,6 +148,12 @@ fi
 if want verify; then
   say "verify (kernels, fast path, Unsloth)"
   [[ -f environment.lock ]] || die "environment.lock missing; run the lock stage first"
+  # The key sees only the listed modified files; any other change to an installed file
+  # must fail here, even when the lock stage did not run (--only verify).
+  if [[ -n "$only" ]]; then
+    "$PY" scripts/freeze_env.py --check-files training \
+      || die "installed files differ from their RECORD hashes (above) and config/known-modified-files.toml does not list them"
+  fi
   # The key covers the content of the files config/known-modified-files.toml lists, which
   # environment.lock (RECORD) cannot see; it is taken again after the run, because the
   # Unsloth probe rewrites one of them on a fresh install.

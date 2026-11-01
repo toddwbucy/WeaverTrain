@@ -174,7 +174,10 @@ def load_runner(spec: str) -> Runner:
     mod, _, attr = spec.partition(":")
     if not attr:
         raise BenchError(f"runner must be 'module:callable', got {spec!r}")
-    return getattr(importlib.import_module(mod), attr)
+    obj = importlib.import_module(mod)
+    for part in attr.split("."):  # Class.method, as runner_identity records it
+        obj = getattr(obj, part)
+    return obj
 
 
 def main(argv: list[str] | None = None) -> int:

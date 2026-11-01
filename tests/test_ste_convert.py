@@ -25,3 +25,11 @@ def test_round_trip_with_nested_and_bracketed_spans():
         masked, codes = conv.mask(text)
         assert "[[[" not in masked, masked
         assert conv.unmask(masked, codes) == text
+
+
+def test_brackets_inside_string_literals_do_not_end_the_span():
+    for text, want in (("Call f('hello)world') now.", "Call [[C1]] now."),
+                       ("Use g('a]b', x[0]) here.", "Use [[C1]] here.")):
+        masked, codes = conv.mask(text)
+        assert masked == want, masked
+        assert conv.unmask(masked, codes) == text
