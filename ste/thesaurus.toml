@@ -6,7 +6,8 @@
 # raise, ...) are in the 2026-11-01 synonym check and are not here.
 #
 # Order: by how often the 2026-11-01 pilot failed on the verb (pilot_hits, all
-# attempts). Each sense gives approved words to use and one rewrite. Words that look
+# attempts); entries added on 2026-11-01 for hedges count the pilot segments that hold
+# the word (pilot_inputs). Each sense gives approved words to use and one rewrite. Words that look
 # safe but are not approved: successful, failure, now, already, old, say. Every "after" is
 # checked by tests/test_ste_thesaurus.py with scripts/ste_check.py.
 
@@ -54,16 +55,53 @@ after = "All tests give the correct result."
 
 [should]
 pilot_hits = 4228
+note = "Candidate, 2026-11-01: never write must for should. For the correct behavior of code (the function should return None), see expect: the correct result is."
 [[should.senses]]
-sense = "a requirement"
-use = ["must"]
-before = "The function should return None."
-after = "The function must give None."
+sense = "advice: a recommended action (you should add a test, it is better to)"
+use = ["I recommend that", "we recommend"]
+before = "You should add a regression test."
+after = "I recommend that you add a test for the regression."
 [[should.senses]]
-sense = "a likely result"
-use = ["will", "possibly"]
-before = "This should work now."
-after = "With this change, possibly this will operate correctly."
+sense = "expectation: a probable result (this should fix it)"
+use = ["I think that", "possibly"]
+before = "This should fix the error."
+after = "I think that this change will repair the error."
+
+[suggest]
+pilot_inputs = 544
+note = "Candidate, 2026-11-01. Not in the dictionary. Evidence that points to a conclusion is not proof: never write shows."
+[[suggest.senses]]
+sense = "evidence points to a conclusion (this suggests that)"
+use = ["this is an indication that", "possibly"]
+before = "This suggests the cache is stale."
+after = "This is an indication that the cache is not current."
+
+[seem]
+pilot_inputs = 692
+note = "Candidate, 2026-11-01. Not in the dictionary."
+[[seem.senses]]
+sense = "it looks true, but it is not certain"
+use = ["possibly", "it is possible that", "I think that"]
+before = "The error seems unrelated to the change."
+after = "Possibly, the error is not related to the change."
+
+[might]
+pilot_inputs = 910
+note = "Candidate, 2026-11-01. Not in the dictionary. Also for maybe and perhaps (389 pilot segments)."
+[[might.senses]]
+sense = "a possibility"
+use = ["possibly", "it is possible that"]
+before = "The test might fail on Windows."
+after = "Possibly, the test will give an incorrect result on Windows."
+
+[probably]
+pilot_inputs = 150
+note = "Candidate, 2026-11-01. Not in the dictionary, and STE has no approved word for this degree of certainty; I think that is the candidate (needs a ruling). Also for likely (199 pilot segments)."
+[[probably.senses]]
+sense = "a probable result, stronger than possible"
+use = ["I think that"]
+before = "The bug is probably in the parser."
+after = "I think that the error is in the parser."
 
 [create]
 pilot_hits = 3687
@@ -228,7 +266,7 @@ after = "Make sure that the cache is empty."
 [appear]
 pilot_hits = 776
 [[appear.senses]]
-sense = "seem"
+sense = "seem (see seem: keep the doubt)"
 use = ["possibly", "it is possible that"]
 before = "The error appears to be unrelated."
 after = "Possibly, the error is not related to the change."
@@ -240,11 +278,17 @@ after = "The warning is in the log."
 
 [check]
 pilot_hits = 766
+note = "Candidate, 2026-11-01: make sure that means you cause something to be true. Never use it for a test of a condition."
 [[check.senses]]
 sense = "look at something (check is approved as a noun only)"
-use = ["examine", "make sure"]
+use = ["examine"]
 before = "Let me check the tests."
 after = "I will examine the tests."
+[[check.senses]]
+sense = "test a condition: check if, check whether, see if (2,596 pilot segments)"
+use = ["examine if", "find if", "do a check to find if"]
+before = "Let me check if the file exists."
+after = "I will examine if the file is there."
 
 [affect]
 pilot_hits = 744

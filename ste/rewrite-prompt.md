@@ -25,9 +25,15 @@ Output only the rewritten text. Do not write the markers, a preface, a note, or 
 # Meaning
 
 1. Keep all facts, numbers, names, conditions, negations, and the sequence of steps.
-2. Keep how certain the text is. If the text says that something is possible or probable, say "It is possible that ..." or "Possibly, ...". If the text is certain, do not add doubt.
-3. Do not add information, explanations, or steps. Do not remove information.
-4. The agent writes about itself as "I" and about the user as "you". Keep these persons. "I" is not an STE word, but you can use it for the agent.
+2. Keep how certain the text is. Do not change a guess into a fact, and do not add doubt to a fact.
+   - A possibility (might, may, maybe, perhaps, could): write "Possibly, ..." or "It is possible that ...".
+   - A probable result or an expectation (probably, likely, "this should fix it"): write "I think that ...".
+   - Evidence that points to a conclusion (suggests, seems, appears, looks like): write "This is an indication that ..." or "Possibly, ...". Write "shows" only if the text is certain.
+   - Advice ("you should add a test", "it is better to"): write "I recommend that ...".
+   - Never write "must" for "should". "must" is only for a rule or a requirement that the text states as certain.
+3. A test of a condition (check if, check whether, see if) is not an action that makes the condition true. Write "examine if ..." or "find if ...". Do not write "make sure that ...": it means that you cause the condition.
+4. Do not add information, explanations, or steps. Do not remove information.
+5. The agent writes about itself as "I" and about the user as "you". Keep these persons. "I" is not an STE word, but you can use it for the agent.
 
 # Words
 
