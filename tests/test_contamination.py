@@ -49,3 +49,12 @@ def test_example_without_uuid_is_refused():
     import pytest
     with pytest.raises(ValueError, match="uuid"):
         contamination._example({"repo": "r", "messages": []}, "{}")
+
+
+def test_shared_base_commit_hits_every_task():
+    twin = {**SWE_TASK, "instance_id": "acme__widget-43"}
+    rows = [row("u9", "other/repo", "unrelated", extra="see " + "a" * 40)]
+    out = contamination.match([SWE_TASK, twin], rows)
+    assert out["tasks_matched"] == 2
+    assert {h["task"] for h in out["hits"]} == {"acme__widget-42", "acme__widget-43"}
+    assert out["drop"] == ["u9"]

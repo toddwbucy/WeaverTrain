@@ -123,12 +123,14 @@ def match(raw_tasks: list[dict], rows) -> dict:
             if stmt:
                 by_repo[t["repo"].lower()].append({"task": t["instance_id"], "issue_text": stmt[:ISSUE_PREFIX]})
         by_repo.setdefault(t["repo"].lower(), [])
-    commits = {t["base_commit"]: t["instance_id"] for t in tasks if t["base_commit"]}
-    ids = {t["instance_id"] for t in tasks}
-    refs = {}
+    # several tasks can share a base commit or an issue number: keep every one
+    commits, refs = defaultdict(set), defaultdict(set)
     for t in tasks:
+        if t["base_commit"]:
+            commits[t["base_commit"]].add(t["instance_id"])
         for num in [t["number"], *t["issue_numbers"]]:
-            refs[(t["repo"].lower(), num)] = t["instance_id"]
+            refs[(t["repo"].lower(), num)].add(t["instance_id"])
+    ids = {t["instance_id"] for t in tasks}
 
     n = 0
     repo_rows = Counter()
@@ -140,12 +142,12 @@ def match(raw_tasks: list[dict], rows) -> dict:
             repo_rows[repo_l] += 1
         # keys found anywhere in the example, by token extraction (one pass each)
         for h in set(HEX40.findall(raw)) & commits.keys():
-            hits[commits[h]][uuid].add("base_commit")
+            for tid in commits[h]:
+                hits[tid][uuid].add("base_commit")
         for tid in set(INSTANCE.findall(raw)) & ids:
             hits[tid][uuid].add("instance_id")
         for r, num in set(GHREF.findall(raw)):
-            tid = refs.get((r.lower(), num))
-            if tid:
+            for tid in refs.get((r.lower(), num), ()):
                 hits[tid][uuid].add("github_ref")
         # issue text: against the example's own repo, or every repo when it has none
         cands = by_repo.get(repo_l, []) if repo_l else [c for cs in by_repo.values() for c in cs]
