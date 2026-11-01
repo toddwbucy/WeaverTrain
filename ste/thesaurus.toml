@@ -1,0 +1,425 @@
+# STE100 thesaurus for software text: how to write the verbs that software engineers
+# use most and that STE100 does not approve. Candidate, unratified; written in our own
+# words. Whether a word is approved is from the operator's local copy of the standard;
+# no text of the standard is copied here. The verbs we admit as technical verbs are in
+# technical-verbs.toml; computing verbs that may become technical verbs (call, return,
+# raise, ...) are in the 2026-11-01 synonym check and are not here.
+#
+# Order: by how often the 2026-11-01 pilot failed on the verb (pilot_hits, all
+# attempts); entries added on 2026-11-01 for hedges count the pilot segments that hold
+# the word (pilot_inputs). Each sense gives approved words to use and one rewrite. Words that look
+# safe but are not approved: successful, failure, now, already, old, say. Every "after" is
+# checked by tests/test_ste_thesaurus.py with scripts/ste_check.py.
+
+[fix]
+pilot_hits = 10794
+[[fix.senses]]
+sense = "make code or a defect correct"
+use = ["repair", "correct (v)"]
+before = "Let me fix the bug in the parser."
+after = "I will repair the error in the parser."
+[[fix.senses]]
+sense = "the result: a problem no longer occurs"
+use = ["repaired", "does not occur"]
+before = "The issue is fixed."
+after = "The issue does not occur at this time."
+
+[exist]
+pilot_hits = 7340
+[[exist.senses]]
+sense = "be present"
+use = ["there is", "is in", "has"]
+before = "A test for this already exists."
+after = "The repository has a test for this."
+
+[expect]
+pilot_hits = 5372
+[[expect.senses]]
+sense = "the result that is correct or wanted"
+use = ["correct result", "must"]
+before = "The expected output is an empty list."
+after = "The correct output is an empty list."
+[[expect.senses]]
+sense = "a prediction"
+use = ["will", "possibly"]
+before = "I expect this test to fail."
+after = "Possibly, this test will give an incorrect result."
+
+[pass]
+pilot_hits = 4618
+[[pass.senses]]
+sense = "a test is successful (passing an argument is a computing sense, see the synonym check)"
+use = ["give the correct result"]
+before = "All tests pass."
+after = "All tests give the correct result."
+
+[should]
+pilot_hits = 4228
+note = "Candidate, 2026-11-01: never write must for should. For the correct behavior of code (the function should return None), see expect: the correct result is."
+[[should.senses]]
+sense = "advice: a recommended action (you should add a test, it is better to)"
+use = ["I recommend that", "we recommend"]
+before = "You should add a regression test."
+after = "I recommend that you add a test for the regression."
+[[should.senses]]
+sense = "expectation: a probable result (this should fix it)"
+use = ["I think that", "possibly"]
+before = "This should fix the error."
+after = "I think that this change will repair the error."
+
+[suggest]
+pilot_inputs = 544
+note = "Candidate, 2026-11-01. Not in the dictionary. Evidence that points to a conclusion is not proof: never write shows."
+[[suggest.senses]]
+sense = "evidence points to a conclusion (this suggests that)"
+use = ["this is an indication that", "possibly"]
+before = "This suggests the cache is stale."
+after = "This is an indication that the cache is not current."
+
+[seem]
+pilot_inputs = 692
+note = "Candidate, 2026-11-01. Not in the dictionary."
+[[seem.senses]]
+sense = "it looks true, but it is not certain"
+use = ["possibly", "it is possible that", "I think that"]
+before = "The error seems unrelated to the change."
+after = "Possibly, the error is not related to the change."
+
+[might]
+pilot_inputs = 910
+note = "Candidate, 2026-11-01. Not in the dictionary. Also for maybe and perhaps (389 pilot segments)."
+[[might.senses]]
+sense = "a possibility"
+use = ["possibly", "it is possible that"]
+before = "The test might fail on Windows."
+after = "Possibly, the test will give an incorrect result on Windows."
+
+[probably]
+pilot_inputs = 150
+note = "Candidate, 2026-11-01. Not in the dictionary, and STE has no approved word for this degree of certainty; I think that is the candidate (needs a ruling). Also for likely (199 pilot segments)."
+[[probably.senses]]
+sense = "a probable result, stronger than possible"
+use = ["I think that"]
+before = "The bug is probably in the parser."
+after = "I think that the error is in the parser."
+
+[create]
+pilot_hits = 3687
+[[create.senses]]
+sense = "make a file, an object or a test (class 2 of the 2026-10-31 check)"
+use = ["make"]
+before = "Let me create a test script."
+after = "I will make a test script."
+
+[fail]
+pilot_hits = 2865
+[[fail.senses]]
+sense = "a test or an operation is not successful"
+use = ["gives an incorrect result", "does not give the correct result"]
+before = "The test fails on Windows."
+after = "The test gives an incorrect result on Windows."
+
+[need]
+pilot_hits = 2544
+[[need.senses]]
+sense = "a requirement"
+use = ["must", "is necessary"]
+before = "We need to update the docs."
+after = "It is necessary to change the documentation."
+
+[happen]
+pilot_hits = 2088
+[[happen.senses]]
+sense = "an event takes place"
+use = ["occur"]
+before = "The error happens when the list is empty."
+after = "The error occurs when the list is empty."
+
+[place]
+pilot_hits = 1900
+[[place.senses]]
+sense = "put something in a position"
+use = ["put"]
+before = "Place the check before the loop."
+after = "Put the check before the loop."
+
+[describe]
+pilot_hits = 1676
+[[describe.senses]]
+sense = "the issue or a document gives information"
+use = ["show", "refer to", "the description of"]
+before = "As described in the issue, the call fails."
+after = "The issue shows that the function gives an error."
+
+[preserve]
+pilot_hits = 1422
+[[preserve.senses]]
+sense = "keep a value or a behavior the same"
+use = ["keep"]
+before = "The change preserves the dtype."
+after = "The change keeps the dtype."
+
+[test]
+pilot_hits = 1354
+[[test.senses]]
+sense = "do a test (test is approved as a noun only)"
+use = ["do a test of", "examine"]
+before = "Let me test the fix."
+after = "I will do a test of the repair."
+
+[match]
+pilot_hits = 1118
+[[match.senses]]
+sense = "two values are the same"
+use = ["agree", "is the same as"]
+before = "The output matches the expected value."
+after = "The output agrees with the correct value."
+
+[verify]
+pilot_hits = 1095
+[[verify.senses]]
+sense = "make certain that something is correct"
+use = ["make sure"]
+before = "Let me verify that the fix works."
+after = "I will make sure that the repair operates correctly."
+
+[modify]
+pilot_hits = 1091
+[[modify.senses]]
+sense = "make a change"
+use = ["change"]
+before = "I modified the constructor."
+after = "I changed the constructor."
+
+[focus]
+pilot_hits = 1056
+[[focus.senses]]
+sense = "give attention to one thing"
+use = ["examine only", "first"]
+before = "Let me focus on the parser."
+after = "I will examine only the parser."
+
+[mention]
+pilot_hits = 1030
+[[mention.senses]]
+sense = "a text refers to something"
+use = ["refer to", "show"]
+before = "The issue mentions a regression in 2.1."
+after = "The issue refers to a regression in 2.1."
+
+[implement]
+pilot_hits = 1019
+[[implement.senses]]
+sense = "write the code for a change"
+use = ["make", "write", "add"]
+before = "Now I will implement the fix."
+after = "I will make the repair."
+
+[maintain]
+pilot_hits = 1005
+[[maintain.senses]]
+sense = "keep a behavior the same"
+use = ["keep"]
+before = "This maintains backward compatibility."
+after = "This keeps the code compatible with the previous versions."
+
+[detail]
+pilot_hits = 1004
+[[detail.senses]]
+sense = "give information (often a heading)"
+use = ["the information", "show"]
+before = "Technical details:"
+after = "Technical information:"
+
+[work]
+pilot_hits = 930
+[[work.senses]]
+sense = "code operates as it must"
+use = ["operate correctly", "is correct"]
+before = "The fix works."
+after = "The repair operates correctly."
+
+[present]
+pilot_hits = 915
+[[present.senses]]
+sense = "be in a place or a value (the verb)"
+use = ["is in", "there is"]
+before = "The key is present in the dict."
+after = "The key is in the dict."
+
+[confirm]
+pilot_hits = 885
+[[confirm.senses]]
+sense = "make certain"
+use = ["make sure", "shows that"]
+before = "This confirms the bug is in the parser."
+after = "This shows that the error is in the parser."
+
+[ensure]
+pilot_hits = 844
+[[ensure.senses]]
+sense = "make certain"
+use = ["make sure"]
+before = "Ensure the cache is cleared."
+after = "Make sure that the cache is empty."
+
+[appear]
+pilot_hits = 776
+[[appear.senses]]
+sense = "seem (see seem: keep the doubt)"
+use = ["possibly", "it is possible that"]
+before = "The error appears to be unrelated."
+after = "Possibly, the error is not related to the change."
+[[appear.senses]]
+sense = "come into view"
+use = ["show", "is in"]
+before = "The warning appears in the log."
+after = "The warning is in the log."
+
+[check]
+pilot_hits = 766
+note = "Candidate, 2026-11-01: make sure that means you cause something to be true. Never use it for a test of a condition."
+[[check.senses]]
+sense = "look at something (check is approved as a noun only)"
+use = ["examine"]
+before = "Let me check the tests."
+after = "I will examine the tests."
+[[check.senses]]
+sense = "test a condition: check if, check whether, see if (2,596 pilot segments)"
+use = ["examine if", "find if", "do a check to find if"]
+before = "Let me check if the file exists."
+after = "I will examine if the file is there."
+
+[affect]
+pilot_hits = 744
+[[affect.senses]]
+sense = "cause a change in something"
+use = ["change", "have an effect on"]
+before = "This does not affect other platforms."
+after = "This does not change the other platforms."
+
+[allow]
+pilot_hits = 719
+[[allow.senses]]
+sense = "let something occur"
+use = ["let", "can"]
+before = "This allows the user to pass None."
+after = "With this change, the user can give None."
+
+[would]
+pilot_hits = 615
+[[would.senses]]
+sense = "a possible result"
+use = ["will", "can"]
+before = "That would break the API."
+after = "That can cause errors in the API."
+
+[may]
+pilot_hits = 586
+[[may.senses]]
+sense = "a possibility"
+use = ["can", "possibly"]
+before = "This may be a different issue."
+after = "Possibly, this is a different issue."
+
+[define]
+pilot_hits = 584
+[[define.senses]]
+sense = "where code gives a name its value or its code"
+use = ["is in", "write"]
+before = "The method is defined in base.py."
+after = "The method is in base.py."
+
+[provide]
+pilot_hits = 441
+[[provide.senses]]
+sense = "give or supply"
+use = ["give", "supply"]
+before = "The library provides a helper."
+after = "The library gives a helper."
+
+[explain]
+pilot_hits = 436
+[[explain.senses]]
+sense = "give the cause or the reason"
+use = ["that is why", "the cause is"]
+before = "This explains the failure."
+after = "This is the cause of the failure."
+
+[avoid]
+pilot_hits = 425
+[[avoid.senses]]
+sense = "prevent"
+use = ["prevent", "do not"]
+before = "Avoid changing the public API."
+after = "Do not change the public API."
+
+[solve]
+pilot_hits = 394
+[[solve.senses]]
+sense = "find the answer to a problem"
+use = ["repair", "find a solution"]
+before = "This solves the issue."
+after = "This repairs the issue."
+
+[produce]
+pilot_hits = 392
+[[produce.senses]]
+sense = "code gives a result"
+use = ["give", "make"]
+before = "The function produces a wrong result."
+after = "The function gives an incorrect result."
+
+[consider]
+pilot_hits = 369
+[[consider.senses]]
+sense = "think about"
+use = ["examine", "think about"]
+before = "Let me consider the edge cases."
+after = "I will examine the edge cases."
+
+[locate]
+pilot_hits = 364
+[[locate.senses]]
+sense = "find"
+use = ["find"]
+before = "Let me locate the definition."
+after = "I will find the definition."
+
+[remain]
+pilot_hits = 286
+[[remain.senses]]
+sense = "stay"
+use = ["stay", "keep"]
+before = "The old behavior remains."
+after = "The previous behavior stays."
+
+[perform]
+pilot_hits = 285
+[[perform.senses]]
+sense = "do"
+use = ["do"]
+before = "Perform the check first."
+after = "Do the check first."
+
+[require]
+pilot_hits = 235
+[[require.senses]]
+sense = "make necessary"
+use = ["must", "is necessary"]
+before = "The fix requires a new argument."
+after = "The repair must have a new argument."
+
+[analyze]
+pilot_hits = 66
+note = "Operator clarification, 2026-11-01: see usage-notes.md."
+[[analyze.senses]]
+sense = "look carefully to understand"
+use = ["examine", "find", "identify"]
+before = "Let me analyze the issue."
+after = "I will examine the issue."
+[[analyze.senses]]
+sense = "find a quantity"
+use = ["measure"]
+before = "Analyze the performance."
+after = "Measure the time that the function uses."

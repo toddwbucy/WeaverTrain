@@ -13,6 +13,8 @@ Output only the rewritten text. Do not write the markers, a preface, a note, or 
 3. A placeholder counts as one word. In a sentence, use it as a noun: "Examine [[C1]].", "The function [[C2]] gives an error."
 4. Names of code items, files, modules, classes, functions, variables, commands, libraries, products, errors, and exceptions are technical names. Copy them exactly, with the same letters, case, dots, and underscores. Examples: DataFrame, ValueError, pandas, pytest, __init__.
 5. Terms of the subject field are also technical names. Examples: repository, function, method, class, module, argument, parameter, index, array, test, test suite, database, table, row, column, branch, commit, issue, error message, stack trace, edge case.
+6. Logical operators and SQL keywords are technical names when you write them in capitals: AND, OR, NOT, XOR, TRUE, FALSE, NULL, SELECT, INSERT, UPDATE, DELETE, JOIN, CREATE, DROP, ALTER, WHERE, GROUP BY, ORDER BY. Use them as names, not as verbs: write "Use SELECT to get the rows", not "Select the rows". Write "The filter uses AND", but "If the file is open and the lock is free" (here "and" is a normal word).
+7. Write all other words in normal lowercase. Do not write a normal word in capitals: write "All tests give the correct result", not "All tests GO". Where the text uses capitals for a heading or for emphasis, you can keep capitals in your rewrite of those words.
 
 # Format
 
@@ -23,9 +25,15 @@ Output only the rewritten text. Do not write the markers, a preface, a note, or 
 # Meaning
 
 1. Keep all facts, numbers, names, conditions, negations, and the sequence of steps.
-2. Keep how certain the text is. If the text says that something is possible or probable, say "It is possible that ..." or "Possibly, ...". If the text is certain, do not add doubt.
-3. Do not add information, explanations, or steps. Do not remove information.
-4. The agent writes about itself as "I" and about the user as "you". Keep these persons. "I" is not an STE word, but you can use it for the agent.
+2. Keep how certain the text is. Do not change a guess into a fact, and do not add doubt to a fact.
+   - A possibility (might, may, maybe, perhaps, could): write "Possibly, ..." or "It is possible that ...".
+   - A probable result or an expectation (probably, likely, "this should fix it"): write "I think that ...".
+   - Evidence that points to a conclusion (suggests, seems, appears, looks like): write "This is an indication that ..." or "Possibly, ...". Write "shows" only if the text is certain.
+   - Advice ("you should add a test", "it is better to"): write "I recommend that ...".
+   - Never write "must" for "should". "must" is only for a rule or a requirement that the text states as certain.
+3. A test of a condition (check if, check whether, see if) is not an action that makes the condition true. Write "examine if ..." or "find if ...". Do not write "make sure that ...": it means that you cause the condition.
+4. Do not add information, explanations, or steps. Do not remove information.
+5. The agent writes about itself as "I" and about the user as "you". Keep these persons. "I" is not an STE word, but you can use it for the agent.
 
 # Words
 

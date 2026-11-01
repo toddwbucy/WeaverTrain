@@ -8,6 +8,12 @@ A segment passes when every hard check passes:
   ing            no "-ing" word that is not an approved word or a technical name
   contractions   no n't, 'll, 're, 've, 'm, 'd, let's
   semicolon      no ";" outside placeholders
+  capitals       no dictionary word in capitals ("tests GO", "OPERATE") unless it is a
+                 listed technical name (ste/technical-names.toml: logical operators, SQL
+                 keywords), or the input itself writes dictionary words in capitals (a
+                 heading "FIX ANALYSIS", emphasis "the EXPECTED behavior"), which a
+                 rewrite may keep in its own words; an acronym that is not a dictionary
+                 word (PPM, AWS) is a technical name
   length         instructions (start with a verb) at most LIMIT_I words, other
                  sentences at most LIMIT_D; a placeholder or a hyphenated word is one word
 
@@ -46,6 +52,7 @@ class Lexicon:
     technical_nouns: set[str]
     verb_bases: set[str] = field(default_factory=set)  # approved + technical verb base forms
     phrases: list[re.Pattern] = field(default_factory=list)  # multi-word technical verbs
+    caps_names: set[str] = field(default_factory=set)  # technical names written in capitals
 
     @classmethod
     def load(cls, verbs_json: Path | None = None) -> "Lexicon":
@@ -53,13 +60,15 @@ class Lexicon:
         tech = tomllib.loads((REPO / "ste" / "technical-verbs.toml").read_text())["verbs"]
         nouns = tomllib.loads((REPO / "ste" / "technical-nouns.toml").read_text())["nouns"]
         nouns = set(nouns) | set(d.get("technical_noun_examples", []))
+        caps = tomllib.loads((REPO / "ste" / "technical-names.toml").read_text())
         return cls.build(d["approved_words"], d["unapproved_words"],
                          {u["word"]: u["alternatives"] for u in d["unapproved_verbs"]},
-                         list(tech), nouns, [v["key"] for v in d["verbs"]])
+                         list(tech), nouns, [v["key"] for v in d["verbs"]],
+                         caps_names=[w for ws in caps.values() for w in ws])
 
     @classmethod
     def build(cls, approved_pos, unapproved, unapproved_verbs, technical_verbs, technical_nouns,
-              approved_verbs) -> "Lexicon":
+              approved_verbs, caps_names=()) -> "Lexicon":
         # A multi-word verb ("roll back", "drag and drop") admits its head word's forms
         # alone; its other words count only inside the phrase, so a bare "drop" is checked.
         tforms, phrases = set(), []
@@ -76,7 +85,13 @@ class Lexicon:
             tnouns |= {p + "s" for p in n.lower().split()} | {p + "es" for p in n.lower().split()}
         bases = {v.split()[0] for v in approved_verbs} | {v.split()[0] for v in technical_verbs}
         return cls(set(approved_pos), dict(approved_pos), dict(unapproved), dict(unapproved_verbs),
-                   tforms, tnouns, bases, phrases)
+                   tforms, tnouns, bases, phrases, set(caps_names))
+
+    def is_dictionary_word(self, low: str) -> bool:
+        """An STE word (approved or unapproved) or a technical verb, in any listed form."""
+        if low in self.approved or low in self.unapproved or low in self.technical_verbs:
+            return True
+        return any(c in self.unapproved_verbs or c in self.approved for c in lemmas(low)[1:])
 
 
 def verb_forms(base: str) -> set[str]:
@@ -103,13 +118,20 @@ def lemmas(tok: str) -> list[str]:
     return out
 
 
-def looks_technical(tok: str, names: set[str]) -> bool:
-    """Identifier-shaped tokens and names the example's code uses are technical names."""
+def looks_technical(tok: str, names: set[str], lex: "Lexicon | None" = None,
+                    input_caps: frozenset[str] = frozenset()) -> bool:
+    """Identifier-shaped tokens and names the example's code uses are technical names.
+    An all-capitals token is one only if it is a listed technical name, is not a
+    dictionary word (an acronym), or the input has it in capitals too."""
     if tok in names or tok.lower() in names:
         return True
     if re.search(r"[_.\d]", tok) or re.search(r"[a-z][A-Z]", tok):
         return True
-    return len(tok) >= 2 and tok.isupper()
+    if not (len(tok) >= 2 and tok.isupper()):
+        return False
+    if lex is None or tok in lex.caps_names or tok in input_caps:
+        return True
+    return not lex.is_dictionary_word(tok.lower())
 
 
 MARKUP = re.compile(r"^\s*(#{1,6}\s+|[-*+]\s+|\d+(\.\d+)*[.)]\s+|>\s*)")
@@ -184,12 +206,19 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
     words = prose
     for ph in lex.phrases:  # keep the head word, drop the rest of the phrase
         words = ph.sub(lambda m: m.group(1), words)
-    verbs, ing, unapproved_words, unknown = set(), set(), set(), set()
+    input_caps = frozenset(t for t in WORD.findall(PLACEHOLDER.sub(" ", masked_input))
+                           if len(t) >= 2 and t.isupper())
+    # the source uses capitals for headings or emphasis: the rewrite may keep the style
+    caps_style = any(t not in lex.caps_names and (lex.is_dictionary_word(t.lower()) or len(t) >= 5)
+                     for t in input_caps)
+    verbs, ing, unapproved_words, unknown, caps = set(), set(), set(), set(), set()
     for raw in WORD.findall(words):
         tok = raw.strip("'’-")
         low = tok.lower()
-        if not low or low == "i" or looks_technical(tok, names):
+        if not low or low == "i" or looks_technical(tok, names, lex, input_caps):
             continue
+        if len(tok) >= 2 and tok.isupper() and not caps_style:
+            caps.add(tok)  # a dictionary word in capitals: report it, then check it as a word
         if low in lex.approved or low in lex.technical_verbs:
             continue
         tech_noun = low in lex.technical_nouns
@@ -209,6 +238,8 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
             unapproved_words.add(low)
         elif not any(c in lex.approved for c in cands):
             unknown.add(low)
+    if caps:
+        hard["capitals"] = sorted(caps)
     if verbs:
         hard["verbs"] = sorted(verbs)
     if ing:
@@ -249,6 +280,9 @@ def repair_note(result: dict, lex: Lexicon) -> str:
         lines.append(f'"{v}" is not an approved verb. Alternatives the standard gives: {alts}.')
     for w in h.get("ing", []):
         lines.append(f'"{w}" is an -ing form. Write the sentence in a different way.')
+    for w in h.get("capitals", []):
+        lines.append(f'"{w}" is a normal word written in capitals. Write it in lowercase, '
+                     f'or write the sentence in a different way.')
     if "contractions" in h:
         lines.append("Do not use contractions: " + ", ".join(h["contractions"]))
     if "semicolon" in h:

@@ -1,0 +1,20 @@
+# Words written in capitals in prose that are technical names, not STE words
+# (docs/decisions.md, 2026-11-01). Candidate, unratified; our own list. The lowercase
+# forms keep their approved STE100 meanings. scripts/ste_check.py accepts these in
+# capitals; any other dictionary word in capitals fails unless the source text has it
+# in capitals too. A technical name is never used as a verb.
+
+# Logical operators and values.
+operators = ["AND", "OR", "NOT", "XOR", "NAND", "NOR", "TRUE", "FALSE", "NULL"]
+
+# SQL keywords. GRANT and REVOKE wait on the permission-scope ruling.
+sql = [
+  "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "CREATE", "ALTER", "DROP", "TRUNCATE",
+  "TABLE", "VIEW", "INDEX", "DATABASE", "SCHEMA", "FROM", "WHERE", "INTO", "VALUES", "SET",
+  "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "CROSS", "ON", "USING", "AS",
+  "GROUP", "ORDER", "BY", "HAVING", "LIMIT", "OFFSET", "UNION", "INTERSECT", "EXCEPT",
+  "DISTINCT", "ALL", "ANY", "IN", "IS", "LIKE", "BETWEEN", "EXISTS", "CASE", "WHEN",
+  "THEN", "ELSE", "END", "ASC", "DESC", "PRIMARY", "FOREIGN", "KEY", "REFERENCES",
+  "DEFAULT", "CHECK", "UNIQUE", "CONSTRAINT", "BEGIN", "COMMIT", "ROLLBACK",
+  "TRANSACTION", "SAVEPOINT", "COUNT", "SUM", "AVG", "MIN", "MAX", "WITH", "RETURNING",
+]

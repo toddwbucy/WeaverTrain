@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 unsloth_compiled_cache/
+
+# experiment work trees: local only (text derived from the standard, dataset text,
+# model outputs); the repository keeps only experiments/README.md
+experiments/*
+!experiments/README.md

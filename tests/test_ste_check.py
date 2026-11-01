@@ -93,3 +93,18 @@ def test_wrapped_sentence_is_counted_whole():
     items = "- Examine the error.\n- Examine the function.\n\n## Result\nThe test shows the error."
     assert ste.sentences(items) == ["Examine the error.", "Examine the function.", "Result",
                                     "The test shows the error."]
+
+
+def test_capitals_are_technical_names_only_when_listed_or_not_words():
+    lex = ste.Lexicon.build(approved_pos=APPROVED, unapproved={"should": ["v"]},
+                            unapproved_verbs={"should": []}, technical_verbs=[], technical_nouns=[],
+                            approved_verbs=["do", "make", "show"], caps_names=["AND", "SELECT"])
+    chk = lambda out, inp="text": ste.check(out, inp, lex)["hard"]
+    assert chk("The test uses AND. Use SELECT.") == {}            # listed technical names
+    assert chk("The PPM file shows the error.") == {}              # acronym, not a word
+    assert chk("The test is THE result.") == {"capitals": ["THE"]}  # an approved word in capitals
+    assert chk("The RESULT shows the error.", "The RESULT") == {}   # capitals copied from the input
+    assert chk("The FIND shows the error.", "The RESULT") == {}     # the source writes words in capitals
+    assert chk("The RESULT shows the error.") == {"capitals": ["RESULT"]}
+    assert "capitals" in chk("I SHOULD do it.") and "verbs" in chk("I SHOULD do it.")
+    assert chk("The result and the error.") == {}                  # the conjunction stays prose
