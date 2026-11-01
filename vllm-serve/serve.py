@@ -47,7 +47,7 @@ def main(argv=None) -> int:
     for item in a.set:
         key, sep, value = item.partition("=")
         section, _, name = key.partition(".")
-        if not sep or section != "engine" or not name:
+        if not sep or section != "engine" or not name or "." in name:
             ap.error(f"--set takes engine.KEY=VALUE, got {item!r}")
         cfg["engine"][name] = coerce(value)
 

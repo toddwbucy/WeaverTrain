@@ -30,7 +30,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PLACEHOLDER = re.compile(r"\[\[C\d+\]\]")
 WORD = re.compile(r"[A-Za-z][A-Za-z'’-]*")
-CONTRACTION = re.compile(r"(?i)\b\w+(?:n['’]t|['’](?:ll|re|ve|m|d))\b|\blet['’]s\b")
+CONTRACTION = re.compile(r"(?i)\b\w+(?:n['’]t|['’](?:ll|re|ve|m|d))\b"
+                         r"|\b(?:let|it|that|there|here|what|who|where|how|he|she)['’]s\b")
 NON_VERB_ING = {"string", "thing", "nothing", "something", "anything", "everything", "during",
                 "spring", "ring", "king", "sibling", "ceiling", "morning", "evening", "bring"}
 
@@ -44,6 +45,7 @@ class Lexicon:
     technical_verbs: set[str]          # every form
     technical_nouns: set[str]
     verb_bases: set[str] = field(default_factory=set)  # approved + technical verb base forms
+    phrases: list[re.Pattern] = field(default_factory=list)  # multi-word technical verbs
 
     @classmethod
     def load(cls, verbs_json: Path | None = None) -> "Lexicon":
@@ -58,17 +60,23 @@ class Lexicon:
     @classmethod
     def build(cls, approved_pos, unapproved, unapproved_verbs, technical_verbs, technical_nouns,
               approved_verbs) -> "Lexicon":
-        tforms = set()
+        # A multi-word verb ("roll back", "drag and drop") admits its head word's forms
+        # alone; its other words count only inside the phrase, so a bare "drop" is checked.
+        tforms, phrases = set(), []
         for v in technical_verbs:
-            for w in v.split():
-                tforms |= verb_forms(w)
+            head, *rest = v.split()
+            tforms |= verb_forms(head)
+            if rest:
+                forms = "|".join(sorted(verb_forms(head), key=len, reverse=True))
+                tail = r"\s+".join(map(re.escape, rest))
+                phrases.append(re.compile(rf"(?i)\b({forms})\s+{tail}\b"))
         tnouns = set()
         for n in technical_nouns:
             tnouns |= set(n.lower().split())
             tnouns |= {p + "s" for p in n.lower().split()} | {p + "es" for p in n.lower().split()}
         bases = {v.split()[0] for v in approved_verbs} | {v.split()[0] for v in technical_verbs}
         return cls(set(approved_pos), dict(approved_pos), dict(unapproved), dict(unapproved_verbs),
-                   tforms, tnouns, bases)
+                   tforms, tnouns, bases, phrases)
 
 
 def verb_forms(base: str) -> set[str]:
@@ -148,12 +156,14 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
     prose = PLACEHOLDER.sub(" ", output)
     if ";" in prose:
         hard["semicolon"] = [";"]
-    contractions = CONTRACTION.findall(prose)
-    if contractions or re.search(r"(?i)\blet['’]s\b", prose):
+    if CONTRACTION.search(prose):
         hard["contractions"] = sorted({m.group(0) for m in CONTRACTION.finditer(prose)})
 
+    words = prose
+    for ph in lex.phrases:  # keep the head word, drop the rest of the phrase
+        words = ph.sub(lambda m: m.group(1), words)
     verbs, ing, unapproved_words, unknown = set(), set(), set(), set()
-    for raw in WORD.findall(prose):
+    for raw in WORD.findall(words):
         tok = raw.strip("'’-")
         low = tok.lower()
         if not low or low == "i" or looks_technical(tok, names):

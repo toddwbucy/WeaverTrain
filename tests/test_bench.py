@@ -66,7 +66,7 @@ def test_runner_errors_are_recorded_not_fatal(snapshot, tmp_path):
             return {"status": "maybe"}
         return {"status": "resolved"}
 
-    (rec,) = bench.run_bench(d, p, flaky, model=MODEL, out_dir=tmp_path / "out")
+    (rec,) = bench.run_bench(d, p, flaky, model=MODEL, out_dir=tmp_path / "out", runner_name="r:flaky")
     assert rec.results["error"] == 2 and rec.results["resolved"] == 2
     lines = {json.loads(x)["task_id"]: json.loads(x)
              for x in (tmp_path / "out" / "rep-00" / "results.jsonl").read_text().splitlines()}
@@ -113,7 +113,7 @@ def test_resume_refuses_other_runner_or_task_selection(snapshot, tmp_path, chang
 def test_unserializable_runner_field_is_recorded(snapshot, tmp_path):
     d, p, _ = snapshot
     (rec,) = bench.run_bench(d, p, lambda t, **k: {"status": "resolved", "where": tmp_path},
-                             model=MODEL, out_dir=tmp_path / "out")
+                             model=MODEL, out_dir=tmp_path / "out", runner_name="r:f")
     assert rec.results["resolved"] == 4
 
 
@@ -141,3 +141,10 @@ def test_cli(snapshot, tmp_path, capsys):
     assert rc == 0
     rec = mf.load_run(tmp_path / "cli" / "rep-01" / "run.json")
     assert rec.sampler == {"temperature": 0.7} and rec.config["runner"] == "tests.test_bench:parity_runner"
+
+
+def test_default_runner_identity_is_module_qualified():
+    assert bench.runner_identity(parity_runner) == f"{__name__}:parity_runner"
+    for unnamed in (lambda t, **k: {}, type("R", (), {"__call__": lambda s, t, **k: {}})()):
+        with pytest.raises(bench.BenchError, match="runner_name"):
+            bench.runner_identity(unnamed)

@@ -64,6 +64,11 @@ def mask_brackets(text: str, codes: list[str]) -> str:
         if not m:
             out.append(text[i:])
             return "".join(out)
+        ph = ste_check.PLACEHOLDER.match(text, m.end() - 1)
+        if ph and m.start() == m.end() - 1:  # an earlier placeholder: copy it whole
+            out.append(text[i:ph.end()])
+            i = ph.end()
+            continue
         depth, j = 0, m.end() - 1
         pairs = {"(": ")", "[": "]", "{": "}"}
         stack = []
@@ -76,7 +81,7 @@ def mask_brackets(text: str, codes: list[str]) -> str:
                 if not stack:
                     break
             j += 1
-        if stack or j >= len(text) or text[j] == "\n" or text.startswith("[[C", m.start()):
+        if stack or j >= len(text) or text[j] == "\n":
             out.append(text[i:m.end()])
             i = m.end()
             continue
@@ -207,7 +212,12 @@ class Converter:
         max_tokens = min(8192, len(masked) // 2 + 256)
         attempts = []
         for n in range(self.a.repairs + 1):
-            out, finish = await self.ask(client, messages, max_tokens)
+            try:
+                out, finish = await self.ask(client, messages, max_tokens)
+            except Exception as e:  # noqa: BLE001 - one failed request must not end the run
+                self.stats["request_errors"] = self.stats.get("request_errors", 0) + 1
+                return {**rec, "ok": False, "reason": "request_error",
+                        "error": f"{type(e).__name__}: {e}"[:500], "attempts": attempts, "repairs": n}
             res = ste_check.check(out, masked, self.lex, *self.limits, names=names)
             self.guard(res, out, masked)
             if finish == "length":

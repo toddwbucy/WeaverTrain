@@ -16,9 +16,10 @@ APPROVED = {w: ["x"] for w in (
     "error test function in of to and then first only one problem shows show result".split())}
 LEX = ste.Lexicon.build(
     approved_pos=APPROVED,
-    unapproved={"should": ["v"], "fix": ["v"], "run": ["v"], "test": ["v"], "now": ["adv"]},
-    unapproved_verbs={"fix": ["REPAIR (v)"], "run": ["OPERATE (v)"], "test": ["TEST (n)"], "should": []},
-    technical_verbs=["commit", "roll back"],
+    unapproved={"should": ["v"], "fix": ["v"], "run": ["v"], "test": ["v"], "now": ["adv"], "drop": ["v"]},
+    unapproved_verbs={"fix": ["REPAIR (v)"], "run": ["OPERATE (v)"], "test": ["TEST (n)"], "should": [],
+                      "drop": ["RELEASE (v)"]},
+    technical_verbs=["commit", "roll back", "drag and drop"],
     technical_nouns=["repository", "issue"],
     approved_verbs=["do", "make", "find", "examine", "show"],
 )
@@ -71,3 +72,14 @@ def test_repair_note_names_alternatives():
     r = run("I will fix it; it's broken.", "x [[C1]]")
     note = ste.repair_note(r, LEX)
     assert "REPAIR (v)" in note and "[[C1]]" in note and "semicolon" in note
+
+
+def test_apostrophe_s_contractions_fail():
+    for s in ("It's the error.", "That’s the result.", "There's one problem.", "Let's examine it."):
+        assert "contractions" in run(s)["hard"], s
+    assert "contractions" not in run("The function's result is the error.")["hard"]
+
+
+def test_multi_word_technical_verb_admits_the_phrase_not_its_parts():
+    assert run("I will drag and drop the function. I rolled back the commit.")["hard"] == {}
+    assert run("I will drop the function.")["hard"] == {"verbs": ["drop"]}

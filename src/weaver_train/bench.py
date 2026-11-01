@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import inspect
 import json
 import os
 import sys
@@ -89,6 +90,15 @@ def _summary(results: list[dict]) -> dict:
             "resolved_rate": (c.get("resolved", 0) / n) if n else None}
 
 
+def runner_identity(runner) -> str:
+    """module:qualname of an importable function, the same spec the CLI takes. A lambda,
+    a nested function or a callable object has no stable unique name: pass runner_name."""
+    mod, qual = getattr(runner, "__module__", None), getattr(runner, "__qualname__", None)
+    if not (inspect.isfunction(runner) and mod and qual and "<" not in qual):
+        raise BenchError(f"runner {runner!r} has no stable name; pass runner_name (module:callable)")
+    return f"{mod}:{qual}"
+
+
 def run_bench(snapshot_dir: str | os.PathLike, manifest_path: str | os.PathLike, runner: Runner, *,
               model: dict, out_dir: str | os.PathLike, repetitions: int = 1, seed: int = 0,
               sampler: dict | None = None, adapter: dict | None = None,
@@ -113,7 +123,7 @@ def run_bench(snapshot_dir: str | os.PathLike, manifest_path: str | os.PathLike,
 
     sampler = sampler or {}
     snapshot = {"name": m.name, "tree_hash": snap_hash}
-    config = {"runner": runner_name or getattr(runner, "__qualname__", repr(runner)),
+    config = {"runner": runner_name or runner_identity(runner),
               "repetitions": repetitions, "base_seed": seed,
               "task_ids": [t["task_id"] for t in tasks]}
     records = []

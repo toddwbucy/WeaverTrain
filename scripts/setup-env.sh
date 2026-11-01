@@ -148,7 +148,16 @@ fi
 if want verify; then
   say "verify (kernels, fast path, Unsloth)"
   [[ -f environment.lock ]] || die "environment.lock missing; run the lock stage first"
-  key="$(cat environment.lock <(echo "driver=$driver_ver gpus=$CUDA_VISIBLE_DEVICES expect=${WEAVER_TRAIN_EXPECT_GPUS:-} name=${WEAVER_TRAIN_EXPECT_GPU_NAME:-}"; sha256sum scripts/verify_env.py) | sha256sum | cut -d' ' -f1)"
+  # The key covers the content of the files config/known-modified-files.toml lists, which
+  # environment.lock (RECORD) cannot see; it is taken again after the run, because the
+  # Unsloth probe rewrites one of them on a fresh install.
+  verify_key() {
+    { cat environment.lock
+      echo "driver=$driver_ver gpus=$CUDA_VISIBLE_DEVICES expect=${WEAVER_TRAIN_EXPECT_GPUS:-} name=${WEAVER_TRAIN_EXPECT_GPU_NAME:-}"
+      sha256sum scripts/verify_env.py config/known-modified-files.toml
+      "$PY" scripts/freeze_env.py --known-state training; } | sha256sum | cut -d' ' -f1
+  }
+  key="$(verify_key)"
   stamp="$WEAVER_TRAIN_STATE_DIR/stamps/verify-env.ok"
   report="$WEAVER_TRAIN_STATE_DIR/env-report.json"
   if [[ $reverify -eq 0 && -f "$stamp" && "$(cat "$stamp")" == "$key" ]]; then
@@ -157,7 +166,7 @@ if want verify; then
     rm -f "$stamp"
     "$PY" scripts/verify_env.py --report "$report" 2> >(grep -E '^\[(ok|FAIL)\]' >&2) \
       || die "environment verification failed; details in $report"
-    echo "$key" > "$stamp"
+    verify_key > "$stamp"
     echo "   report: $report"
   fi
 fi

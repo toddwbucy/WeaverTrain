@@ -100,7 +100,24 @@ def check_files(env: str) -> int:
     return 1 if problems else 0
 
 
+def known_state(env: str) -> int:
+    """sha256 on disk of each file the allowlist names for env: RECORD cannot see a
+    listed rewrite, so the verify stamp keys on this."""
+    for e in tomllib.loads(ALLOW.read_text()).get("file", []):
+        if e["env"] != env:
+            continue
+        try:
+            path = Path(md.distribution(e["dist"]).locate_file(e["path"]))
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        except (md.PackageNotFoundError, FileNotFoundError):
+            digest = "absent"
+        print(f"{e['dist']} {e['path']} {digest}")
+    return 0
+
+
 def main() -> int:
+    if sys.argv[1:2] == ["--known-state"]:
+        return known_state(sys.argv[2] if len(sys.argv) > 2 else "training")
     if sys.argv[1:2] == ["--check-files"]:
         return check_files(sys.argv[2] if len(sys.argv) > 2 else "training")
     lines = []

@@ -278,12 +278,14 @@ def main(argv=None):
     try:
         check_driver()
         check_torch_cuda(args.expect_gpus, args.expect_gpu_name or None)
+        # Unsloth's import rewrites a mamba-ssm kernel file (config/known-modified-files.toml);
+        # probe it first, so the kernel checks below run the file training will use.
+        check_unsloth()
         check_causal_conv1d()
         check_selective_scan()
         check_ssd()
         check_transformers_fast_path()
         check_xformers()
-        check_unsloth()
     except CheckFailed:
         ok = False
 
