@@ -63,3 +63,5 @@ def test_group_request_and_answer(monkeypatch):
     assert out == {"t1": "I will look."} and problems == ["t2: missing from the response"]
     rep = gem.group_message([{"id": "t1", "text": "a", "previous": "b", "problems": "- verbs: let"}])
     assert rep.startswith("These rewrites break the rules") and "- verbs: let" in rep and "<<<REWRITE\nb" in rep
+    missing = gem.group_message([{"id": "t2", "text": "a", "previous": "", "problems": "- missing"}])
+    assert "did not return a rewrite of t2" in missing and "<<<REWRITE" not in missing

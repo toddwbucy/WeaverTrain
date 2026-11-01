@@ -142,13 +142,16 @@ def group_message(recs: list[dict]) -> str:
     blocks = []
     for r in recs:
         b = f"<<<TEXT id={r['id']}\n{r['text']}\nTEXT>>>"
-        if "previous" in r:
+        if r.get("previous"):
             b += (f"\nYour last rewrite of {r['id']}:\n<<<REWRITE\n{r['previous']}\nREWRITE>>>\n"
                   f"It breaks these rules:\n{r['problems']}")
+        elif "previous" in r:
+            b += f"\nYou did not return a rewrite of {r['id']}. Write one now."
         blocks.append(b)
     head = ("Rewrite each text below." if "previous" not in recs[0] else
-            "These rewrites break the rules. For each text, write the complete rewrite again with the "
-            "problems corrected. Keep the meaning. Start from your last rewrite.")
+            "These rewrites break the rules, or are missing. For each text, write the complete rewrite "
+            "again with the problems corrected, starting from your last rewrite where there is one. Keep "
+            "the meaning. Return every text.")
     return head + "\n\n" + "\n\n".join(blocks)
 
 
@@ -353,7 +356,8 @@ def cmd_fetch(a) -> int:
         if not fname:
             raise SystemExit(f"no results file in the job: {json.dumps(j)[:500]}")
         raw = c.get(f"/download/v1beta/{fname}:download", params={"alt": "media"})
-        check(raw)
+        if raw.status_code >= 400:      # the body is JSON Lines: only the status is checked
+            check(raw)
         if state.get("cache"):
             try:
                 c.delete(f"/v1beta/{state['cache']}")
