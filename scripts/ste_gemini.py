@@ -345,7 +345,7 @@ def cmd_fetch(a) -> int:
     state = json.loads(sp.read_text())
     with client() as c:
         j = check(c.get(f"/v1beta/{state['job']}"))
-        if job_state(j) != "JOB_STATE_SUCCEEDED":
+        if job_state(j) not in ("JOB_STATE_SUCCEEDED", "BATCH_STATE_SUCCEEDED"):
             raise SystemExit(f"job is {job_state(j)}")
         resp = j.get("response") or (j.get("metadata") or {}).get("output") or {}
         fname = resp.get("responsesFile") or (resp.get("dest") or {}).get("fileName") \
