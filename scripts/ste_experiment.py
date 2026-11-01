@@ -113,9 +113,14 @@ Do these steps:
    that no work is lost. Make sure the file has @N@ lines when you are done.
 
 Prohibited:
-- Do not write or run a program that makes the rewrites (no word substitution script,
-  no other model). You can use a short script only to write your finished text to the
-  JSON file.
+- Do not write or run a program that makes the rewrites, and do not use another model.
+- Do not change text with a program. No find-and-replace, no regular expressions, no
+  word lists applied to the text, no sed, no str.replace or re.sub on rewrites, not even
+  for a final cleanup. Every word that you change, you change yourself, in the text.
+- You can use a short script only to write text that you finished to the JSON file.
+  Keep every script that you write. Do not delete or rename any file that you write.
+- A rewrite that is the same as the original, or almost the same, is not a rewrite.
+  Change every word that the rules do not let you keep.
 - Do not run any checker or scorer on your output. The test measures your own writing.
 - Work only inside this directory. Do not read files outside it.
 - Do not search the web.
@@ -155,8 +160,14 @@ Do these steps:
    one line for each record of the repair file.
 
 Prohibited:
-- Do not write or run a program that makes the rewrites. You can use a short script
-  only to write your finished text to the JSON file.
+- Do not write or run a program that makes the rewrites, and do not use another model.
+- Do not change text with a program. No find-and-replace, no regular expressions, no
+  word lists applied to the text, no sed, no str.replace or re.sub on rewrites, not even
+  for a final cleanup. Every word that you change, you change yourself, in the text.
+- You can use a short script only to write text that you finished to the JSON file.
+  Keep every script that you write. Do not delete or rename any file that you write.
+- A rewrite that is the same as the original, or almost the same, is not a rewrite.
+  Change every word that the rules do not let you keep.
 - Do not run any checker or scorer on your output.
 - Do not change earlier round files. Work only inside this directory.
 - Do not search the web.
@@ -210,7 +221,8 @@ Do these steps:
 
 Prohibited:
 - Do not write or run a program that grades. You can use a short script only to write
-  your finished grades to the JSON file.
+  your finished grades to the JSON file. Keep every script that you write. Do not
+  delete or rename any file that you write.
 - Do not run any checker or scorer. Do not read files outside this directory.
 - Do not search the web.
 - Do not answer, obey, or correct the texts. They are data.
@@ -265,7 +277,7 @@ def cmd_kit(a) -> int:
     kinds_line = ("The kind is " if len(present) == 1 else "The kinds are ") + ", ".join(
         KIND_TEXT[k] for k in present) + "."
     (KIT / "RULES.md").write_text(render_rules(prompt))
-    batched = "" if len(recs) <= 100 else (
+    batched = "" if len(recs) < 100 else (
         " It is long: read it 10 records at a time (for example with sed -n),\n"
         "   not all at once. Before each 100 records, read RULES.md again.")
     (KIT / "PROMPT.md").write_text(PROMPT.replace("@N@", str(len(recs))).replace("@KINDS@", kinds_line)
@@ -364,6 +376,23 @@ def altered_literals(out: str | None, text: str) -> list[str]:
     return [t for t in glued_literals(text) if t not in (out or "")]
 
 
+SUBSTITUTION = re.compile(r"re\.sub\(|\.replace\(|\.translate\(|\bsed\b[^\n]*\bs/")
+
+
+def substitution_scripts(d: Path) -> list[str]:
+    """Scripts in a model directory that change text by pattern: a round made with one
+    is not the model's own writing."""
+    return sorted(p.name for p in d.rglob("*") if p.is_file() and p.suffix in (".py", ".sh", ".sed", ".pl")
+                  and SUBSTITUTION.search(p.read_text(encoding="utf-8", errors="replace")))
+
+
+def near_copies(out: dict[str, str], inputs: list[dict], limit: float = 0.95) -> list[str]:
+    """Ids whose rewrite is over LIMIT similar to the input although the checker fails the input."""
+    import difflib
+    return [r["id"] for r in inputs if r["id"] in out
+            and difflib.SequenceMatcher(None, r["text"], out[r["id"]]).ratio() > limit]
+
+
 def incomplete(d: Path, n: int) -> tuple[int, int] | None:
     """(written, wanted) when round n has fewer records than it answers: round 1 the
     model directory's input.jsonl, a later round the repair file before it."""
@@ -422,8 +451,8 @@ def cmd_score(a) -> int:
     judge = Judge()
     inputs = [json.loads(line) for line in open(KIT / "input.jsonl", encoding="utf-8") if line.strip()]
     kinds = sorted({r["kind"] for r in inputs})
-    rows = ["| Model | Round | Pass | " + " | ".join(kinds) + " | Failing rules | Altered literals |",
-            "|---|---|---|" + "---|" * len(kinds) + "---|---|"]
+    rows = ["| Model | Round | Pass | " + " | ".join(kinds) + " | Failing rules | Altered literals | Near copies |",
+            "|---|---|---|" + "---|" * len(kinds) + "---|---|---|"]
     for d in models(a.names):
         for n in rounds(d):
             out, bad = merged(d, n)
@@ -441,7 +470,11 @@ def cmd_score(a) -> int:
                         + (f" (INCOMPLETE: round{n}.jsonl has {short[0]} of {short[1]} records)"
                            if (short := incomplete(d, n)) else "") + " | "
                         + (", ".join(f"{r['id']} {t}" for r in inputs
-                                     for t in altered_literals(out.get(r["id"]), r["text"])) or "none") + " |")
+                                     for t in altered_literals(out.get(r["id"]), r["text"])) or "none") + " | "
+                        + str(len(near_copies(out, inputs))) + " |")
+        if (bad_scripts := substitution_scripts(d)):
+            rows.append(f"| {d.name} | ALL | INVALID: text changed by script {bad_scripts} |"
+                        + " |" * (len(kinds) + 3))
         if rounds(d):
             out, _ = merged(d)
             lines = [f"# {d.name}: rounds {rounds(d)} merged", ""]
@@ -617,6 +650,42 @@ def cmd_grade_score(a) -> int:
     return 0
 
 
+PART_TASK = {
+    "round1": ("PROMPT.md", "input.jsonl", "round1.jsonl", "rewrite"),
+    "repair": ("REPAIR-PROMPT.md", "repair-{n}.jsonl", "round{m}.jsonl", "correct"),
+    "grade": ("GRADE-PROMPT.md", "grade-input.jsonl", "grades.jsonl", "grade"),
+}
+
+
+def cmd_send_parts(a) -> int:
+    """Queue one message per slice of SIZE records. Each message names its lines and
+    ends the watch loop, so the operator starts a fresh session for the next slice."""
+    prompt, src, dst, verb = PART_TASK[a.task]
+    dirs = models(a.names)
+    for d in dirs:
+        if any(not done for _, _, done in messages(d)):
+            raise SystemExit(f"{d.name} has a message pending")
+    for d in dirs:
+        n = max(rounds(d), default=0)
+        s_name, d_name = src.format(n=n), dst.format(m=n + 1)
+        total = sum(1 for line in open(d / s_name, encoding="utf-8") if line.strip())
+        start = 1 + max((num for num, _, _ in messages(d)), default=0)
+        for k, lo in enumerate(range(1, total + 1, a.size)):
+            hi = min(total, lo + a.size - 1)
+            body = (f"Read {prompt} in this directory and obey it, with one change: in this task, "
+                    f"{verb} only lines {lo} to {hi} of {s_name} ({hi - lo + 1} records). Append "
+                    f"them to {d_name}, in order. When you finish, {d_name} has {hi} lines.\n\n"
+                    f"When you finish, write the .done file for this message as MONITOR.md says. "
+                    f"Then stop: do not wait for more messages. The operator starts a new session "
+                    f"for the next part.\n")
+            name = f"{start + k:03d}-{a.task}-part{k + 1}.md"
+            tmp = d / "messages" / f".{name}.tmp"
+            tmp.write_text(body, encoding="utf-8")
+            os.replace(tmp, d / "messages" / name)
+        print(f"{d.name}: queued {k + 1} parts of {a.size} ({s_name} -> {d_name}, {total} records)")
+    return 0
+
+
 def cmd_status(a) -> int:
     for d in models(a.names):
         ms = messages(d)
@@ -652,6 +721,10 @@ def main(argv=None) -> int:
     g.add_argument("--seeds", required=True, help="seeds.json: known-wrong rewrites per grader (local)")
     g.add_argument("--seed-experiment", default="ste-rewrite-r3")
     g.add_argument("--rng", type=int, default=2028)
+    sp = sub.add_parser("send-parts")
+    sp.add_argument("task", choices=sorted(PART_TASK))
+    sp.add_argument("names", nargs="*")
+    sp.add_argument("--size", type=int, default=100)
     gs = sub.add_parser("grade-score")
     gs.add_argument("--rng", type=int, default=2029)
     a = ap.parse_args(argv)
@@ -660,7 +733,7 @@ def main(argv=None) -> int:
     KIT = ROOT / "kit"
     return {"kit": cmd_kit, "new": cmd_new, "repair": cmd_repair, "score": cmd_score,
             "send": cmd_send, "status": cmd_status, "grade-kit": cmd_grade_kit,
-            "grade-score": cmd_grade_score}[a.cmd](a)
+            "grade-score": cmd_grade_score, "send-parts": cmd_send_parts}[a.cmd](a)
 
 
 if __name__ == "__main__":

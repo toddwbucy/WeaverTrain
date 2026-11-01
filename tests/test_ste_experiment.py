@@ -34,3 +34,12 @@ def test_incomplete_round_is_reported(tmp_path):
     (tmp_path / "input.jsonl").write_text('{"id": "s1"}\n{"id": "s2"}\n{"id": "s3"}\n')
     (tmp_path / "round1.jsonl").write_text('{"id": "s1", "output": "x"}\n{"id": "s3", "output": "z"}\n')
     assert exp.incomplete(tmp_path, 1) == (2, 3)
+
+
+def test_substitution_scripts_and_near_copies(tmp_path):
+    (tmp_path / "make.py").write_text("import json\nprint(json.dumps({'id': 'k1'}))\n")
+    assert exp.substitution_scripts(tmp_path) == []
+    (tmp_path / "fix.py").write_text("import re\ns = re.sub(r'\\bfix\\b', 'change', s)\n")
+    assert exp.substitution_scripts(tmp_path) == ["fix.py"]
+    inputs = [{"id": "a", "text": "Let me fix the parser now."}, {"id": "b", "text": "Let me fix it."}]
+    assert exp.near_copies({"a": "Let me fix the parser now!", "b": "I will repair it."}, inputs) == ["a"]

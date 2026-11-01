@@ -3,6 +3,8 @@
     python scripts/ste_kit_sample.py --out var/ste/kit-500/source.jsonl
         [--n 500] [--final 50] [--seed 2027] [--mix 11,9,10] [--max-chars 2000]
         [--exclude var/ste/kit-r3/source.jsonl]
+    python scripts/ste_kit_sample.py --from var/ste/kit-500/source.jsonl --n 100 --final 10
+        --out var/ste/kit-100/source.jsonl     # a subset of an earlier kit, same mix
 
 One segment per trajectory, so the kit covers --n different examples. A segment is
 an assistant message's text (kind "narration") or the message of the closing `finish`
@@ -47,6 +49,32 @@ def targets(n: int, mix: list[int]) -> list[int]:
     return t
 
 
+def subset(a) -> int:
+    """A smaller kit from an earlier kit's source, in the same length mix and kinds."""
+    rng = random.Random(a.seed)
+    recs = [json.loads(line) for line in open(a.from_source, encoding="utf-8")]
+    for r in recs:
+        r["bin"] = bin_of(len(ste_convert.mask(r["raw"])[0]))
+    want = targets(a.n, [int(x) for x in a.mix.split(",")])
+    finals = rng.sample([r for r in recs if r["kind"] == "final"], a.final)
+    picked = list(finals)
+    for i, w in enumerate(want):
+        have = sum(r["bin"] == i for r in finals)
+        pool = [r for r in recs if r["kind"] == "narration" and r["bin"] == i]
+        picked += rng.sample(pool, w - have)
+    picked.sort(key=lambda r: r["id"])
+    out = Path(a.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
+        for n, r in enumerate(picked, 1):
+            f.write(json.dumps({"id": f"t{n:03d}", "kind": r["kind"], "uuid": r["uuid"], "loc": r["loc"],
+                                "raw": r["raw"], "from": r["id"]}) + "\n")
+    print(json.dumps({"out": str(out), "segments": len(picked), "targets": want,
+                      "kinds": {k: sum(r["kind"] == k for r in picked) for k in ("narration", "final")},
+                      "bins": [sum(r["bin"] == i for r in picked) for i in range(len(BINS))]}))
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dataset", default="nemotron-swe-v1")
@@ -57,7 +85,10 @@ def main(argv=None) -> int:
     ap.add_argument("--mix", default="11,9,10")
     ap.add_argument("--max-chars", type=int, default=2000)
     ap.add_argument("--exclude", action="append", default=[])
+    ap.add_argument("--from", dest="from_source", help="draw from this kit source instead of the dataset")
     a = ap.parse_args(argv)
+    if a.from_source:
+        return subset(a)
 
     spec = tomllib.loads((REPO / "config" / "datasets.toml").read_text())["datasets"][a.dataset]
     m = mf.load_tree(REPO / "manifests" / "datasets" / f"{a.dataset}.json")
