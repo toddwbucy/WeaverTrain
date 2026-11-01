@@ -3,6 +3,23 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-01: STE scope: narration and agent output only (candidate, pending ratification)
+
+Only the agent's narration and output are converted to STE100. Issue text and
+tool-call `think` fields stay exactly as they are. Reason as stated: the model reasons
+freely and writes its instructions and output in STE; issue text is user input and
+stays natural.
+
+Effects, until ratified:
+
+- The STE rewriter kit holds narration segments only. Issue and `think` segments
+  are not scored.
+- In a converted example, issue text and `think` fields stay byte-identical, like
+  tool output already does. `scripts/ste_convert.py` still segments them; it changes
+  when this is ratified.
+- The 2026-11-01 rounds 1 and 2 scored issue and `think` segments too. Their results
+  for those kinds are kept as a record and are not part of the rewriter choice.
+
 ## 2026-11-01: logical operators and SQL keywords in capitals are technical names
 
 In prose, a logical operator or an SQL keyword is written in capitals and is a technical
