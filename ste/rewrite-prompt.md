@@ -13,6 +13,8 @@ Output only the rewritten text. Do not write the markers, a preface, a note, or 
 3. A placeholder counts as one word. In a sentence, use it as a noun: "Examine [[C1]].", "The function [[C2]] gives an error."
 4. Names of code items, files, modules, classes, functions, variables, commands, libraries, products, errors, and exceptions are technical names. Copy them exactly, with the same letters, case, dots, and underscores. Examples: DataFrame, ValueError, pandas, pytest, __init__.
 5. Terms of the subject field are also technical names. Examples: repository, function, method, class, module, argument, parameter, index, array, test, test suite, database, table, row, column, branch, commit, issue, error message, stack trace, edge case.
+6. Logical operators and SQL keywords are technical names when you write them in capitals: AND, OR, NOT, XOR, TRUE, FALSE, NULL, SELECT, INSERT, UPDATE, DELETE, JOIN, CREATE, DROP, ALTER, WHERE, GROUP BY, ORDER BY. Use them as names, not as verbs: write "Use SELECT to get the rows", not "Select the rows". Write "The filter uses AND", but "If the file is open and the lock is free" (here "and" is a normal word).
+7. Write all other words in normal lowercase. Do not write a normal word in capitals: write "All tests are successful", not "All tests GO". Where the text uses capitals for a heading or for emphasis, you can keep capitals in your rewrite of those words.
 
 # Format
 
