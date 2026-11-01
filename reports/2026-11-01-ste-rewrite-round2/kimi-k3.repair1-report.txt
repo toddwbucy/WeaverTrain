@@ -1,0 +1,41 @@
+Task done.
+
+What I did:
+- Read REPAIR-PROMPT.md and repair-1.jsonl (47 records), re-read RULES.md.
+- For each record I wrote a new complete rewrite, starting from "previous" and
+  correcting every listed problem. Main corrections:
+  - "fix" (noun) -> "repair" everywhere; headings "FIX ANALYSIS" -> "REPAIR ANALYSIS",
+    "DO THE FIX" -> "DO THE REPAIR".
+  - "call/calls" (verb and noun) -> "use/uses" or "the use of".
+  - "fail/fails/failed" -> "give an error", "stop with an error", "does not give
+    the correct result".
+  - "expected" -> "correct", "wanted", "that must occur" (per context).
+  - "details" -> "data"; <details> tags removed in s32 and s38.
+  - "match" -> "agree"/"find"; "register" -> "add"; "route(s)" -> "path(s)";
+    "join" -> "merge"; "describe" -> "give"; "feature" -> "function"/"change";
+    "block(s)" -> "part(s)" or "between try and except"; "build(s)" -> "assembly";
+    "combined" -> "one exception for all of them"; "escape" -> "put a backslash
+    before"; "place" -> "itself"; "return" -> "output"; "convert" -> "change";
+    "create" -> "make"; "ask(s)" -> "want(s)"; "depends" -> "is related to";
+    "design" -> rephrased; "needs" -> "requirements"; "progress" -> "the work
+    goes well"; "ready" -> "you can use it"; "stepping" -> "Step"; "floating" ->
+    "with a decimal point"; "channel" -> "color values of the pixels";
+    "represent(s)" -> "is"/"are for"; "form" -> "the data of the request";
+    "transfer" -> removed; "need" -> "is necessary"; "requested" -> "specified";
+    contraction "can't" -> "cannot" (inside a quoted error message).
+  - Over-long sentences divided (s37, s39, s42, s45, s58, s60); in s58 every
+    checkmark item now ends with a period.
+- Wrote the results to round2.jsonl in 5 batches (10+10+10+10+7), appended.
+
+Files written:
+- round2.jsonl: 47 lines, {"id", "output"} per line, same order as repair-1.jsonl.
+
+Verification:
+- 47 lines, valid JSON, ids match the repair file order.
+- Placeholder multiset of each output matches the original "text" exactly.
+- No flagged word remains (scan for all quoted unapproved words: clean).
+- Sentence-length simulation (with the boundary behavior inferred from the
+  round-1 flags): no segment over 25 words.
+
+Problems:
+- None. All 47 records could be corrected.

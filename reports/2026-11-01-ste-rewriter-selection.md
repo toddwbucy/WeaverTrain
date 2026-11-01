@@ -1,7 +1,7 @@
 # STE100 rewriter selection: what we are doing and where it stands (2026-11-01)
 
-Status at 14:20Z on 2026-11-01: round 1 is done for three models and the repair round
-is running. Round 1 results are in `2026-11-01-ste-rewrite-round1/`.
+Round 1 results are in `2026-11-01-ste-rewrite-round1/`. The repair round and the
+meaning review are in `2026-11-01-ste-rewrite-round2.md`.
 
 ## Why we are doing this
 
@@ -157,12 +157,8 @@ and gives every model the same feedback rounds.
 
 ## In progress and next
 
-1. **Repair round 1** was sent at 14:14Z to DeepSeek, Gemini and Kimi: 45, 29 and 47
-   segments. Each session was cleared first, so the model starts from the files only.
-   When all three finish, the next steps are:
-   - score round 2;
-   - read the long segments for meaning;
-   - record each model's repair cost.
+1. **The repair round and the meaning review are done.** See
+   `2026-11-01-ste-rewrite-round2.md`.
 2. **Choosing a rewriter.** Pass rate after repair, meaning faithfulness and cost per
    passing segment decide. A larger pilot through the chosen provider's API waits for
    the operator's go. Before such a run, check each provider's terms on using outputs

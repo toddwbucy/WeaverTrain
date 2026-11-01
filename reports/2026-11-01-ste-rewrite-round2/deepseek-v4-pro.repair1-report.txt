@@ -1,0 +1,12 @@
+Wrote round2.jsonl: 45 corrected rewrite records, one JSON object per line, in the order of repair-1.jsonl (ids s02..s60, the 45 flagged records).
+
+What I did: read REPAIR-PROMPT.md, re-read RULES.md, and read repair-1.jsonl in full. For each record I corrected, from its "previous" text, every item listed in "problems" (unapproved verbs, -ing forms, and one over-length sentence), keeping the full meaning, the Markdown structure, and each [[Cn]] placeholder exactly once.
+
+Files written: round2.jsonl (45 lines); write_round2.py (helper used only to serialize my finished text to JSON).
+
+Verification: every [[Cn]] placeholder multiset matches repair-1.jsonl's "previous" field exactly (0 mismatches).
+
+Problems / items kept unchanged (technical names or markup, kept per RULES rule 4 and Format):
+- s32: "details" (= the <details>/</details> HTML tags) and "stepping" (= the processor identifier "Intel64 Family 6 Model 158 Stepping 10") are markup/technical data, left unchanged.
+- s38: "details" (= the <details>/</details> HTML tags) left unchanged.
+- s53: the API name "DescribeNodegroup" is kept as a technical name; the non-name verb uses of "describe" were rewritten to "the operation" and "described" to "in the description".
