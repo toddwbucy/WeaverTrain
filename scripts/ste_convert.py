@@ -48,9 +48,16 @@ SPAN_PATTERNS = [
     re.compile(r"```.*?```", re.S),                       # fenced code
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
+    # an exception name and its message, to the end of the line: program output
+    re.compile(r"\b[A-Z]\w*(?:Error|Exception|Warning)(?:: [^\n]+|:(?=\n|$))"),
+    # HTML tags (<details>, </summary>, <br/>); the prose between tags stays
+    re.compile(r"</[A-Za-z][\w-]*\s*>|(?<![\w<])<[A-Za-z][\w-]*(?:\s+[^<>\n]*)?/?>"),
+    re.compile(r'"\s*"'),                                 # empty or blank string literal
     # double-quoted strings, escape-aware; a backslash before a quote that ends the span
-    # (space, punctuation, end) is content, as in "C:\tmp\", not an escape
-    re.compile(r'"(?:[^"\\\n]|\\"(?![\s;,.:)\]}]|$)|\\[^"\n]|\\(?=")){1,300}"'),
+    # (space, punctuation, end) is content, as in "C:\tmp\", not an escape. The text
+    # inside does not start or end with a space, so in 'message "Python int ..." when'
+    # inside a longer quotation the inner string pairs, not the outer quote's halves.
+    re.compile(r'"(?!\s)(?:[^"\\\n]|\\"(?![\s;,.:)\]}]|$)|\\[^"\n]|\\(?=")){1,300}(?<!\s)"'),
     re.compile(r"(?<![\w/])(?:\.{0,2}/)?(?:[\w.-]+/)+[\w.-]*"),  # paths with a slash
     re.compile(r"\b[\w-]+\.(?:py|pyx|pyi|txt|md|rst|toml|json|ya?ml|cfg|ini|sh|c|h|cpp|rs|js|ts|csv)\b"),
 ]
@@ -115,6 +122,36 @@ def mask_brackets(text: str, codes: list[str]) -> str:
         i = j + 1
 
 
+LISTING_LINE = re.compile(r"[\w.\-\[\]]+ *:(?: .*)?")   # "name : value" (blank value allowed)
+ALIGNED = re.compile(r"^\S+ {2,}:")                   # padded to a column: program output
+
+
+def mask_listings(text: str, codes: list[str]) -> str:
+    """Mask program output listings such as pandas' "INSTALLED VERSIONS": a run of
+    "name : value" lines (blank lines inside allowed) in which at least 3 lines pad the
+    name to a column. Prose labels ("File: x", "Lines: 3-4") are not padded and stay."""
+    lines = text.split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        if not LISTING_LINE.fullmatch(lines[i]):
+            out.append(lines[i])
+            i += 1
+            continue
+        j = i
+        while j < len(lines) and (LISTING_LINE.fullmatch(lines[j]) or not lines[j].strip()):
+            j += 1
+        while j > i and not lines[j - 1].strip():  # trailing blank lines stay outside
+            j -= 1
+        block = lines[i:j]
+        if sum(bool(ALIGNED.match(ln)) for ln in block) >= 3:
+            codes.append("\n".join(block))
+            out.append(f"[[C{len(codes)}]]")
+        else:
+            out.extend(block)
+        i = j
+    return "\n".join(out)
+
+
 def mask(text: str) -> tuple[str, list[str]]:
     codes: list[str] = []
 
@@ -122,6 +159,7 @@ def mask(text: str) -> tuple[str, list[str]]:
         codes.append(m.group(0))
         return f"[[C{len(codes)}]]"
 
+    text = mask_listings(text, codes)
     for pat in SPAN_PATTERNS:
         text = pat.sub(lambda m: m.group(0) if m.group(0).startswith("[[C") else sub(m), text)
     text = mask_brackets(text, codes)
