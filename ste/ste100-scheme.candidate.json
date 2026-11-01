@@ -2,7 +2,7 @@
  "format": "ste100-scheme/1",
  "candidate": {
   "status": "candidate, unratified",
-  "rulings": "docs/decisions.md, 2026-10-31: STE100 technical verbs, SQL verbs and boolean names",
+  "rulings": "docs/decisions.md, 2026-10-31: STE100 technical verbs, SQL verbs and boolean names; 2026-11-01: logical operators and SQL keywords in capitals are technical names",
   "base": "WeaverAgent docs/project/candidate-ste100-verb-dictionary-v0_6.md at origin/main 66941734 (v0.6, 2026-10-28): its 208 approved keys (E1), 40 category 2 keys (E2) and E3 keys are not copied here",
   "admission": "No entry is admitted until the operator rules on its check. Synonym check done 2026-10-31 against the operator's copy (sha256 in reference). Classes: 1 no overlap, admit; 2 exact approved match, use it; 3 near-synonym, operator rules.",
   "extra_fields": "candidate, check and note are working fields of this candidate, not ste100-scheme/1 fields; they are removed when the file is ratified"
@@ -276,10 +276,421 @@
    "note": "SQL candidate. The verb is two words (roll back); rollback is the noun. Flagged against git revert."
   }
  ],
- "technical_names": [],
+ "technical_names": [
+  {
+   "name": "AND",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "OR",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "NOT",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "XOR",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "NAND",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "NOR",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "TRUE",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "FALSE",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "NULL",
+   "category": "logical operator",
+   "written": "capitals"
+  },
+  {
+   "name": "SELECT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "INSERT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "UPDATE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "DELETE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "MERGE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "CREATE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ALTER",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "DROP",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "TRUNCATE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "TABLE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "VIEW",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "INDEX",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "DATABASE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "SCHEMA",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "FROM",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "WHERE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "INTO",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "VALUES",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "SET",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "JOIN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "INNER",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "LEFT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "RIGHT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "FULL",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "OUTER",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "CROSS",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ON",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "USING",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "AS",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "GROUP",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ORDER",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "BY",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "HAVING",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "LIMIT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "OFFSET",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "UNION",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "INTERSECT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "EXCEPT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "DISTINCT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ALL",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ANY",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "IN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "IS",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "LIKE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "BETWEEN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "EXISTS",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "CASE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "WHEN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "THEN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ELSE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "END",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ASC",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "DESC",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "PRIMARY",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "FOREIGN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "KEY",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "REFERENCES",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "DEFAULT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "CHECK",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "UNIQUE",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "CONSTRAINT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "BEGIN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "COMMIT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "ROLLBACK",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "TRANSACTION",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "SAVEPOINT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "COUNT",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "SUM",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "AVG",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "MIN",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "MAX",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "WITH",
+   "category": "SQL keyword",
+   "written": "capitals"
+  },
+  {
+   "name": "RETURNING",
+   "category": "SQL keyword",
+   "written": "capitals"
+  }
+ ],
  "conditions": {
   "owed": "O02-1",
-  "booleans": "and, or, not get no special handling: approved STE100 meanings in prose; operators inside code, not checked. Deferred to the conditions grammar (operator, 2026-10-31)."
+  "booleans": "and, or, not keep their approved STE100 meanings in prose and get no special handling (operator, 2026-10-31). Written in capitals (AND, OR, NOT, XOR, TRUE, FALSE, NULL) they name the logical operator and are technical names (operator, 2026-11-01). Inside code they are operators and are not checked. The conditions grammar stays deferred to O02-1."
  },
  "recall_keys": {
   "owed": "O02-1; dictionary v0.6 proposes recall"

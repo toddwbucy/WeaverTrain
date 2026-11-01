@@ -3,6 +3,22 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-01: logical operators and SQL keywords in capitals are technical names
+
+In prose, a logical operator or an SQL keyword is written in capitals and is a technical
+name: AND, OR, NOT, XOR, TRUE, FALSE, NULL; SELECT, JOIN, DROP TABLE and the other
+keywords in `ste/technical-names.toml`. The lowercase words keep their approved STE100
+meanings, so the 2026-10-31 boolean ruling stands for the conjunctions: "If the file is
+open and the lock is free" is plain prose, while "The filter uses AND" names the
+operator. A technical name is not a verb ("Use SELECT to get the rows", not "select the
+rows"), so the SQL verb rulings are needed only where text uses those words as verbs.
+GRANT and REVOKE wait on the permission-scope ruling.
+
+Capitals mean a technical name only for a listed word, or for a word that is not in
+the dictionary (an acronym such as PPM or AWS), or for capitals copied from the source
+text. Any other dictionary word in capitals fails the checker: the pilot passed "All
+tests GO" and "OPERATE" because every all-capitals word counted as a technical name.
+
 ## 2026-10-31: keep Unsloth; its mamba-ssm file patch is a known modification
 
 Importing Unsloth rewrites one installed mamba-ssm file (`docs/environment.md`, Known
