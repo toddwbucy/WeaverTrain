@@ -33,3 +33,18 @@ def test_brackets_inside_string_literals_do_not_end_the_span():
         masked, codes = conv.mask(text)
         assert masked == want, masked
         assert conv.unmask(masked, codes) == text
+
+
+def test_apostrophes_in_words_are_not_string_delimiters():
+    text = "Use (don't remove it); then check (it's ready)."
+    masked, codes = conv.mask(text)
+    assert masked == text and codes == []
+    masked, codes = conv.mask("Call f(r'a)b', x) now.")
+    assert masked == "Call [[C1]] now." and codes == ["f(r'a)b', x)"]
+
+
+def test_escaped_double_quote_stays_inside_the_string():
+    text = 'Call f("a\\"b)world") now.'
+    masked, codes = conv.mask(text)
+    assert masked == "Call [[C2]] now.", masked
+    assert conv.unmask(masked, codes) == text

@@ -48,11 +48,21 @@ SPAN_PATTERNS = [
     re.compile(r"```.*?```", re.S),                       # fenced code
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
-    re.compile(r'"[^"\n]{1,300}"'),                       # double-quoted strings (messages, literals)
+    re.compile(r'"(?:[^"\\\n]|\\.){1,300}"'),             # double-quoted strings, escape-aware
     re.compile(r"(?<![\w/])(?:\.{0,2}/)?(?:[\w.-]+/)+[\w.-]*"),  # paths with a slash
     re.compile(r"\b[\w-]+\.(?:py|pyx|pyi|txt|md|rst|toml|json|ya?ml|cfg|ini|sh|c|h|cpp|rs|js|ts|csv)\b"),
 ]
 IDENT = re.compile(r"\b(?:[A-Za-z_]\w*\.)+[A-Za-z_]\w*\b|\b\w*_\w*\b")  # dotted or snake_case
+
+
+def opens_string(text: str, j: int) -> bool:
+    """A quote at j opens a string literal unless it is an apostrophe inside a word
+    (don't, it's); a string prefix (r'', b'', f'', rb'') still opens one."""
+    k = j
+    while k > 0 and (text[k - 1].isalnum() or text[k - 1] == "_"):
+        k -= 1
+    word = text[k:j]
+    return not word or word.lower() in {"r", "b", "f", "u", "rb", "br", "fr", "rf"}
 
 
 def mask_brackets(text: str, codes: list[str]) -> str:
@@ -80,7 +90,7 @@ def mask_brackets(text: str, codes: list[str]) -> str:
                     continue
                 if c == quote:
                     quote = None
-            elif c in "'\"" and stack:
+            elif c in "'\"" and stack and opens_string(text, j):
                 quote = c
             elif c in pairs:
                 stack.append(pairs[c])
@@ -94,7 +104,7 @@ def mask_brackets(text: str, codes: list[str]) -> str:
             i = m.end()
             continue
         span = text[m.start():j + 1]
-        if re.fullmatch(r"\(\w+( \w+){0,3}\)", span):  # prose aside "(nested list)": keep
+        if re.fullmatch(r"\(\w+(['’]\w+)?( \w+(['’]\w+)?){0,3}\)", span):  # prose aside "(it's a list)": keep
             out.append(text[i:m.end()])
             i = m.end()
             continue

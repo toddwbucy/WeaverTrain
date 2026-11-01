@@ -151,6 +151,8 @@ if want verify; then
   # The key sees only the listed modified files; any other change to an installed file
   # must fail here, even when the lock stage did not run (--only verify).
   if [[ -n "$only" ]]; then
+    diff -u environment.lock <(freeze) >&2 \
+      || die "installed packages differ from environment.lock (above); run the lock stage"
     "$PY" scripts/freeze_env.py --check-files training \
       || die "installed files differ from their RECORD hashes (above) and config/known-modified-files.toml does not list them"
   fi
