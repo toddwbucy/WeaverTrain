@@ -23,3 +23,12 @@ def test_altered_literals():
     assert exp.altered_literals("If [[C1]] is [[C2]], 1. with [[C3]] stays.", text) == \
         ["[[C1]]=[[C2]]", "1.[[C3]]"]
     assert exp.altered_literals(None, text) == ["[[C1]]=[[C2]]", "1.[[C3]]"]
+
+
+def test_incomplete_round_is_reported(tmp_path):
+    (tmp_path / "repair-1.jsonl").write_text('{"id": "s1"}\n{"id": "s2"}\n')
+    (tmp_path / "round2.jsonl").write_text('{"id": "s1", "output": "x"}\n')
+    assert exp.incomplete(tmp_path, 2) == (1, 2)
+    (tmp_path / "round2.jsonl").write_text('{"id": "s1", "output": "x"}\n{"id": "s2", "output": "y"}\n')
+    assert exp.incomplete(tmp_path, 2) is None
+    assert exp.incomplete(tmp_path, 1) is None

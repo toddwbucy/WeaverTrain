@@ -303,6 +303,15 @@ def altered_literals(out: str | None, text: str) -> list[str]:
     return [t for t in glued_literals(text) if t not in (out or "")]
 
 
+def incomplete(d: Path, n: int) -> tuple[int, int] | None:
+    """(written, wanted) when round n has fewer records than the repair file it answers."""
+    if n == 1 or not (d / f"repair-{n - 1}.jsonl").exists():
+        return None
+    want = {json.loads(line)["id"] for line in open(d / f"repair-{n - 1}.jsonl", encoding="utf-8") if line.strip()}
+    got, _ = read_jsonl(d / f"round{n}.jsonl")
+    return (len(want & set(got)), len(want)) if not want <= set(got) else None
+
+
 def merged(d: Path, upto: int | None = None) -> tuple[dict[str, str], list[str]]:
     out, bad = {}, []
     for n in rounds(d):
@@ -365,7 +374,9 @@ def cmd_score(a) -> int:
             rows.append(f"| {d.name} | {n} | {sum(x['ok'] for x in res.values())}/{len(inputs)} | "
                         + " | ".join(f"{ok}/{t}" for ok, t in per.values()) + " | "
                         + ", ".join(f"{k} {v}" for k, v in sorted(rules.items(), key=lambda kv: -kv[1]))
-                        + (f" ({len(bad)} unreadable lines)" if bad else "") + " | "
+                        + (f" ({len(bad)} unreadable lines)" if bad else "")
+                        + (f" (INCOMPLETE: round{n}.jsonl has {short[0]} of {short[1]} records)"
+                           if (short := incomplete(d, n)) else "") + " | "
                         + (", ".join(f"{r['id']} {t}" for r in inputs
                                      for t in altered_literals(out.get(r["id"]), r["text"])) or "none") + " |")
         if rounds(d):
