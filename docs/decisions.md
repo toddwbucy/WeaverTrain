@@ -3,6 +3,23 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-01: "call" is not admitted; "should" has three senses
+
+- **call** is not admitted as a technical verb. The mapping is fixed: call -> use
+  ("the function calls [[C1]]" -> "the function uses [[C1]]"). It is in the rewriter
+  rules, the thesaurus and `ste/fixed-mappings.toml`, and the checker's repair note
+  gives "use" instead of the standard's alternatives.
+- **should** has three senses:
+  - advice -> "I recommend that" ("You should add a regression test." -> "I recommend
+    that you add a test for the regression.");
+  - expectation -> "I think that" ("This should fix the error." -> "I think that this
+    change will repair the error.");
+  - a requirement or a correct value ("X should be Y", "no error should be raised") ->
+    "must" ("No error should be raised." -> "The code must not give an error.").
+- **Still owed:** the four hedge forms ("possibly", "I think that", "this is an
+  indication that", "examine if" / "find if") and the "I" exception stay candidates.
+  They are used in the 500-segment run and listed as owed (`ste/usage-notes.md`).
+
 ## 2026-11-01: STE scope: narration and agent output only (candidate, pending ratification)
 
 Only the agent's narration and output are converted to STE100. Issue text and

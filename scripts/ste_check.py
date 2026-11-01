@@ -60,6 +60,7 @@ class Lexicon:
     verb_bases: set[str] = field(default_factory=set)  # approved + technical verb base forms
     phrases: list[re.Pattern] = field(default_factory=list)  # multi-word technical verbs
     caps_names: set[str] = field(default_factory=set)  # technical names written in capitals
+    fixed: dict[str, str] = field(default_factory=dict)  # operator's fixed replacement per verb
 
     @classmethod
     def load(cls, verbs_json: Path | None = None) -> "Lexicon":
@@ -68,10 +69,12 @@ class Lexicon:
         nouns = tomllib.loads((REPO / "ste" / "technical-nouns.toml").read_text())["nouns"]
         nouns = set(nouns) | set(d.get("technical_noun_examples", []))
         caps = tomllib.loads((REPO / "ste" / "technical-names.toml").read_text())
-        return cls.build(d["approved_words"], d["unapproved_words"],
-                         {u["word"]: u["alternatives"] for u in d["unapproved_verbs"]},
-                         list(tech), nouns, [v["key"] for v in d["verbs"]],
-                         caps_names=[w for ws in caps.values() for w in ws])
+        lex = cls.build(d["approved_words"], d["unapproved_words"],
+                        {u["word"]: u["alternatives"] for u in d["unapproved_verbs"]},
+                        list(tech), nouns, [v["key"] for v in d["verbs"]],
+                        caps_names=[w for ws in caps.values() for w in ws])
+        lex.fixed = tomllib.loads((REPO / "ste" / "fixed-mappings.toml").read_text())["mappings"]
+        return lex
 
     @classmethod
     def build(cls, approved_pos, unapproved, unapproved_verbs, technical_verbs, technical_nouns,
@@ -294,6 +297,9 @@ def repair_note(result: dict, lex: Lexicon) -> str:
                          + ", ".join(p["extra_or_repeated"]))
     for v in h.get("verbs", []):
         lemma = next((c for c in lemmas(v) if c in lex.unapproved_verbs), v)
+        if lemma in lex.fixed:
+            lines.append(f'"{v}" is not an approved verb. Write "{lex.fixed[lemma]}" for it (a fixed rule).')
+            continue
         alts = ", ".join(lex.unapproved_verbs.get(lemma) or []) or "none; write the sentence in a different way"
         lines.append(f'"{v}" is not an approved verb. Alternatives the standard gives: {alts}.')
     for w in h.get("ing", []):

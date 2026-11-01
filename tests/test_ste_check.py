@@ -150,3 +150,13 @@ def test_verb_uses_still_fail():
 def test_punctuation_between_breaks_the_context():
     r = ste.check("Use the code. Fix the error.", "x", NOUN_LEX)
     assert "fix" in r["hard"].get("verbs", []), r
+
+
+def test_fixed_mapping_replaces_the_standards_alternatives():
+    lex = ste.Lexicon.build(approved_pos={"the": ["x"]}, unapproved={"call": ["v"]},
+                            unapproved_verbs={"call": ["TELL (v)"]}, technical_verbs=[],
+                            technical_nouns=[], approved_verbs=[])
+    lex.fixed = {"call": "use"}
+    r = ste.check("I call the parser.", "x", lex)
+    note = ste.repair_note(r, lex)
+    assert 'Write "use" for it' in note and "TELL" not in note, note

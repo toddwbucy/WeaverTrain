@@ -2,14 +2,23 @@
 # use most and that STE100 does not approve. Candidate, unratified; written in our own
 # words. Whether a word is approved is from the operator's local copy of the standard;
 # no text of the standard is copied here. The verbs we admit as technical verbs are in
-# technical-verbs.toml; computing verbs that may become technical verbs (call, return,
-# raise, ...) are in the 2026-11-01 synonym check and are not here.
+# technical-verbs.toml; computing verbs that may become technical verbs (return, raise,
+# ...) are in the 2026-11-01 synonym check and are not here. call is ruled out (call ->
+# use, operator 2026-11-01).
 #
 # Order: by how often the 2026-11-01 pilot failed on the verb (pilot_hits, all
 # attempts); entries added on 2026-11-01 for hedges count the pilot segments that hold
 # the word (pilot_inputs). Each sense gives approved words to use and one rewrite. Words that look
 # safe but are not approved: successful, failure, now, already, old, say. Every "after" is
 # checked by tests/test_ste_thesaurus.py with scripts/ste_check.py.
+
+[call]
+note = "Operator ruling, 2026-11-01: not admitted as a technical verb. Fixed mapping."
+[[call.senses]]
+sense = "make code run a function, a method or an API"
+use = ["use"]
+before = "The handler calls [[C1]] with the raw bytes."
+after = "The handler uses [[C1]] with the raw bytes."
 
 [fix]
 pilot_hits = 10794
@@ -55,7 +64,7 @@ after = "All tests give the correct result."
 
 [should]
 pilot_hits = 4228
-note = "Candidate, 2026-11-01: never write must for should. For the correct behavior of code (the function should return None), see expect: the correct result is."
+note = "Operator ruling, 2026-11-01: three senses. must only for a requirement or a correct value."
 [[should.senses]]
 sense = "advice: a recommended action (you should add a test, it is better to)"
 use = ["I recommend that", "we recommend"]
@@ -66,6 +75,11 @@ sense = "expectation: a probable result (this should fix it)"
 use = ["I think that", "possibly"]
 before = "This should fix the error."
 after = "I think that this change will repair the error."
+[[should.senses]]
+sense = "requirement or correct value (X should be Y, no error should be raised)"
+use = ["must"]
+before = "No error should be raised."
+after = "The code must not give an error."
 
 [suggest]
 pilot_inputs = 544
