@@ -174,3 +174,15 @@ def test_blockquote_lines_are_masked_whole():
     assert masked == "The issue says:\n\n[[C1]]\n\nI will fix it."
     assert codes[0].startswith("> \"there's") and codes[0].endswith("> second line")
     assert conv.unmask(masked, codes) == text
+
+
+def test_markup_in_a_rewrite_that_is_not_in_the_text_fails():
+    from types import SimpleNamespace
+    fake = SimpleNamespace(example_lines=set())
+    res = {"hard": {}}
+    conv.Converter.guard(fake, res, "I will find the errors that are related to tuples<h4>",
+                         "Let me search for tuple-related errors:")
+    assert res["hard"]["invented_markup"] == ["<h4>"] and not res["ok"]
+    res = {"hard": {}}
+    conv.Converter.guard(fake, res, "Use [[C1]] here.", "Use [[C1]] here.")
+    assert "invented_markup" not in res["hard"]

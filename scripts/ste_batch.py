@@ -326,8 +326,12 @@ def judge_round(d: Path, inputs: list[dict], judge) -> tuple[int, list[dict]]:
     for r in inputs:
         res = judge(out.get(r["id"]), r["text"])
         if not res["ok"]:
+            note = ste_check.repair_note(res, judge.lex)
+            if "invented_markup" in res["hard"]:
+                note += ("\n- Your rewrite has markup that is not in the text: "
+                         + ", ".join(res["hard"]["invented_markup"]) + ". Remove it.")
             fails.append({"id": r["id"], "kind": r["kind"], "text": r["text"], "previous": out.get(r["id"], ""),
-                          "problems": ste_check.repair_note(res, judge.lex) or "- " + ", ".join(res["hard"])})
+                          "problems": note.strip() or "- " + ", ".join(res["hard"])})
     return len(inputs) - len(fails), fails
 
 
@@ -440,6 +444,11 @@ def cmd_status(a) -> int:
 
 # ---------------------------------------------------------------- assemble
 
+def gemini_cost(vd: Path) -> float:
+    """Batch API cost estimates that scripts/ste_gemini.py fetch recorded."""
+    return sum(json.loads(p.read_text()).get("cost_usd_batch", 0) for p in (vd / "gemini").glob("round*.json"))
+
+
 def cmd_assemble(a) -> int:
     root, vd = exp_dir(a.name), var_dir(a.name)
     src = read_jsonl(vd / "source.jsonl")
@@ -490,7 +499,7 @@ def cmd_assemble(a) -> int:
     record = {"assembled_at": now(), "batch": a.name, "dataset": a.dataset, "revision": spec["revision"],
               "prompt": prompt, "prompt_sha256": prompt_sha, "trajectories": len(trajs), "converted": len(good),
               "segments_passed": len(passed), "segments_to_rewrite": sum(s["prose"] for s in src),
-              "cost_usd": round(spent(root), 2), "converted_sha256": exp.sha256(vd / "converted.jsonl")}
+              "cost_usd": round(spent(root) + gemini_cost(vd), 2), "converted_sha256": exp.sha256(vd / "converted.jsonl")}
     (vd / "run.json").write_text(json.dumps(record, indent=1) + "\n")
     print(json.dumps(record, indent=1))
     return 0

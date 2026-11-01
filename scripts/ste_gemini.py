@@ -290,6 +290,9 @@ def cmd_submit(a) -> int:
     lines = []
     for d in parts_of(a.name):
         if a.round > 1 and not (d / f"repair-{a.round - 1}.jsonl").exists():
+            last = max(exp.rounds(d), default=0)
+            if last and (d / f"repair-{last}.jsonl").exists() and not round_records(d, last + 1):
+                continue        # finished in an earlier round: nothing left to repair
             raise SystemExit(f"{d.name}: no repair-{a.round - 1}.jsonl; fetch round {a.round - 1} first")
         if (d / f"round{a.round}.jsonl").exists():
             raise SystemExit(f"{d.name}: round{a.round}.jsonl exists")
@@ -369,6 +372,7 @@ def cmd_fetch(a) -> int:
     usage: dict = {}
     problems = []
     unit_of = {(d.name, u[0]["id"]): u for d in parts_of(a.name)
+               if a.round == 1 or (d / f"repair-{a.round - 1}.jsonl").exists()
                for u in units(round_records(d, a.round), state.get("group", 1))}
     for line in raw.text.splitlines():
         if not line.strip():
@@ -386,6 +390,8 @@ def cmd_fetch(a) -> int:
     judge = exp.Judge(state["prompt"])
     summary = []
     for d in parts_of(a.name):
+        if a.round > 1 and not (d / f"repair-{a.round - 1}.jsonl").exists():
+            continue
         recs = round_records(d, a.round)
         if not recs:
             continue

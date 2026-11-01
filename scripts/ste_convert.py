@@ -64,6 +64,7 @@ SPAN_PATTERNS = [
     re.compile(r"(?<![\w/])(?:\.{0,2}/)?(?:[\w.-]+/)+[\w.-]*"),  # paths with a slash
     re.compile(r"\b[\w-]+\.(?:py|pyx|pyi|txt|md|rst|toml|json|ya?ml|cfg|ini|sh|c|h|cpp|rs|js|ts|csv)\b"),
 ]
+MARKUP = re.compile(r"</?[A-Za-z][\w-]*(?:\s[^<>\n]*)?/?>")
 IDENT = re.compile(r"\b(?:[A-Za-z_]\w*\.)+[A-Za-z_]\w*\b|\b\w*_\w*\b")  # dotted or snake_case
 
 
@@ -257,6 +258,11 @@ class Converter:
         res["word_ratio"] = round(ratio, 2)
         if n_in >= 8 and not 0.5 <= ratio <= 2.5:
             res["hard"]["word_ratio"] = [round(ratio, 2)]
+        # HTML tags in the text are masked, so a tag in a rewrite was invented (the
+        # 2026-11-01 batch: one answer group ended every rewrite with "<h4>")
+        invented = sorted(set(MARKUP.findall(out)) - set(MARKUP.findall(masked)))
+        if invented:
+            res["hard"]["invented_markup"] = invented
         res["ok"] = not res["hard"]
 
     async def segment(self, client, uuid: str, loc: dict, text: str) -> dict:

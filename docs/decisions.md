@@ -3,7 +3,7 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
-## 2026-11-01: training data rewritten by Gemini, whole trajectories (plan, pending launch)
+## 2026-11-01: training data rewritten by Gemini, whole trajectories (first batch run)
 
 The operator asked for a plan to convert whole trajectories with Gemini 4 Argon, in
 place of the model rewriting its own data. Reason as stated in the discussion: a
@@ -16,8 +16,10 @@ direct path answers first whether STE output helps the loop work.
 - The unit is a whole trajectory: every narration and final segment converted, the
   issue text and tool output unchanged. Only rows of at most 32,768 tokens are used
   (the trainer's verified length); about 1 row in 10 qualifies.
-- First batch: 200 trajectories (6,931 segments), with a short pilot before the rest.
-  Launch, model and spending cap wait on the operator's go.
+- First batch: 200 trajectories (6,931 segments). On the operator's instruction it ran
+  through the Gemini Batch API (half price) instead of opencode sessions, after a live
+  check on the 100-segment kit (100/100 after one repair). Result: 196 of 200
+  converted, $24.64 (`reports/2026-11-01-ste-batch-200.md`).
 - This keeps the "rewritten to STE100 by the model itself" step of the 2026-10-31
   pipeline ruling open, for later or never; it is not replaced until ratified.
 
