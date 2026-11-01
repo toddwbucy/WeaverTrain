@@ -23,7 +23,8 @@ so this takes whole trajectories:
   source.jsonl (dataset text: local only) and prints what was skipped and why.
 - prepare: masks every segment, puts whole trajectories into parts of about
   --part-size records, and writes experiments/ste-batch-NAME/pNNN/ with input.jsonl,
-  RULES.md, PROMPT.md and REPAIR-PROMPT.md (the 100-segment kit's prompts). The masked
+  RULES.md, PROMPT.md and REPAIR-PROMPT.md (the 100-segment kit's prompts), and an
+  opencode.json that denies shell, web and other directories (see PERMISSIONS). The masked
   spans go to var/ste/batch-NAME/codes.jsonl.
 - run: works the parts in order, --jobs at a time. Per part, one fresh `opencode run` session writes
   round1.jsonl; the checker writes repair-1.jsonl; a fresh session writes round2.jsonl;
@@ -69,6 +70,14 @@ import ste_experiment as exp  # noqa: E402
 from weaver_train import manifest as mf  # noqa: E402
 
 DEFAULT_PROMPT = "prompt-e21370fcd140.json"   # the 100-segment kit's prompt
+# Each part's opencode.json: `opencode run --auto` approves every permission that is not
+# explicitly denied, so these are denied. With no shell, a session cannot run a script:
+# it reads and writes with opencode's own file tools, inside its part directory only.
+NO_SHELL = ("\nThis session has no shell. Read and write files with your file tools only. Write each\n"
+            "batch of results into the JSON file yourself.\n")
+PERMISSIONS = {"$schema": "https://opencode.ai/config.json",
+               "permission": {"bash": "deny", "webfetch": "deny", "websearch": "deny",
+                              "external_directory": "deny"}}
 NEAR_COPY_LIMIT = 0.05
 
 
@@ -235,12 +244,13 @@ def cmd_prepare(a) -> int:
             kinds_line = ("The kind is " if len(kinds) == 1 else "The kinds are ") + ", ".join(
                 exp.KIND_TEXT[x] for x in kinds) + "."
             batched = "" if len(recs) < 100 else (
-                " It is long: read it 10 records at a time (for example with sed -n),\n"
-                "   not all at once. Before each 100 records, read RULES.md again.")
+                " It is long: read it 10 records at a time (the read tool with a line\n"
+                "   offset), not all at once. Before each 100 records, read RULES.md again.")
             (d / "RULES.md").write_text(exp.render_rules(prompt))
+            (d / "opencode.json").write_text(json.dumps(PERMISSIONS, indent=1) + "\n")
             (d / "PROMPT.md").write_text(exp.PROMPT.replace("@N@", str(len(recs))).replace("@KINDS@", kinds_line)
-                                         .replace("@BATCHED@", batched))
-            (d / "REPAIR-PROMPT.md").write_text(exp.REPAIR_PROMPT)
+                                         .replace("@BATCHED@", batched) + NO_SHELL)
+            (d / "REPAIR-PROMPT.md").write_text(exp.REPAIR_PROMPT + NO_SHELL)
             (d / "part.json").write_text(json.dumps({
                 "made_at": now(), "prompt": a.prompt, "prompt_sha256": prompt["meta"]["prompt_sha256"],
                 "records": len(recs), "trajectories": sorted({s["traj"] for s in segs}),
@@ -284,6 +294,8 @@ class Paused(Exception):
 
 
 def session(d: Path, model: str, message: str, title: str, timeout: int) -> int:
+    if json.loads((d / "opencode.json").read_text()) != PERMISSIONS:
+        raise Stop(f"{d.name}: opencode.json is not the permission policy; refusing --auto")
     logs = d / "logs"
     logs.mkdir(exist_ok=True)
     with open(logs / f"{title}.log", "w", encoding="utf-8") as log:

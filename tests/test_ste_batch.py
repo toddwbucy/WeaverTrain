@@ -108,6 +108,9 @@ def test_parts_keep_trajectories_whole(world):
     # the code-only segment is not sent; its code is kept for assembly
     assert [r["id"] for r in batch.read_jsonl(parts[0] / "input.jsonl")] == ["T001.001", "T001.003"]
     assert len(batch.read_jsonl(world.tmp / "var" / "codes.jsonl")) == 5
+    # every part denies shell, web and other directories, so --auto cannot approve them
+    assert json.loads((parts[0] / "opencode.json").read_text())["permission"]["bash"] == "deny"
+    assert "no shell" in (parts[0] / "PROMPT.md").read_text()
 
 
 @needs_lexicon
@@ -176,3 +179,12 @@ def test_sample_drops_rows_over_the_token_limit(world, monkeypatch):
     meta = json.loads((world.tmp / "var2" / "sample.json").read_text())
     assert {r["uuid"] for r in batch.read_jsonl(world.tmp / "var2" / "source.jsonl")} == {"u2"}
     assert meta["skipped"].get("over_max_tokens", 0) <= 1
+
+
+@needs_lexicon
+def test_no_session_without_the_permission_policy(world, monkeypatch):
+    batch.cmd_prepare(args(part_size=2))
+    (world.tmp / "exp" / "p001" / "opencode.json").write_text("{}")
+    monkeypatch.setenv("OPENCODE_BIN", fake_opencode(world.tmp, {}))
+    assert batch.cmd_run(args()) == 2
+    assert not (world.tmp / "exp" / "p001" / "round1.jsonl").exists()
