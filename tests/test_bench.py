@@ -160,3 +160,23 @@ def test_cli_loads_the_identity_it_records():
     ident = bench.runner_identity(Harness.run)
     assert ident == f"{__name__}:Harness.run"
     assert bench.load_runner(ident) is Harness.run
+
+
+def test_resume_drops_a_partial_last_record(snapshot, tmp_path):
+    d, p, _ = snapshot
+    bench.run_bench(d, p, parity_runner, model=MODEL, out_dir=tmp_path / "out")
+    res = tmp_path / "out" / "rep-00" / "results.jsonl"
+    lines = res.read_text().splitlines(keepends=True)
+    res.write_text("".join(lines[:2]) + lines[2][:10])  # stopped mid-append on task 3
+    (rec,) = bench.run_bench(d, p, parity_runner, model=MODEL, out_dir=tmp_path / "out")
+    assert rec.results["tasks"] == 4 and len(res.read_text().splitlines()) == 4
+
+
+def test_resume_still_refuses_damage_before_the_last_record(snapshot, tmp_path):
+    d, p, _ = snapshot
+    bench.run_bench(d, p, parity_runner, model=MODEL, out_dir=tmp_path / "out")
+    res = tmp_path / "out" / "rep-00" / "results.jsonl"
+    lines = res.read_text().splitlines(keepends=True)
+    res.write_text(lines[0][:10] + "\n" + "".join(lines[1:]))
+    with pytest.raises(json.JSONDecodeError):
+        bench.run_bench(d, p, parity_runner, model=MODEL, out_dir=tmp_path / "out")

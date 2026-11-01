@@ -48,3 +48,15 @@ def test_escaped_double_quote_stays_inside_the_string():
     masked, codes = conv.mask(text)
     assert masked == "Call [[C2]] now.", masked
     assert conv.unmask(masked, codes) == text
+
+
+def test_windows_path_backslash_does_not_swallow_the_next_string():
+    text = 'Use "C:\\tmp\\"; then read "file".'
+    masked, codes = conv.mask(text)
+    assert masked == "Use [[C1]]; then read [[C2]].", masked
+    assert conv.unmask(masked, codes) == text
+
+
+def test_postgres_escape_string_prefix():
+    masked, codes = conv.mask("Call length(E'a)b') now.")
+    assert masked == "Call [[C1]] now." and codes == ["length(E'a)b')"]

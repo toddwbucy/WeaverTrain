@@ -48,7 +48,9 @@ SPAN_PATTERNS = [
     re.compile(r"```.*?```", re.S),                       # fenced code
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
-    re.compile(r'"(?:[^"\\\n]|\\.){1,300}"'),             # double-quoted strings, escape-aware
+    # double-quoted strings, escape-aware; a backslash before a quote that ends the span
+    # (space, punctuation, end) is content, as in "C:\tmp\", not an escape
+    re.compile(r'"(?:[^"\\\n]|\\"(?![\s;,.:)\]}]|$)|\\[^"\n]|\\(?=")){1,300}"'),
     re.compile(r"(?<![\w/])(?:\.{0,2}/)?(?:[\w.-]+/)+[\w.-]*"),  # paths with a slash
     re.compile(r"\b[\w-]+\.(?:py|pyx|pyi|txt|md|rst|toml|json|ya?ml|cfg|ini|sh|c|h|cpp|rs|js|ts|csv)\b"),
 ]
@@ -62,7 +64,7 @@ def opens_string(text: str, j: int) -> bool:
     while k > 0 and (text[k - 1].isalnum() or text[k - 1] == "_"):
         k -= 1
     word = text[k:j]
-    return not word or word.lower() in {"r", "b", "f", "u", "rb", "br", "fr", "rf"}
+    return not word or word.lower() in {"r", "b", "f", "u", "rb", "br", "fr", "rf", "e"}
 
 
 def mask_brackets(text: str, codes: list[str]) -> str:

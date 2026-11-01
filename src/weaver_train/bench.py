@@ -75,8 +75,16 @@ def read_tasks(snapshot_dir: Path) -> list[dict]:
 def _done(results_path: Path) -> dict[str, dict]:
     if not results_path.exists():
         return {}
+    data = results_path.read_bytes()
+    if data and not data.endswith(b"\n"):
+        # a run stopped mid-append leaves one partial record after the last newline:
+        # drop it (the task runs again); damage anywhere else still fails below
+        cut = data.rfind(b"\n") + 1
+        with open(results_path, "r+b") as f:
+            f.truncate(cut)
+        data = data[:cut]
     out = {}
-    for line in results_path.read_text().splitlines():
+    for line in data.decode().splitlines():
         if line.strip():
             r = json.loads(line)
             out[r["task_id"]] = r
