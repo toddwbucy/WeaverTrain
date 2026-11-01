@@ -1,14 +1,18 @@
 """Run the STE rewrite comparison: one directory per model, the same kit and the same
 rounds for every model, each worked in its own opencode session.
 
-    python scripts/ste_experiment.py kit [--prompt P] [--input I]   build the master kit
+    python scripts/ste_experiment.py [--experiment NAME] COMMAND ...  (default ste-rewrite)
+    python scripts/ste_experiment.py kit [--prompt P] [--input I | --source S [--kinds K,...]]
     python scripts/ste_experiment.py new NAME [NAME ...]             one directory per model
     python scripts/ste_experiment.py repair [NAME ...]               next round's feedback
     python scripts/ste_experiment.py score [NAME ...]                compare every model
     python scripts/ste_experiment.py send FILE [NAME ...]            drop a message in every model
     python scripts/ste_experiment.py status [NAME ...]               messages and rounds per model
 
-Layout (experiments/ste-rewrite/, local only: RULES.md holds text derived from the
+`kit --source` masks raw segments ({"id", "kind", "raw", ...}, local only) with
+scripts/ste_convert.py's current masking; `--input` copies segments that are masked already.
+
+Layout (experiments/NAME/, local only: RULES.md holds text derived from the
 standard, and outputs hold dataset text):
 
     kit/        input.jsonl, RULES.md, PROMPT.md, REPAIR-PROMPT.md, MONITOR.md, kit.json
@@ -48,6 +52,8 @@ import ste_convert  # noqa: E402
 
 ROOT = REPO / "experiments" / "ste-rewrite"
 KIT = ROOT / "kit"
+KIND_TEXT = {"narration": '"narration" (an agent\'s note about its work)',
+             "issue": '"issue" (a bug report)', "think": '"think" (an agent\'s reasoning before a tool call)'}
 KIT_FILES = ["input.jsonl", "RULES.md", "PROMPT.md", "REPAIR-PROMPT.md", "MONITOR.md", "kit.json"]
 MESSAGE = re.compile(r"^(\d{3})-([a-z0-9][a-z0-9-]*)\.md$")
 
@@ -83,14 +89,13 @@ Start now with step 1.
 """
 
 PROMPT = """\
-Your task is a translation test. You rewrite 60 short texts into ASD-STE100 Simplified
+Your task is a translation test. You rewrite @N@ short texts into ASD-STE100 Simplified
 Technical English. You write every rewrite yourself. This is a test of your own writing.
 
 Files in this directory:
 - RULES.md: the writing rules, the approved verb lists, and four worked examples.
-- input.jsonl: 60 records, one JSON object per line: {"id", "kind", "text"}.
-  The kinds are "narration" (an agent's note about its work), "issue" (a bug report),
-  and "think" (an agent's reasoning before a tool call).
+- input.jsonl: @N@ records, one JSON object per line: {"id", "kind", "text"}.
+  @KINDS@
 
 Do these steps:
 
@@ -104,7 +109,7 @@ Do these steps:
    {"id": "<same id>", "output": "<your rewrite>"}, in the order of input.jsonl, with
    line breaks inside a rewrite encoded as \\n.
 5. Work in batches of 10 records. Append each batch to the file when you finish it, so
-   that no work is lost. Make sure the file has 60 lines when you are done.
+   that no work is lost. Make sure the file has @N@ lines when you are done.
 
 Prohibited:
 - Do not write or run a program that makes the rewrites (no word substitution script,
@@ -190,14 +195,27 @@ def cmd_kit(a) -> int:
     prompt_path = Path(a.prompt) if a.prompt else newest_prompt()
     prompt = json.loads(prompt_path.read_text())
     KIT.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(a.input, KIT / "input.jsonl")
+    if a.source:
+        kinds = set(a.kinds.split(",")) if a.kinds else None
+        with open(KIT / "input.jsonl", "w", encoding="utf-8") as f:
+            for r in map(json.loads, open(a.source, encoding="utf-8")):
+                if kinds is None or r["kind"] in kinds:
+                    f.write(json.dumps({"id": r["id"], "kind": r["kind"], "text": ste_convert.mask(r["raw"])[0]}) + "\n")
+    else:
+        shutil.copyfile(a.input, KIT / "input.jsonl")
+    recs = [json.loads(line) for line in open(KIT / "input.jsonl", encoding="utf-8") if line.strip()]
+    present = [k for k in KIND_TEXT if any(r["kind"] == k for r in recs)]
+    kinds_line = ("The kind is " if len(present) == 1 else "The kinds are ") + ", ".join(
+        KIND_TEXT[k] for k in present) + "."
     (KIT / "RULES.md").write_text(render_rules(prompt))
-    (KIT / "PROMPT.md").write_text(PROMPT)
+    (KIT / "PROMPT.md").write_text(PROMPT.replace("@N@", str(len(recs))).replace("@KINDS@", kinds_line))
     (KIT / "REPAIR-PROMPT.md").write_text(REPAIR_PROMPT)
     (KIT / "MONITOR.md").write_text(MONITOR)
     meta = {"made_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "prompt": prompt_path.name, "prompt_sha256": prompt["meta"]["prompt_sha256"],
             "limits": [prompt["meta"]["limit_instruction"], prompt["meta"]["limit_description"]],
+            "source": (Path(a.source).name + " " + sha256(Path(a.source))) if a.source else None,
+            "kinds": a.kinds, "segments": len(recs),
             "files": {f: sha256(KIT / f) for f in KIT_FILES if f != "kit.json"}}
     (KIT / "kit.json").write_text(json.dumps(meta, indent=1) + "\n")
     print(f"kit: {KIT} (prompt {prompt_path.name}, {sum(1 for _ in open(KIT / 'input.jsonl'))} segments)")
@@ -265,6 +283,26 @@ class Judge:
         return res
 
 
+GLUED = re.compile(r"\S*\[\[C\d+\]\]\S*")
+EDGE = "*_.,:;!?()\"'"
+
+
+def glued_literals(text: str) -> list[str]:
+    """Each token that joins a placeholder to other characters with no space between
+    ("145.[[C8]]", "[[C17]]([[C13]]"): a literal that the rewrite must copy unchanged.
+    Markdown marks and sentence punctuation at the token's outer edges do not count."""
+    out = []
+    for m in GLUED.finditer(text):
+        tok = m.group(0).strip(EDGE)
+        if tok and not ste_check.PLACEHOLDER.fullmatch(tok):
+            out.append(tok)
+    return out
+
+
+def altered_literals(out: str | None, text: str) -> list[str]:
+    return [t for t in glued_literals(text) if t not in (out or "")]
+
+
 def merged(d: Path, upto: int | None = None) -> tuple[dict[str, str], list[str]]:
     out, bad = {}, []
     for n in rounds(d):
@@ -312,8 +350,8 @@ def cmd_score(a) -> int:
     judge = Judge()
     inputs = [json.loads(line) for line in open(KIT / "input.jsonl", encoding="utf-8") if line.strip()]
     kinds = sorted({r["kind"] for r in inputs})
-    rows = ["| Model | Round | Pass | " + " | ".join(kinds) + " | Failing rules |",
-            "|---|---|---|" + "---|" * len(kinds) + "---|"]
+    rows = ["| Model | Round | Pass | " + " | ".join(kinds) + " | Failing rules | Altered literals |",
+            "|---|---|---|" + "---|" * len(kinds) + "---|---|"]
     for d in models(a.names):
         for n in rounds(d):
             out, bad = merged(d, n)
@@ -327,7 +365,9 @@ def cmd_score(a) -> int:
             rows.append(f"| {d.name} | {n} | {sum(x['ok'] for x in res.values())}/{len(inputs)} | "
                         + " | ".join(f"{ok}/{t}" for ok, t in per.values()) + " | "
                         + ", ".join(f"{k} {v}" for k, v in sorted(rules.items(), key=lambda kv: -kv[1]))
-                        + (f" ({len(bad)} unreadable lines)" if bad else "") + " |")
+                        + (f" ({len(bad)} unreadable lines)" if bad else "") + " | "
+                        + (", ".join(f"{r['id']} {t}" for r in inputs
+                                     for t in altered_literals(out.get(r["id"]), r["text"])) or "none") + " |")
         if rounds(d):
             out, _ = merged(d)
             lines = [f"# {d.name}: rounds {rounds(d)} merged", ""]
@@ -335,6 +375,9 @@ def cmd_score(a) -> int:
                 x = judge(out.get(r["id"]), r["text"])
                 verdict = "pass" if x["ok"] else "FAIL " + ", ".join(
                     f"{k} {v}" if k in ("verbs", "ing", "capitals", "word_ratio") else k for k, v in x["hard"].items())
+                alt = altered_literals(out.get(r["id"]), r["text"])
+                if alt:
+                    verdict += f"; ALTERED LITERALS {alt}"
                 lines += [f"## {r['id']} {r['kind']}: {verdict}", "", "Original:", "", "```text", r["text"].strip(),
                           "```", "", "Rewrite:", "", "```text", (out.get(r["id"]) or "").strip(), "```", ""]
             (d / "score.md").write_text("\n".join(lines), encoding="utf-8")
@@ -390,10 +433,13 @@ def cmd_status(a) -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--experiment", default="ste-rewrite", help="directory under experiments/")
     sub = ap.add_subparsers(dest="cmd", required=True)
     k = sub.add_parser("kit")
     k.add_argument("--prompt", help="var/ste/prompt-<sha12>.json (default: newest)")
     k.add_argument("--input", default=str(REPO / "var" / "ste" / "opencode-test" / "input.jsonl"))
+    k.add_argument("--source", help="raw segments to mask: {id, kind, raw} per line")
+    k.add_argument("--kinds", help="with --source: keep only these kinds, comma-separated")
     n = sub.add_parser("new")
     n.add_argument("names", nargs="+")
     for name in ("repair", "score", "status"):
@@ -404,6 +450,9 @@ def main(argv=None) -> int:
     s.add_argument("names", nargs="*")
     s.add_argument("--force", action="store_true", help="queue even if a model has a message pending")
     a = ap.parse_args(argv)
+    global ROOT, KIT
+    ROOT = REPO / "experiments" / a.experiment
+    KIT = ROOT / "kit"
     return {"kit": cmd_kit, "new": cmd_new, "repair": cmd_repair, "score": cmd_score,
             "send": cmd_send, "status": cmd_status}[a.cmd](a)
 
