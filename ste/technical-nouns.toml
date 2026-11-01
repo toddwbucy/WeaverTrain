@@ -1,0 +1,23 @@
+# Technical nouns of the software subject field (rule 1.8: technical nouns approved in
+# the subject field). Candidate, unratified; our own list. The checker treats these, the
+# standard's own rule 1.5 examples (read locally from the operator's copy) and any
+# identifier-shaped token as technical names. A technical noun is never used as a verb.
+
+nouns = [
+  "algorithm", "api", "argument", "array", "assertion", "attribute", "backend", "boolean",
+  "branch", "broadcast", "buffer", "bug", "byte", "bytes", "cache", "callback", "cell",
+  "class", "client", "codebase", "column", "command", "commit", "config", "configuration",
+  "constructor", "counter", "datetime", "decorator", "default", "dependency", "dict",
+  "dictionary", "diff", "dimension", "directory", "docstring", "documentation", "dtype",
+  "edge case", "element", "encoding", "endpoint", "environment", "exception", "expression",
+  "fixture", "float", "folder", "framework", "frontend", "generator", "github", "image",
+  "implementation", "import", "index", "instance", "integer", "issue", "iterator", "json",
+  "key", "keyword", "library", "list", "log", "logic", "loop", "method", "mock", "mode",
+  "module", "object", "operator", "optimization", "output", "package", "palette",
+  "parameter", "parser", "patch", "path", "plugin", "property", "pull request", "query",
+  "regex", "regression", "repository", "request", "response", "retry", "row", "scalar",
+  "schema", "script", "section", "server", "shell", "signature", "snippet", "stack trace",
+  "statement", "string", "subclass", "syntax", "table", "terminal", "test case",
+  "test suite", "thread", "timeout", "timestamp", "traceback", "tuple", "type", "unicode",
+  "variable", "version", "workaround",
+]

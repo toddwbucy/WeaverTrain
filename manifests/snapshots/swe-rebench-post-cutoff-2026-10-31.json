@@ -1,0 +1,28 @@
+{
+  "kind": "snapshot",
+  "name": "swe-rebench-post-cutoff-2026-10-31",
+  "files": [
+    {
+      "path": "SNAPSHOT.json",
+      "size": 785,
+      "sha256": "40150d6b879616430809d93e354043020ae9c452aed40e4098f8553dfe5ea422",
+      "upstream": null
+    },
+    {
+      "path": "tasks.jsonl",
+      "size": 9492347,
+      "sha256": "a9ede807182e2d2f0634c00db89ffbb40526b8b3c2b4073e936402955195b6fd",
+      "upstream": null
+    }
+  ],
+  "source": {
+    "from": "swe-rebench-leaderboard",
+    "repo_id": "nebius/SWE-rebench-leaderboard",
+    "revision": "34d5a58864acf91613740a09ec5d205228dcfa39"
+  },
+  "local_dir_name": "swe-rebench-post-cutoff-2026-10-31",
+  "schema": "weaver-train/tree-manifest/v1",
+  "created_at": "2026-10-31T14:45:18+00:00",
+  "tree_hash": "69075c2bf9b4dfeda07b06ed9164c05776b2738687db38d25376bed7eda01cd1",
+  "total_bytes": 9493132
+}

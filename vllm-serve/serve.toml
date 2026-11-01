@@ -1,0 +1,23 @@
+# vLLM serving configuration for the STE100 data conversion. vllm-serve/serve.py reads it,
+# verifies the model tree against its manifest, then starts `vllm serve`. Every
+# conversion run record copies the effective values. Change values here, not on the
+# command line, so the record and the config agree.
+
+model = "nemotron-3-nano-30b-a3b"     # an entry in config/models.toml
+served_model_name = "nemotron-3-nano-30b-a3b"
+host = "127.0.0.1"
+port = 8100
+
+[engine]
+tensor_parallel_size = 2              # split across both A6000s
+dtype = "bfloat16"
+max_num_seqs = 4                      # concurrent requests; raised only on measured headroom
+max_model_len = 32768
+gpu_memory_utilization = 0.90
+enable_prefix_caching = true          # the long system prompt is computed once
+# Measured 2026-10-31 (vllm 0.32.0): vLLM forces the attention block to 2096 tokens to
+# match the Mamba page, so a shared prefix is reused only in whole 2096-token blocks. An
+# 8,413-token system prompt: first request 1.41 s, later ones reuse 8,384 tokens, 0.05 s.
+# At startup: 12.73 GiB KV cache per worker (2,484,516 tokens), 44.2 of 49.1 GB per GPU.
+mamba_cache_mode = "align"            # Mamba state checkpointed at block boundaries
+generation_config = "vllm"            # sampling comes from each request, not the model repo

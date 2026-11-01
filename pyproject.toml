@@ -1,0 +1,64 @@
+[project]
+name = "weaver-train"
+version = "0.1.0"
+description = "LoRA fine-tuning and benchmarking of hybrid Mamba-attention MoE models (engine: python-hf)"
+readme = "README.md"
+license = "Apache-2.0"
+# Pinned to 3.12: the prebuilt mamba-ssm / causal-conv1d wheels below are cp312.
+requires-python = "==3.12.*"
+
+# Direct dependencies are pinned exactly; uv.lock pins everything else (with hashes).
+# Why these versions: docs/environment.md.
+dependencies = [
+    "torch==2.10.0",
+    "torchvision==0.25.0",
+    "unsloth==2026.10.11",
+    "unsloth-zoo==2026.10.11",
+    "transformers==5.17.0",
+    "trl==1.15.0",
+    "peft==0.21.2",
+    "accelerate==1.15.0",
+    "datasets==4.8.5",
+    "mamba-ssm==2.3.2.post1",
+    "causal-conv1d==1.7.0",
+    "xformers==0.0.35",
+    "safetensors",
+    "tomli-w==1.2.0",
+]
+
+[dependency-groups]
+dev = ["pytest==9.2.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/weaver_train"]
+
+[tool.uv]
+# Only the pinned platform is supported; do not resolve for others.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
+# PyPI's xformers is built for CUDA 12.8 and its extensions fail to load against
+# cu130 torch (Unsloth then silently drops to PyTorch attention). Same version, cu130 build:
+xformers = { index = "pytorch-cu130" }
+# PyPI ships these two as sdists only; their release pages carry prebuilt wheels per
+# (CUDA major, torch minor, C++ ABI, Python). Using them avoids a local nvcc build.
+mamba-ssm = { url = "https://github.com/state-spaces/mamba/releases/download/v2.3.2.post1/mamba_ssm-2.3.2.post1+cu13torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
+causal-conv1d = { url = "https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.7.0/causal_conv1d-1.7.0+cu13torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "gpu: needs a CUDA GPU",
+    "multigpu: needs two CUDA GPUs",
+]

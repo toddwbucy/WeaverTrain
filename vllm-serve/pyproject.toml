@@ -1,0 +1,15 @@
+[project]
+name = "weaver-train-vllm"
+version = "0.1.0"
+description = "Serving environment for weaver-train's data conversion: vLLM, kept apart from the training environment"
+requires-python = "==3.12.*"
+dependencies = [
+    # 0.32.0 adds Mamba2 prefill checkpoints for NemotronH (vLLM #57329), which prefix
+    # caching on the Mamba layers needs. It pins torch==2.13.0; the training
+    # environment (../pyproject.toml) stays on torch 2.10, so the two never share a venv.
+    "vllm==0.32.0",
+    "httpx==0.28.1",
+]
+
+[tool.uv]
+package = false

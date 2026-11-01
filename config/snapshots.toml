@@ -1,0 +1,23 @@
+# Frozen evaluation snapshots, derived deterministically from config/benchmarks.toml
+# sources by scripts/build_snapshot.py. A snapshot never changes: a different
+# selection is a new snapshot with a new name.
+
+[snapshots."swe-rebench-post-cutoff-2026-10-31"]
+description = "SWE-rebench leaderboard tasks created on or after 2025-12-01 (after both models' training cutoffs). Python."
+source = "swe-rebench-leaderboard"
+files = ["data/20*.parquet"]          # the monthly splits; "test" duplicates them
+id_field = "instance_id"
+date_field = "created_at"
+created_at_min = "2025-12-01"
+frozen_on = "2026-10-31"
+
+[snapshots."multi-swe-bench-rust-2026-10-31"]
+description = "Multi-SWE-bench Rust split, all 239 tasks."
+source = "multi-swe-bench"
+files = ["rust/*.jsonl"]
+id_field = "instance_id"
+frozen_on = "2026-10-31"
+caveats = [
+  "No task date field. The dataset was published 2025-04, so every task predates both models' training cutoffs (2025-10-02 release, 2025-11-28 post-training): contamination is not excluded.",
+  "No post-cutoff Rust tasks with runnable environments were found in any source checked on 2026-10-31 (Multi-SWE-bench, SWE-rebench-V2: Rust ends 2025-07).",
+]

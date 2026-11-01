@@ -1,0 +1,13 @@
+# Candidate training data, archived at pinned revisions and never modified.
+# Manifests: manifests/datasets/<name>.json, plus manifests/datasets/STORE.json for the
+# whole store (also written to $WEAVER_TRAIN_DATA_STORE/MANIFEST.json).
+# Revisions are the ones read by scripts/nemotron_inventory.py (docs/nemotron-datasets.json).
+# Only entries listed here are downloaded; the others in docs/nemotron-provenance.md
+# wait for the operator's go (docs/decisions.md).
+
+[datasets."nemotron-swe-v1"]
+# SFT, code: OpenHands agent trajectories on R2E-Gym tasks. Approved 2026-10-31.
+repo_id = "nvidia/Nemotron-SWE-v1"
+repo_type = "dataset"
+revision = "0fe17a965b297a9c943a59050a14c42d5f0083ce"
+local_dir = "nvidia--Nemotron-SWE-v1"

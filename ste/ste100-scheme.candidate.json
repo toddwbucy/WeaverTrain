@@ -1,0 +1,291 @@
+{
+ "format": "ste100-scheme/1",
+ "candidate": {
+  "status": "candidate, unratified",
+  "rulings": "docs/decisions.md, 2026-10-31: STE100 technical verbs, SQL verbs and boolean names",
+  "base": "WeaverAgent docs/project/candidate-ste100-verb-dictionary-v0_6.md at origin/main 66941734 (v0.6, 2026-10-28): its 208 approved keys (E1), 40 category 2 keys (E2) and E3 keys are not copied here",
+  "admission": "No entry is admitted until the operator rules on its check. Synonym check done 2026-10-31 against the operator's copy (sha256 in reference). Classes: 1 no overlap, admit; 2 exact approved match, use it; 3 near-synonym, operator rules.",
+  "extra_fields": "candidate, check and note are working fields of this candidate, not ste100-scheme/1 fields; they are removed when the file is ratified"
+ },
+ "reference": {
+  "standard": "ASD-STE100 Issue 9, 2025-01-15",
+  "copy_sha256": "d1f4ea9e7cd6e46b47aa9057209f99e78c0e9cfc4e27a5b07895b05c1a166431",
+  "senses": "Approved verbs cite the dictionary entry; technical senses are written in our own words. No text from the standard is copied."
+ },
+ "grammar": {
+  "owed": "O02-1"
+ },
+ "verbs": [
+  {
+   "key": "run",
+   "forms": [
+    "run",
+    "runs",
+    "ran",
+    "running"
+   ],
+   "sense": "To execute a program, a test, or a command.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "2",
+    "found": "Part 2: run (v) is unapproved, alternative OPERATE (v). Condition holds: execute (v) is unapproved, alternative DO (v). run is not a rule 1.12 category 2 example.",
+    "ruling": "pending"
+   },
+   "note": "Provisional. Admitted only if execute is not an approved STE100 verb; if it is, stop and report."
+  },
+  {
+   "key": "commit",
+   "forms": [
+    "commit",
+    "commits",
+    "committed",
+    "committing"
+   ],
+   "sense": "To make a set of changes permanent in a repository or a database.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "3",
+    "found": "No Part 2 entry. Near: RECORD (v), meaning 2. Already admitted by the operator.",
+    "ruling": "pending"
+   },
+   "note": "Admitted by the operator. One sense covers Git and SQL; a Git repository is a store of changes."
+  },
+  {
+   "key": "merge",
+   "forms": [
+    "merge",
+    "merges",
+    "merged",
+    "merging"
+   ],
+   "sense": "To combine branches, or to combine changes into a store.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "1",
+    "found": "No Part 2 entry. Nearest is MIX (v), whose meanings are about materials; it does not carry the sense. combine (v) is unapproved, alternative MIX (v).",
+    "ruling": "pending"
+   },
+   "note": "Whether SQL MERGE is the same act under this sense is reported for a ruling."
+  },
+  {
+   "key": "push",
+   "forms": [
+    "push",
+    "pushes",
+    "pushed",
+    "pushing"
+   ],
+   "sense": "To send changes to a remote repository.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "3",
+    "found": "PUSH (v) is an approved word; its two approved meanings are physical and do not fit. Near: SEND (v). An admitted key would carry a second, technical sense on an approved headword.",
+    "ruling": "pending"
+   }
+  },
+  {
+   "key": "select",
+   "forms": [
+    "select",
+    "selects",
+    "selected",
+    "selecting"
+   ],
+   "sense": "To get from a database the rows or values that a query identifies.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "3",
+    "found": "SELECT (v) is an approved word, and choose (v) routes to it. Its approved meaning fits choosing rows but not returning them. A second, technical sense on an approved headword.",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate."
+  },
+  {
+   "key": "insert",
+   "forms": [
+    "insert",
+    "inserts",
+    "inserted",
+    "inserting"
+   ],
+   "sense": "To add new rows to a database table.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "2",
+    "found": "Part 2: insert (v) is unapproved, alternative PUT (v). Not a rule 1.12 category 2 example.",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate."
+  },
+  {
+   "key": "update",
+   "forms": [
+    "update",
+    "updates",
+    "updated",
+    "updating"
+   ],
+   "sense": "To change values in rows that are already in a database table.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "3",
+    "found": "No Part 2 entry; a rule 1.12 category 2 c) example verb and a category 19 technical noun. Not an approved word. Near: CHANGE (v), which carries the SQL sense.",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate. Dictionary v0.6 already has update as an E2 key (category 2 c, system operations)."
+  },
+  {
+   "key": "delete",
+   "forms": [
+    "delete",
+    "deletes",
+    "deleted",
+    "deleting"
+   ],
+   "sense": "To remove rows from a database table.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "3",
+    "found": "Part 2: delete (v) is unapproved, alternative ERASE (v); also a rule 1.12 category 2 b) example verb. ERASE's approved meaning carries the SQL sense.",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate. Dictionary v0.6 already has delete as an E2 key (category 2 b)."
+  },
+  {
+   "key": "join",
+   "forms": [
+    "join",
+    "joins",
+    "joined",
+    "joining"
+   ],
+   "sense": "To combine the rows of two or more tables where a related column agrees.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "3",
+    "found": "Part 2: join (v) is unapproved, alternative BOND (v), whose approved meanings do not fit. Near: CONNECT (v), MIX (v).",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate."
+  },
+  {
+   "key": "create",
+   "forms": [
+    "create",
+    "creates",
+    "created",
+    "creating"
+   ],
+   "sense": "To make a new database object, such as a table, an index or a view.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "2",
+    "found": "Part 2: create (v) is unapproved, alternative MAKE (v).",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate."
+  },
+  {
+   "key": "drop",
+   "forms": [
+    "drop",
+    "drops",
+    "dropped",
+    "dropping"
+   ],
+   "sense": "To remove a database object, such as a table, an index or a view, with its contents.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "3",
+    "found": "Part 2: drop (v) is unapproved, alternative FALL (v), a physical meaning that does not fit. Near: ERASE (v), REMOVE (v). DROP (n) is an approved noun.",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate."
+  },
+  {
+   "key": "alter",
+   "forms": [
+    "alter",
+    "alters",
+    "altered",
+    "altering"
+   ],
+   "sense": "To change the structure of a database object that already exists.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "2",
+    "found": "Part 2: alter (v) is unapproved, alternative CHANGE (v).",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate."
+  },
+  {
+   "key": "rollback",
+   "forms": [
+    "roll back",
+    "rolls back",
+    "rolled back",
+    "rolling back"
+   ],
+   "sense": "To discard the changes of a database transaction that is not committed.",
+   "authority": {
+    "rule_id": "1.12",
+    "disposition": "technical_use"
+   },
+   "check": {
+    "class": "1",
+    "found": "No entry for rollback, roll back or revert. Flagged: not the same act as git revert.",
+    "ruling": "pending"
+   },
+   "note": "SQL candidate. The verb is two words (roll back); rollback is the noun. Flagged against git revert."
+  }
+ ],
+ "technical_names": [],
+ "conditions": {
+  "owed": "O02-1",
+  "booleans": "and, or, not get no special handling: approved STE100 meanings in prose; operators inside code, not checked. Deferred to the conditions grammar (operator, 2026-10-31)."
+ },
+ "recall_keys": {
+  "owed": "O02-1; dictionary v0.6 proposes recall"
+ },
+ "qualification": {
+  "owed": "O02-1",
+  "sentence_limit": "owed by the operator: 20 for all emissions, or 20 for instructions and 25 for descriptions"
+ }
+}

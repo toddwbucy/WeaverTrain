@@ -1,0 +1,28 @@
+{
+  "kind": "snapshot",
+  "name": "multi-swe-bench-rust-2026-10-31",
+  "files": [
+    {
+      "path": "SNAPSHOT.json",
+      "size": 902,
+      "sha256": "75209b5f737ad7f70ad6c3c6234392ba439eff22bab925b24990220158f832f3",
+      "upstream": null
+    },
+    {
+      "path": "tasks.jsonl",
+      "size": 41149178,
+      "sha256": "8da49e8949b690f37e3959b8227428502ce74bddba5d7af7d8e84f4c8815ed74",
+      "upstream": null
+    }
+  ],
+  "source": {
+    "from": "multi-swe-bench",
+    "repo_id": "ByteDance-Seed/Multi-SWE-bench",
+    "revision": "56ff018c04a38e27ada1e9d0a6d5839a51f88f0d"
+  },
+  "local_dir_name": "multi-swe-bench-rust-2026-10-31",
+  "schema": "weaver-train/tree-manifest/v1",
+  "created_at": "2026-10-31T14:45:19+00:00",
+  "tree_hash": "6bc5f709063b51f102f6d7ddfafa8a69f0671fd1111b66268088480bf0613d34",
+  "total_bytes": 41150080
+}
