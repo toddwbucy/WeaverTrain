@@ -1,7 +1,7 @@
 # STE100 training data: plan to convert 200 whole trajectories with Gemini (2026-11-01)
 
 Follows `2026-11-01-ste-rewrite-100.md`. The plan is ready to launch and waits on the
-operator's go. The tooling is on branch `ste/500-run` (commit `d803942`), not pushed.
+operator's go. The tooling is on branch `ste/500-run` (commit `dfcfb04`), not pushed.
 
 ## The decision this carries out
 
@@ -50,10 +50,13 @@ ratified. The entry is in `docs/decisions.md`.
    keeps its literals. The output is `converted.jsonl` (same schema as the dataset,
    plus an `ste` field) and `run.json` (counts, cost, prompt and dataset hashes).
 
-A note on `--auto`: headless sessions auto-approve opencode's tool permissions. The
-prompt confines the model to its part directory, and the guards catch scripted
-rewrites, but nothing technically stops a session from acting outside it. The pilot's
-logs (`pNNN/logs/`) and opencode's log will show every command it ran.
+**Permissions.** Headless sessions run with `--auto`, which approves every opencode
+permission that is not explicitly denied. Each part directory therefore holds an
+`opencode.json` that denies shell, web fetch, web search and directories outside the
+part; `opencode debug config` confirms opencode loads it. A session does not start
+unless that file holds exactly this policy. With no shell, a session cannot run a
+script, so scripted rewrites are ruled out, not only detected. Gemini wrote its
+100-segment test this way, with its file tools.
 
 ## Cost and time estimate
 
