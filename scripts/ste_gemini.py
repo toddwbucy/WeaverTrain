@@ -18,6 +18,11 @@ so only the API's implicit prefix caching can discount them (--cache for models 
 have one). A repair round sends the same conversation
 plus the last rewrite and the checker's notes, as ste_convert does.
 
+With --group G (default 20), one request holds G texts and the rules as the agentic
+sessions read them (RULES.md), and the answer is a JSON array of {id, output}: the
+14,074-token prefix is paid once per G texts instead of once per text. A text that is
+missing from an answer counts as not written.
+
 - live: DIR holds input.jsonl (round 1) or repair-<N-1>.jsonl; writes roundN.jsonl and
   usage-roundN.json there. For the 100-segment kit: a direct comparison with the
   agentic sessions.
@@ -120,6 +125,67 @@ def request(rec: dict, prompt: dict, thinking: str, cache: str | None = None) ->
             "generationConfig": gen}
 
 
+GROUP_SCHEMA = {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+    "id": {"type": "STRING"}, "output": {"type": "STRING"}}, "required": ["id", "output"]}}
+
+
+def group_rules(prompt: dict) -> str:
+    """RULES.md as the agentic sessions read it, told that the texts come in the message."""
+    return exp.render_rules(prompt).replace(
+        'Each record of input.jsonl holds one text in its "text" field.',
+        "The user message holds several texts. Each text is between a line <<<TEXT id=ID and a line "
+        "TEXT>>>. Rewrite each text separately. Return a JSON array with one object "
+        '{"id": "<the ID>", "output": "<your rewrite>"} for each text, in the same order.')
+
+
+def group_message(recs: list[dict]) -> str:
+    blocks = []
+    for r in recs:
+        b = f"<<<TEXT id={r['id']}\n{r['text']}\nTEXT>>>"
+        if "previous" in r:
+            b += (f"\nYour last rewrite of {r['id']}:\n<<<REWRITE\n{r['previous']}\nREWRITE>>>\n"
+                  f"It breaks these rules:\n{r['problems']}")
+        blocks.append(b)
+    head = ("Rewrite each text below." if "previous" not in recs[0] else
+            "These rewrites break the rules. For each text, write the complete rewrite again with the "
+            "problems corrected. Keep the meaning. Start from your last rewrite.")
+    return head + "\n\n" + "\n\n".join(blocks)
+
+
+def group_request(recs: list[dict], prompt: dict, thinking: str) -> dict:
+    return {"systemInstruction": {"parts": [{"text": group_rules(prompt)}]},
+            "contents": [turn("user", group_message(recs))],
+            "generationConfig": {"thinkingConfig": {"thinkingLevel": thinking}, "maxOutputTokens": 32768,
+                                 "responseMimeType": "application/json", "responseSchema": GROUP_SCHEMA}}
+
+
+def unit_request(recs: list[dict], prompt: dict, a, cache: str | None) -> dict:
+    return group_request(recs, prompt, a.thinking) if a.group > 1 else request(recs[0], prompt, a.thinking, cache)
+
+
+def unit_outputs(resp: dict, recs: list[dict], group: int) -> tuple[dict[str, str], list[str]]:
+    """Rewrites by id from one response, and what went wrong."""
+    text, why = text_of(resp)
+    problems = [f"{recs[0]['id']}..: finish {why}"] if why not in ("STOP", "") else []
+    if text is None:
+        return {}, problems or [f"{recs[0]['id']}..: no text"]
+    if group <= 1:
+        return {recs[0]["id"]: text}, problems
+    try:
+        items = json.loads(text)
+    except json.JSONDecodeError as e:
+        return {}, problems + [f"{recs[0]['id']}..: unreadable JSON ({e})"]
+    want = {r["id"] for r in recs}
+    out = {x["id"]: x["output"].strip() for x in items if isinstance(x, dict) and x.get("id") in want
+           and isinstance(x.get("output"), str) and x["output"].strip()}
+    problems += [f"{i}: missing from the response" for i in sorted(want - set(out))]
+    return out, problems
+
+
+def units(recs: list[dict], group: int) -> list[list[dict]]:
+    return [recs[i:i + group] for i in range(0, len(recs), max(group, 1))]
+
+
 def text_of(resp: dict) -> tuple[str | None, str]:
     cands = resp.get("candidates") or []
     if not cands:
@@ -166,27 +232,25 @@ def cmd_live(a) -> int:
 
     async def go():
         sem = asyncio.Semaphore(a.concurrency)
-        async with httpx.AsyncClient(base_url=API, headers={"x-goog-api-key": key()}, timeout=600) as ac:
-            async def one(rec):
+        async with httpx.AsyncClient(base_url=API, headers={"x-goog-api-key": key()}, timeout=900) as ac:
+            async def one(unit):
                 async with sem:
                     for attempt in range(4):
                         r = await ac.post(f"/v1beta/models/{a.model}:generateContent",
-                                          json=request(rec, prompt, a.thinking, cache))
+                                          json=unit_request(unit, prompt, a, cache))
                         if r.status_code in (429, 500, 503) and attempt < 3:
                             await asyncio.sleep(10 * (attempt + 1))
                             continue
                         break
                 if r.status_code >= 400:
-                    problems.append(f"{rec['id']}: HTTP {r.status_code} {r.text[:200]}")
+                    problems.append(f"{unit[0]['id']}..: HTTP {r.status_code} {r.text[:200]}")
                     return
                 j = r.json()
                 add_usage(usage, j)
-                text, why = text_of(j)
-                if text is None or why not in ("STOP", ""):
-                    problems.append(f"{rec['id']}: {why}")
-                if text is not None:
-                    results[rec["id"]] = text
-            await asyncio.gather(*(one(r) for r in recs))
+                got, bad = unit_outputs(j, unit, a.group)
+                results.update(got)
+                problems.extend(bad)
+            await asyncio.gather(*(one(u) for u in units(recs, a.group)))
 
     t0 = time.time()
     asyncio.run(go())
@@ -197,7 +261,8 @@ def cmd_live(a) -> int:
         for r in recs:
             if r["id"] in results:
                 f.write(json.dumps({"id": r["id"], "output": results[r["id"]]}) + "\n")
-    rec = {"round": a.round, "model": a.model, "thinking": a.thinking, "prompt": a.prompt, "records": len(recs),
+    rec = {"round": a.round, "model": a.model, "thinking": a.thinking, "group": a.group, "prompt": a.prompt,
+           "records": len(recs),
            "written": len(results), "seconds": round(time.time() - t0), "usage": usage,
            "cost_usd_live": cost(usage, 2.0), "problems": problems}
     (d / f"usage-round{a.round}.json").write_text(json.dumps(rec, indent=1) + "\n")
@@ -225,7 +290,7 @@ def cmd_submit(a) -> int:
             raise SystemExit(f"{d.name}: no repair-{a.round - 1}.jsonl; fetch round {a.round - 1} first")
         if (d / f"round{a.round}.jsonl").exists():
             raise SystemExit(f"{d.name}: round{a.round}.jsonl exists")
-        lines += [(d.name, r) for r in round_records(d, a.round)]
+        lines += [(d.name, u) for u in units(round_records(d, a.round), a.group)]
     if not lines:
         print("nothing to submit: every record passes")
         return 0
@@ -235,8 +300,9 @@ def cmd_submit(a) -> int:
     with client() as c:
         cache = make_cache(c, a.model, prompt, ttl_hours=a.cache_hours) if a.cache else None
         with open(jl, "w", encoding="utf-8") as f:
-            for part, r in lines:
-                f.write(json.dumps({"key": f"{part}/{r['id']}", "request": request(r, prompt, a.thinking, cache)}) + "\n")
+            for part, u in lines:
+                f.write(json.dumps({"key": f"{part}/{u[0]['id']}", "request": unit_request(u, prompt, a, cache)})
+                        + "\n")
         data = jl.read_bytes()
         start = c.post("/upload/v1beta/files", headers={
             "X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Command": "start",
@@ -251,7 +317,8 @@ def cmd_submit(a) -> int:
         job = check(c.post(f"/v1beta/models/{a.model}:batchGenerateContent", json={"batch": {
             "display_name": f"ste-{a.name}-round{a.round}", "input_config": {"file_name": up["file"]["name"]}}}))
     state = {"submitted_at": now(), "name": a.name, "round": a.round, "model": a.model, "thinking": a.thinking,
-             "prompt": a.prompt, "cache": cache, "cache_hours": a.cache_hours, "requests": len(lines),
+             "prompt": a.prompt, "cache": cache, "cache_hours": a.cache_hours, "group": a.group, "requests": len(lines),
+             "records": sum(len(u) for _, u in lines),
              "input_file": up["file"]["name"], "input_sha256": exp.sha256(jl), "job": job["name"]}
     sp.write_text(json.dumps(state, indent=1) + "\n")
     print(json.dumps(state, indent=1))
@@ -297,20 +364,21 @@ def cmd_fetch(a) -> int:
     by_part: dict[str, dict[str, str]] = {}
     usage: dict = {}
     problems = []
+    unit_of = {(d.name, u[0]["id"]): u for d in parts_of(a.name)
+               for u in units(round_records(d, a.round), state.get("group", 1))}
     for line in raw.text.splitlines():
         if not line.strip():
             continue
         x = json.loads(line)
-        part, rid = x["key"].split("/", 1)
+        part, first = x["key"].split("/", 1)
         if "error" in x:
             problems.append(f"{x['key']}: {x['error']}")
             continue
         add_usage(usage, x["response"])
-        text, why = text_of(x["response"])
-        if text is None or why not in ("STOP", ""):
-            problems.append(f"{x['key']}: {why}")
-        if text is not None:
-            by_part.setdefault(part, {})[rid] = text
+        unit = unit_of[(part, first)]
+        got, bad = unit_outputs(x["response"], unit, state.get("group", 1))
+        by_part.setdefault(part, {}).update(got)
+        problems.extend(f"{part}/{p}" for p in bad)
     judge = exp.Judge(state["prompt"])
     summary = []
     for d in parts_of(a.name):
@@ -361,6 +429,9 @@ def main(argv=None) -> int:
         x.add_argument("--thinking", default="high")
         x.add_argument("--prompt", default=ste_batch.DEFAULT_PROMPT)
         x.add_argument("--cache", action="store_true", help="an explicit context cache (not for Gemini 4 Argon)")
+        x.add_argument("--group", type=int, default=20,
+                       help="texts per request, answered as a JSON array (1: one text per request, "
+                            "the prompt's own chat format)")
         if x is not lv:
             x.add_argument("--name", required=True)
     a = ap.parse_args(argv)
