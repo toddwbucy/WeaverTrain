@@ -38,6 +38,13 @@ PLACEHOLDER = re.compile(r"\[\[C\d+\]\]")
 WORD = re.compile(r"[A-Za-z][A-Za-z'’-]*")
 CONTRACTION = re.compile(r"(?i)\b\w+(?:n['’]t|['’](?:ll|re|ve|m|d))\b"
                          r"|\b(?:let|it|that|there|here|what|who|where|how|he|she)['’]s\b")
+# A word right after one of these is a noun or an adjective there, not a verb:
+# "a fixed value", "in order", "a design choice", "the progress". Words that can also
+# be a subject are left out ("This fails", "Some return None", "that fails"), and so is
+# "to" ("to fix").
+NOMINAL_BEFORE = frozenset(
+    "a an the my our your its their his her no "
+    "in on of for with without by from at into onto about under over between per".split())
 NON_VERB_ING = {"string", "thing", "nothing", "something", "anything", "everything", "during",
                 "spring", "ring", "king", "sibling", "ceiling", "morning", "evening", "bring"}
 
@@ -212,8 +219,13 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
     caps_style = any(t not in lex.caps_names and (lex.is_dictionary_word(t.lower()) or len(t) >= 5)
                      for t in input_caps)
     verbs, ing, unapproved_words, unknown, caps = set(), set(), set(), set(), set()
-    for raw in WORD.findall(words):
+    prev, prev_end = "", 0
+    for m in WORD.finditer(words):
+        raw = m.group(0)
+        # the word before counts only when nothing but spaces separates the two
+        nominal = prev in NOMINAL_BEFORE and words[prev_end:m.start()].isspace()
         tok = raw.strip("'’-")
+        prev, prev_end = tok.lower(), m.end()
         low = tok.lower()
         if not low or low == "i" or looks_technical(tok, names, lex, input_caps):
             continue
@@ -226,6 +238,12 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
         verb_lemma = next((c for c in cands if c in lex.unapproved_verbs), None)
         inflected = verb_lemma is not None and verb_lemma != low
         noun_ok = verb_lemma is not None and (verb_lemma in lex.approved or verb_lemma in lex.technical_nouns)
+        if verb_lemma and not tech_noun and nominal and not low.endswith("ing"):
+            # a noun or an adjective here: judge it as one, not as a verb
+            pos = set(lex.unapproved.get(low, [])) | set(lex.unapproved.get(verb_lemma, []) if low == verb_lemma else [])
+            if pos & {"n", "adj"}:
+                unapproved_words.add(low)
+            continue
         if verb_lemma and not tech_noun and (inflected and low.endswith(("ed", "ing")) or not noun_ok):
             verbs.add(low)
             continue

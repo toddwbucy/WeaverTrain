@@ -108,3 +108,45 @@ def test_capitals_are_technical_names_only_when_listed_or_not_words():
     assert chk("The RESULT shows the error.") == {"capitals": ["RESULT"]}
     assert "capitals" in chk("I SHOULD do it.") and "verbs" in chk("I SHOULD do it.")
     assert chk("The result and the error.") == {}                  # the conjunction stays prose
+
+
+# Round 3 flags (2026-11-01): nouns and adjectives that the checker read as verbs.
+NOUN_LEX = ste.Lexicon.build(
+    approved_pos={w: ["x"] for w in (
+        "the a an i will is are it this that when if not do does make makes made find examine "
+        "error value choice code use set to and then result".split())},
+    unapproved={"fix": ["v"], "order": ["n", "v"], "design": ["v"], "progress": ["n", "v"],
+                "fail": ["v"], "block": ["v"]},
+    unapproved_verbs={"fix": ["REPAIR (v)"], "order": ["TELL (v)"], "design": ["HAVE (v)"],
+                      "progress": ["CONTINUE (v)"], "fail": [], "block": []},
+    technical_verbs=[], technical_nouns=[], approved_verbs=["do", "make", "find", "examine", "use", "set"],
+)
+
+
+def test_adjective_and_noun_uses_are_not_verbs():
+    for text in ("Use a fixed value.", "This is a design choice.", "Examine the block."):
+        r = ste.check(text, "x", NOUN_LEX)
+        assert "verbs" not in r["hard"], (text, r["hard"])
+    # known limit: a noun after a modifier ("the if block") still reads as a verb,
+    # because one word between would also pass "the code fixes the error"
+    assert "block" in ste.check("Examine the if block.", "x", NOUN_LEX)["hard"]["verbs"]
+
+
+def test_unapproved_noun_is_reported_as_a_word_not_as_a_verb():
+    r = ste.check("Do the steps in order.", "x", NOUN_LEX)
+    assert "verbs" not in r["hard"] and r["soft"].get("unapproved_words") == ["order"], r
+    r = ste.check("I will examine the progress.", "x", NOUN_LEX)
+    assert "verbs" not in r["hard"] and "progress" in r["soft"]["unapproved_words"], r
+
+
+def test_verb_uses_still_fail():
+    for text, word in (("I will fix the error.", "fix"), ("This fails.", "fails"),
+                       ("Then order the values.", "order"), ("The code fixed the error.", "fixed"),
+                       ("I will design a test, then fix it.", "design")):
+        r = ste.check(text, "x", NOUN_LEX)
+        assert word in r["hard"].get("verbs", []), (text, r["hard"])
+
+
+def test_punctuation_between_breaks_the_context():
+    r = ste.check("Use the code. Fix the error.", "x", NOUN_LEX)
+    assert "fix" in r["hard"].get("verbs", []), r
