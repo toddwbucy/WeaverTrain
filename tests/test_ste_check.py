@@ -83,3 +83,13 @@ def test_apostrophe_s_contractions_fail():
 def test_multi_word_technical_verb_admits_the_phrase_not_its_parts():
     assert run("I will drag and drop the function. I rolled back the commit.")["hard"] == {}
     assert run("I will drop the function.")["hard"] == {"verbs": ["drop"]}
+
+
+def test_wrapped_sentence_is_counted_whole():
+    long = "Examine " + " ".join(["the error"] * 10) + "."   # 21 words, an instruction
+    assert "length" in run(long)["hard"]
+    assert "length" in run(long.replace(" ", "\n"))["hard"]
+    # real boundaries still split: list items, headings, blank lines
+    items = "- Examine the error.\n- Examine the function.\n\n## Result\nThe test shows the error."
+    assert ste.sentences(items) == ["Examine the error.", "Examine the function.", "Result",
+                                    "The test shows the error."]

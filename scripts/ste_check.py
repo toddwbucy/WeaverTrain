@@ -112,15 +112,37 @@ def looks_technical(tok: str, names: set[str]) -> bool:
     return len(tok) >= 2 and tok.isupper()
 
 
+MARKUP = re.compile(r"^\s*(#{1,6}\s+|[-*+]\s+|\d+(\.\d+)*[.)]\s+|>\s*)")
+
+
 def strip_markup(line: str) -> str:
-    line = re.sub(r"^\s*(#{1,6}\s+|[-*+]\s+|\d+(\.\d+)*[.)]\s+|>\s*)", "", line)
+    line = MARKUP.sub("", line)
     return line.replace("**", "").replace("__", " ").replace("`", "")
+
+
+def blocks(text: str) -> list[str]:
+    """Join soft-wrapped lines: a sentence wrapped over several lines is one sentence.
+    A blank line, a heading, a list item or a quote starts a new block; a heading is
+    a block of its own."""
+    out, cur = [], []
+    for raw in text.splitlines():
+        if not raw.strip() or MARKUP.match(raw):
+            if cur:
+                out.append(" ".join(cur))
+            cur = []
+        if raw.strip():
+            cur.append(strip_markup(raw).strip())
+            if re.match(r"^\s*#{1,6}\s", raw):
+                out.append(" ".join(cur))
+                cur = []
+    if cur:
+        out.append(" ".join(cur))
+    return out
 
 
 def sentences(text: str) -> list[str]:
     out = []
-    for line in text.splitlines():
-        line = strip_markup(line).strip()
+    for line in blocks(text):
         if not line:
             continue
         for s in re.split(r"(?<=[.!?:])\s+(?=[A-Z\[\"(])", line):
