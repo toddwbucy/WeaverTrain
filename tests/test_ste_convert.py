@@ -163,3 +163,14 @@ def test_finish_message_is_a_segment_and_apply_writes_it_back():
     assert ({"msg": 2, "field": "finish", "call": 0}, "I fixed it.") in segs
     conv.apply(row, {"msg": 2, "field": "finish", "call": 0}, "I repaired it.")
     assert json.loads(row["messages"][2]["tool_calls"][0]["function"]["arguments"]) == {"message": "I repaired it."}
+
+
+def test_blockquote_lines_are_masked_whole():
+    # a quotation from the issue is the user's text: it stays exactly as written, even
+    # with a nested quoted word inside it
+    text = ('The issue says:\n\n> "there\'s an inconsistency where "pandas" is capitalized."\n'
+            '> second line\n\nI will fix it.')
+    masked, codes = conv.mask(text)
+    assert masked == "The issue says:\n\n[[C1]]\n\nI will fix it."
+    assert codes[0].startswith("> \"there's") and codes[0].endswith("> second line")
+    assert conv.unmask(masked, codes) == text

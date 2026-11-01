@@ -46,6 +46,9 @@ import ste_check  # noqa: E402
 MAX_SEGMENT_CHARS = 30000
 SPAN_PATTERNS = [
     re.compile(r"```.*?```", re.S),                       # fenced code
+    # Markdown blockquote lines, run together: a quotation (of the issue, of output)
+    # is someone else's text and stays as written, nested quotes and all
+    re.compile(r"(?m)^[ \t]*>[^\n]*(?:\n[ \t]*>[^\n]*)*"),
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
     # an exception name and its message, to the end of the line: program output

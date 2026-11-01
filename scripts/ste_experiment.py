@@ -340,8 +340,9 @@ def rounds(d: Path) -> list[int]:
 class Judge:
     """The pilot's checks: ste_check's hard rules plus the converter's two guards."""
 
-    def __init__(self):
-        prompt = json.loads((REPO / "var" / "ste" / json.loads((KIT / "kit.json").read_text())["prompt"]).read_text())
+    def __init__(self, prompt_name: str | None = None):
+        prompt_name = prompt_name or json.loads((KIT / "kit.json").read_text())["prompt"]
+        prompt = json.loads((REPO / "var" / "ste" / prompt_name).read_text())
         self.limits = (prompt["meta"]["limit_instruction"], prompt["meta"]["limit_description"])
         self.fake = SimpleNamespace(example_lines={
             ln.strip() for m in prompt["examples"] if m["role"] == "assistant"
@@ -358,6 +359,7 @@ class Judge:
 
 GLUED = re.compile(r"\S*\[\[C\d+\]\]\S*")
 EDGE = "*_.,:;!?()\"'"
+SLASHED = re.compile(r"\[\[C\d+\]\](?:/\[\[C\d+\]\])+")
 
 
 def glued_literals(text: str) -> list[str]:
@@ -367,7 +369,9 @@ def glued_literals(text: str) -> list[str]:
     out = []
     for m in GLUED.finditer(text):
         tok = m.group(0).strip(EDGE)
-        if tok and not ste_check.PLACEHOLDER.fullmatch(tok):
+        # placeholders joined only by slashes ("[[C8]]/[[C9]]") may be written out as
+        # "[[C8]] and [[C9]]"; the placeholder check still counts each one
+        if tok and not ste_check.PLACEHOLDER.fullmatch(tok) and not SLASHED.fullmatch(tok):
             out.append(tok)
     return out
 

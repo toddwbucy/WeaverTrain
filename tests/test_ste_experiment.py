@@ -17,6 +17,13 @@ def test_glued_tokens_are_literals_and_edges_are_not():
     assert exp.glued_literals(text) == ["145.[[C8]]", "[[C4]]([[C5]]"]
 
 
+def test_placeholders_joined_by_a_slash_are_not_a_literal():
+    # "[[C8]]/[[C9]] parameters" may become "[[C8]] and [[C9]]": every placeholder stays,
+    # and the placeholder check counts each one
+    text = "Keep [[C8]]/[[C9]] and v1/[[C3]] as they are."
+    assert exp.glued_literals(text) == ["v1/[[C3]]"]
+
+
 def test_altered_literals():
     text = "If [[C1]]=[[C2]] then 1.[[C3]] stays."
     assert exp.altered_literals("If [[C1]]=[[C2]], 1.[[C3]] stays.", text) == []

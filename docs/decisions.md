@@ -3,6 +3,24 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-01: training data rewritten by Gemini, whole trajectories (plan, pending launch)
+
+The operator asked for a plan to convert whole trajectories with Gemini 4 Argon, in
+place of the model rewriting its own data. Reason as stated in the discussion: a
+rewriter LoRA would mean training a model to make the data to train the model. The
+direct path answers first whether STE output helps the loop work.
+
+- Base Nemotron cannot do the rewrite (10/60 on the comparison kit). On the
+  100-segment kit, Gemini 4 Argon passed 99/100 after one repair, with 79 faithful,
+  20 minor, 0 wrong and 1 data altered in meaning review, for $2.05.
+- The unit is a whole trajectory: every narration and final segment converted, the
+  issue text and tool output unchanged. Only rows of at most 32,768 tokens are used
+  (the trainer's verified length); about 1 row in 10 qualifies.
+- First batch: 200 trajectories (6,931 segments), with a short pilot before the rest.
+  Launch, model and spending cap wait on the operator's go.
+- This keeps the "rewritten to STE100 by the model itself" step of the 2026-10-31
+  pipeline ruling open, for later or never; it is not replaced until ratified.
+
 ## 2026-11-01: "call" is not admitted; "should" has three senses
 
 - **call** is not admitted as a technical verb. The mapping is fixed: call -> use
