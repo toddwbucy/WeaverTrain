@@ -221,7 +221,7 @@ def cmd_new(a) -> int:
 
 def models(names: list[str]) -> list[Path]:
     dirs = [ROOT / n for n in names] if names else sorted(
-        d for d in ROOT.iterdir() if d.is_dir() and d.name not in ("kit", "_earlier"))
+        d for d in ROOT.iterdir() if d.is_dir() and d.name not in ("kit", "_earlier") and (d / "kit.json").exists())
     for d in dirs:
         if not (d / "kit.json").exists():
             raise SystemExit(f"{d} is not a model directory")
