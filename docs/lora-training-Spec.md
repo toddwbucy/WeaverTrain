@@ -1,6 +1,8 @@
 # weaver-train Spec: LoRA training on STE100 trajectories
 
-**Status:** DRAFT. The operator must give the decisions that section 10 lists.
+**Status:** DRAFT. The operator gave the decisions of section 10 on 2026-11-02. The
+`enable_thinking` cell stays open. PR #4 (`ab63a91`, the conversion code that this
+Spec refers to) merges before this Spec. The operator does the 2 merges.
 
 **Version:** 0.3 **Date:** 2026-11-02 **Parent:** `docs/decisions.md`
 
@@ -68,8 +70,7 @@ STE100. The agent text is the text before each tool call and the `finish` messag
 The tool calls must stay as correct as before. The training data shows this result. In
 each trajectory, the conversion changed only the agent text. An adapter that rewrites
 text from a different source is a different task. That task must have different data,
-and this Spec does not include it. (Recommendation. The operator must give a decision,
-section 10.)
+and this Spec does not include it. (Decision of the operator, 2026-11-02, section 10.)
 
 **PURPOSE-MEASURE.** Measure the result of the adapter. Do not tell that it is good
 without a measurement. The adapter is good when these 2 conditions apply:
@@ -105,7 +106,8 @@ selects the same message fields as `ste_batch.TokenCounter`. It also changes the
 text of each tool-call argument into an object, as `ste_batch.TokenCounter` does. The
 data record holds the template hash, the `tools` value and the `enable_thinking`
 value. The score script rejects a data record with values that are different from the
-values of the score script. (The operator must give a decision about `enable_thinking`, section 10.)
+values of the score script. The `enable_thinking` value is `false`, and the `tools` list
+goes to the template. (Decisions of the operator, 2026-11-02, section 10.)
 
 **BUILD-LENGTH.** If a row has more tokens than `max_seq_length` after the template,
 the data script removes the full row. The data record lists the row and its length.
@@ -157,8 +159,9 @@ Then the data script writes a tree manifest of the output directory with
 `train.jsonl`. NAME can be a model in `config/models.toml` with a tree that agrees with
 its manifest. A manifest of the tokenizer files only is sufficient, because a
 render-only data record does not load weights. The trainer rejects a render-only data
-record. A new model entry, for example the tokenizer files of the 4B model, is a
-download. The operator must give approval for it, as for all downloads.
+record. A new model entry is a download, and the operator must give approval for it.
+The operator gave approval for the tokenizer files of the 4B model on 2026-11-02, on
+the 2 machines. Record which machine got which file, with the sha256 of each file.
 
 ## 3. Loss on the assistant tokens only
 
@@ -355,7 +358,8 @@ the standard. The score record holds the model ID and the sha256 of the reviewer
 prompt, as SCORE-CHECK records the prompt hash of the checker. The reviewer does not
 know which model wrote a segment. The segments of all the runs that the curve compares go
 into one random sequence. Gemini and DeepSeek are not reviewers, because they wrote training
-data or reference data. The operator can read a segment. The decision of the operator
+data or reference data. No text from the reviewer goes into training data. The
+decisions of the reviewer are only for the score record. The operator can read a segment. The decision of the operator
 then replaces the decision of the model, with a mark that shows this.
 
 **SCORE-SPREAD.** Do R0 2 times. Greedy decode on a model on 2 GPUs can give a different
@@ -520,37 +524,44 @@ model of `tests/conftest.py`.
   are scripts, and scripts can import scripts. A module in `src/` imports no
   different module, but it can import `manifest`.
 
-## 10. Open cells and decisions for the operator
+## 10. Decisions and open cells
 
-**Adapter function (PURPOSE-EMITTER).** Recommendation: the adapter writes STE100. The
-decision of the operator closes this cell. Decision J of WeaverAgent recommends an
-adapter that rewrites text. Thus, the 2 documents do not agree until the operator
-gives the decision. The operator note of 2026-11-02 about the RECONCILE step does not close this
-cell.
+**Adapter function (PURPOSE-EMITTER).** Closed. Decision of the operator, 2026-11-02:
+the adapter writes STE100. This Spec does not make an adapter that rewrites text.
+Decision J of WeaverAgent recommended an adapter that rewrites text. This decision
+closes that difference on this side. The first local run of the STE conversion loop
+uses this adapter for step 5. An open cell of the loop
+(`toddwbucy/WeaverAgent#431`, section 11) measures the output format of the adapter. That
+cell shows if this adapter can also do the turn that rewrites text.
 
-**The `enable_thinking` value (BUILD-RENDER).** The template can hold
-`reasoning_content`. The data has no `reasoning_content`. It has only the tool calls
-of the `think` tool. Recommendation: `enable_thinking` is `false` in the data script and in the score
-script. Then the training does not show empty `<think>` parts to the model. The
-decision of the operator closes this cell. A different method: do R0 with the 2 values
-and compare.
+**The `enable_thinking` value (BUILD-RENDER).** Open. Decision of the operator,
+2026-11-02: `enable_thinking` is `false` in the data script and in the score script,
+for this Spec. The template can hold `reasoning_content`. The data has no
+`reasoning_content`. The model writes its thoughts only in the tool calls of the
+`think` tool. Thus, the decision that the model thinks freely continues to apply
+with this value. The cause of this decision: an adapter that rewrites text possibly must
+have the value `true`. An adapter that writes STE100 possibly operates more
+correctly with `false`. A new decision can try the value `true` with an adapter that rewrites
+text. Until that decision, this cell stays open.
 
-**Tools in the template (BUILD-RENDER).** Recommendation: give the `tools` list to the
-template. Then the model sees the tool schemas, as it does when it operates as an
-agent. The count of rows that BUILD-LENGTH removes closes this cell. Count with the
-`tools` list and without it. If the `tools` list causes the removal of many rows, the
-operator gives a new decision.
+**Tools in the template (BUILD-RENDER).** Closed. Decision of the operator,
+2026-11-02: the `tools` list goes to the template. Then the model sees the tool
+schemas, as it does when it operates as an agent. The data record continues to hold
+the count of rows that BUILD-LENGTH removes. If the `tools` list causes the removal of
+many rows, the operator gives a new decision.
 
-**Start without the benchmark (BENCH-DEFERRED).** Recommendation: start. The decision of the
-operator closes this cell.
+**Start without the benchmark (BENCH-DEFERRED).** Closed. Decision of the operator,
+2026-11-02: the training starts before the harness is available. Until the harness is
+available, only SCORE-VALIDITY and SCORE-REVIEW measure the skill.
 
 **The RECONCILE token check (RECONCILE-RENDER).** The 2 token ID checks close this
 cell: the trajectory turn and the loop turn. Do them first on the 4B GGUF on the
 second machine (RECONCILE-EARLY). Then do them on the 30B A3B model on this machine.
 
-**The 4B tokenizer files (RECONCILE-EARLY).** The approval of the operator closes this
-cell. The approval is for a model entry of the 4B model, at the revision of the source
-of its GGUF.
+**The 4B tokenizer files (RECONCILE-EARLY).** Closed. Decision of the operator,
+2026-11-02: add the model entry of Nemotron-3-Nano-4B and get its `Hugging Face`
+tokenizer files. Use the revision of the source of the GGUF. The approval is for the
+2 machines. Record which machine got which file, with the sha256 of each file.
 
 **The run values (RUN-CONFIG).** The curve closes this cell. If the loss of R1 does
 not decrease by its second epoch, the operator gives a decision about the learning
