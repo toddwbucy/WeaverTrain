@@ -179,7 +179,8 @@ def valid_requests(requests, tools):
         return False
     for request in requests:
         name, arguments = request.get("name"), request.get("arguments")
-        if request.get("error") or name not in schemas or not isinstance(arguments, dict):
+        if (request.get("error") or not isinstance(name, str) or name not in schemas
+                or not isinstance(arguments, dict)):
             return False
         if not set(schemas[name].get("parameters", {}).get("required", [])) <= arguments.keys():
             return False
@@ -521,12 +522,17 @@ def main(argv=None):
             runs = {name: rows for name, (_, rows) in records.items()}
             bundle, mapping = review_bundle(plan, runs, args.prompt, seed=args.seed)
             identities = {path.name: review_run_identity(path, records[path.name][0]) for path in args.score}
+            bundle_text = json.dumps(bundle) + "\n"
+            private = {"items": mapping, "runs": identities,
+                       "bundle_sha256": hashlib.sha256(bundle_text.encode()).hexdigest()}
             args.out.mkdir(parents=True)
-            (args.out / "blinded.json").write_text(json.dumps(bundle) + "\n")
-            (args.out / "mapping.json").write_text(json.dumps({"items": mapping, "runs": identities}) + "\n")
+            (args.out / "blinded.json").write_text(bundle_text)
+            (args.out / "mapping.json").write_text(json.dumps(private) + "\n")
         else:
             bundle = json.loads(args.bundle.read_text())
             mapping = json.loads(args.mapping.read_text())
+            if mapping.get("bundle_sha256") != mf.sha256_file(args.bundle):
+                raise ScoreError("SCORE-REVIEW: mapping belongs to a different blinded bundle")
             reviewed = apply_review(bundle, mapping["items"], build.read_jsonl(args.verdicts),
                                     build.read_jsonl(args.overrides) if args.overrides else [])
             names = [path.name for path in args.score]

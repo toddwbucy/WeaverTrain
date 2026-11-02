@@ -123,6 +123,15 @@ def test_score_validity_requires_every_request(output, valid):
     assert score.valid_requests(score.parse_requests(output, TOOLS), TOOLS) is valid
 
 
+@pytest.mark.parametrize("name", [[], {}, None, 12])
+def test_score_validity_nonstring_names_are_segment_failures(name):
+    """SCORE-VALIDITY: malformed generated names count as incorrect without stopping evaluation."""
+    entry = {"id": "s1", "kind": "narration", "prompt": {"tools": TOOLS}, "input_ids": [1], "request": True}
+    output = 'Read the file.\n<tool_call>' + json.dumps({"name": name, "arguments": {}}) + '</tool_call>'
+    result = score.evaluate_output(entry, output, lambda *args: {"ok": True, "hard": {}, "soft": {}})
+    assert result["check"]["ok"] and result["correct_request"] is False
+
+
 def test_score_extract_and_check_masks_code_without_rewrite_comparison():
     """SCORE-EXTRACT and SCORE-CHECK: judge the output itself and retain missing-text failures."""
     entry = {"id": "s1", "kind": "narration", "prompt": {"tools": TOOLS}, "input_ids": [1], "request": True}
@@ -218,7 +227,7 @@ def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokeniz
     prompt = tmp_path / "review.md"
     prompt.write_text("Assess the work.\n")
     first, second = tmp_path / "a/score.json", tmp_path / "b/score.json"
-    for path in (first, second):
+    for index, path in enumerate((first, second)):
         write_scored(path.parent, plan_path, [True])
         record = json.loads(path.read_text())
         record.update(reviewer_model=score.REVIEW_MODEL, reviewer_prompt_sha256=mf.sha256_file(prompt),
@@ -226,7 +235,7 @@ def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokeniz
         path.write_text(json.dumps(record))
         segments = path.with_name("segments.jsonl")
         rows = score.build.read_jsonl(segments)
-        rows[0]["output"] = "Read the file."
+        rows[0]["output"] = "Read the file." if index == 0 else "Read the next file."
         segments.write_text(json.dumps(rows[0]) + "\n")
     export = tmp_path / "review"
     assert score.main(["review-export", "--plan", str(plan_path), "--prompt", str(prompt),
@@ -236,11 +245,23 @@ def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokeniz
     assert set(mapping["runs"]) == {"a", "b"}
     assert mapping["runs"]["a"]["plan_sha256"] == mf.sha256_file(plan_path)
     assert mapping["runs"]["a"]["adapter_sha256"] == "none"
+    assert mapping["bundle_sha256"] == mf.sha256_file(export / "blinded.json")
     (tmp_path / "verdicts.jsonl").write_text("".join(json.dumps({"id": item["id"], "decision": "fits"}) + "\n"
                                                     for item in bundle["items"]))
     args = ["review-import", "--bundle", str(export / "blinded.json"),
             "--mapping", str(export / "mapping.json"), "--verdicts", str(tmp_path / "verdicts.jsonl")]
     original = first.read_bytes()
+    second_original = second.read_bytes()
+    other_export = tmp_path / "review-other"
+    assert score.main(["review-export", "--plan", str(plan_path), "--prompt", str(prompt), "--seed", "1",
+                       "--score", str(first.parent), "--score", str(second.parent), "--out", str(other_export)]) == 0
+    other_mapping = json.loads((other_export / "mapping.json").read_text())
+    assert mapping["items"] != other_mapping["items"]
+    wrong_mapping = args.copy()
+    wrong_mapping[wrong_mapping.index("--mapping") + 1] = str(other_export / "mapping.json")
+    assert score.main(wrong_mapping + ["--score", str(first.parent), "--score", str(second.parent)]) == 1
+    assert "different blinded bundle" in capsys.readouterr().err
+    assert first.read_bytes() == original and second.read_bytes() == second_original
     assert score.main(args + ["--score", str(first.parent)]) == 1
     assert first.read_bytes() == original
     both = args + ["--score", str(first.parent), "--score", str(second.parent)]
@@ -256,7 +277,7 @@ def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokeniz
     second.write_bytes(saved)
     segments = second.with_name("segments.jsonl")
     saved_segments = segments.read_bytes()
-    segments.write_text(segments.read_text().replace("Read the file.", "Read the next file."))
+    segments.write_text(segments.read_text().replace("Read the next file.", "Read another file."))
     assert score.main(both) == 1
     assert "outputs differ" in capsys.readouterr().err
     assert first.read_bytes() == original and second.read_bytes() == saved
