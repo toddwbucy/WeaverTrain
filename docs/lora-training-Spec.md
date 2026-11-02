@@ -7,8 +7,8 @@ Spec refers to) merges before this Spec. The operator does the 2 merges.
 **Version:** 0.3 **Date:** 2026-11-02 **Parent:** `docs/decisions.md`
 
 **Language:** STE100, on the operator's decision of 2026-11-02. The lexicon is `ste/`
-at commit `ab63a91`, with the technical nouns that this version adds to
-`ste/technical-nouns.toml`. The approved words come from the local copy of the
+at commit `ab63a91`, with no new words. The checker reports nouns that are not in
+the lexicon, and the PR lists them. The approved words come from the local copy of the
 standard, `var/ste/approved-verbs.json`, sha256 `c622bc230bc0c295...`. The checker is
 `scripts/ste_check.py` at `ab63a91`. Clause names, paths, keys and text in backticks
 are technical names.
