@@ -1,8 +1,8 @@
 # weaver-train Spec: LoRA training on STE100 trajectories
 
-**Status:** DRAFT. Awaiting the operator's rulings named in section 9.
+**Status:** DRAFT. Awaiting the operator's rulings named in section 10.
 
-**Version:** 0.1 **Date filed:** 2026-11-02 **Parent:** `docs/decisions.md`
+**Version:** 0.2 **Date filed:** 2026-11-02 **Parent:** `docs/decisions.md`
 
 **Editorial:** ASCII only, no em-dashes, absolute dates. Clause names are bold and
 stable. A merged version of this Spec authorizes the code it names, and where code and
@@ -14,7 +14,8 @@ This Spec covers the code that turns converted trajectories into a LoRA adapter 
 `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` and scores the adapter against the
 untrained model. It names four pieces: a build step that renders and labels the
 training text (section 2), assistant-only loss (section 3), the trainer changes
-(section 4) and a held-out emission scorer (section 6). Section 5 fixes the run plan.
+(section 4) and a held-out emission scorer (section 6). Section 5 fixes the run plan,
+and section 8 names the reconciliation step with the serving loop.
 
 It inherits these rulings from `docs/decisions.md` and restates none of them:
 Nemotron only, bf16 only, LoRA on attention `q/k/v/o_proj` plus Mamba `in_proj` with
@@ -36,7 +37,7 @@ software task, the model writes its own narration and its final report in STE100
 its tool calls stay as useful as before. The training data is exactly that behavior:
 whole trajectories in which only the agent's prose was converted. A rewriter adapter,
 which converts text it is handed, is a different task with different data and is not
-built here. (Proposed. Ruling owed, section 9.)
+built here. (Proposed. Ruling owed, section 10.)
 
 **PURPOSE-MEASURE.** Success is measured, never asserted. The adapter has worked when
 the held-out STE pass rate (section 6) rises above the untrained model's while the
@@ -64,7 +65,7 @@ any row.
 field selection and argument parsing as `ste_batch.TokenCounter`. The template hash,
 the `tools` choice and the `enable_thinking` value go into the build record, and the
 scorer refuses a build whose values differ from its own. (The value for
-`enable_thinking` is a ruling owed, section 9.)
+`enable_thinking` is a ruling owed, section 10.)
 
 **BUILD-LENGTH.** A row longer than `max_seq_length` tokens after rendering is dropped
 whole and listed in the build record with its length. No row is truncated. Rows were
@@ -107,7 +108,7 @@ goes to text the model does not write.
 
 **LOSS-UNWEIGHTED.** Every masked token weighs the same. STE prose is about 16% of the
 assistant tokens, and the rest is tool calls the model already writes. Weighting prose
-above tool calls is not built here. It is an open cell (section 9), to be tried only if
+above tool calls is not built here. It is an open cell (section 10), to be tried only if
 the learning curve stalls.
 
 ## 4. Trainer changes
@@ -124,7 +125,7 @@ whose `build.json` it cannot find or whose manifest does not verify, and it refu
 **TRAIN-MASK-REACHES-LOSS.** With `"tokenized"`, the labels the loss sees are -100
 exactly where the mask is 0 and equal to `input_ids` where it is 1. Whether this uses
 TRL's own `assistant_masks` support or a collator of ours is an implementation
-choice. Either way the test in section 8 must pass, because a mask that is silently
+choice. Either way the test in section 9 must pass, because a mask that is silently
 ignored trains on everything and logs no warning.
 
 **TRAIN-NO-PACKING.** Packing is off. Each row is one sequence, batch size per device
@@ -161,7 +162,7 @@ CPU. It does not retry with other settings.
 | `train.seed` | 0 |
 
 With 387 rows, an epoch is about 48 optimizer steps. These values are a first guess,
-and the curve is what tests them. (Ruling owed on changing any of them, section 9.)
+and the curve is what tests them. (Ruling owed on changing any of them, section 10.)
 
 **RUN-ORDER.** Runs happen in this order, and each waits for the one before:
 
@@ -246,7 +247,52 @@ skill is read only through SCORE-VALIDITY and SCORE-REVIEW, and no claim is made
 an adapter keeps or loses SWE skill. When the harness lands, the trained-minus-untrained
 comparison follows `docs/benchmarks.md`.
 
-## 8. Enforcement
+## 8. Reconciliation with the serving loop
+
+The STE conversion loop is built and verified on a second machine, through the SPU, as
+WeaverAgent's bootstrap agent (`toddwbucy/WeaverAgent` #430 and #431), while this
+machine trains the adapter. The two halves will not finish in step, and training-side
+work goes on while the loop is built. Reconciliation is therefore a named step, not a
+surprise. The interface between the two sides is the build record of section 2 and
+nothing else: no code, fixture or path couples this repository to WeaverAgent.
+
+**RECONCILE-STEP.** Reconciliation sits between two milestones: the loop verified end
+to end on the second machine, and the loop running with this Spec's adapter on this
+machine. It holds the three checks below. The loop does not run with the adapter until
+all three are recorded.
+
+**RECONCILE-FIELDS.** The SPU side must match these `build.json` fields of the build
+the adapter was trained on: the model `tree_hash` (the tokenizer comes from it), the
+template hash, the `tools` choice, the `enable_thinking` value and `max_seq_length`.
+BUILD-RENDER and BUILD-OUTPUT already record them. This clause adds no field, and a
+change to any of them after reconciliation reopens it.
+
+**RECONCILE-RENDER.** Training stays in Python, and the SPU does not train, but it must
+feed the model the tokens the trainer saw. One held-out prompt is rendered two ways:
+through BUILD-RENDER with the build record's values (as SCORE-PREFIX renders it), and
+through the SPU's family entry for the model. The two token ID sequences are compared.
+If they match, the adapter sees in serving what it saw in training. If they differ, the
+SPU's rendering is fixed to match the build record, never the reverse. The GGUF
+carries the chat template in its metadata, so a match is expected, but it is measured,
+not assumed.
+
+**RECONCILE-ADAPTER.** The bf16 PEFT adapter is converted to a GGUF LoRA the SPU loads.
+The SPU has no LoRA load path yet, and that work is WeaverAgent's (issue 4 of the #431
+brief). This Spec's obligation ends at an adapter that passes TRAIN-EPOCH-ADAPTERS and
+a recorded sha256 for each adapter handed over.
+
+**RECONCILE-DRIFT.** Anything this side changed while the loop was being built is read
+against what the loop assumes: the template, `enable_thinking`, the `tools` choice and
+`max_seq_length`. Each difference is resolved by RECONCILE-RENDER's rule: the build
+record is the reference, unless a ruling changes the build and a new adapter is
+trained under it.
+
+**RECONCILE-EARLY.** The second machine can run RECONCILE-RENDER now on the
+Nemotron-3-Nano-4B GGUF, rendering with a build record made for that model's
+tokenizer. That proves the method before this machine is free. Only this machine can
+confirm it for the 30B A3B.
+
+## 9. Enforcement
 
 Each clause has a test under `tests/`, on the stand-in model of `tests/conftest.py`
 where a model is needed.
@@ -267,13 +313,22 @@ where a model is needed.
 - **SCORE-LOCATE, SCORE-EXTRACT, SCORE-VALIDITY:** ambiguous and missing rows are
   listed, prose and `finish` messages are extracted, and invalid tool calls are
   counted.
+- **RECONCILE-FIELDS:** `build.json` carries every field the clause names, and the
+  scorer refuses a build missing one. The render check itself is a recorded act on
+  real artifacts, not a unit test.
 - `tests/test_independence.py` still passes. The two new commands are scripts and may
   import scripts, and no module under `src/` imports another except `manifest`.
 
-## 9. Open cells and rulings owed
+## 10. Open cells and rulings owed
 
 **Emitter or rewriter (PURPOSE-EMITTER).** Proposed: emitter. Settled by the
-operator's ruling.
+operator's ruling. WeaverAgent's ruling J currently reads the other way, toward a
+rewriter, so the two documents disagree until this cell is ruled. The reconciliation
+note of 2026-11-02 does not settle it.
+
+**The reconciliation render check (RECONCILE-RENDER).** Settled by the token ID
+comparison, first on the 4B GGUF on the second machine (RECONCILE-EARLY), then on the
+30B A3B here.
 
 **Thinking on or off (BUILD-RENDER).** The template supports reasoning content and
 `enable_thinking`, and the data holds no reasoning content, only the `think` tool's
