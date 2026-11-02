@@ -30,7 +30,7 @@ code:
 3. Changes to the trainer (section 4).
 4. A score script for the held-out set (section 6).
 
-Section 5 gives the sequence of runs. Section 8 gives the step that aligns this
+Section 5 gives the sequence of procedures. Section 8 gives the step that aligns this
 training with the SPU loop.
 
 This Spec does not write the decisions in `docs/decisions.md` again. These
@@ -47,7 +47,8 @@ decisions apply:
 The input is the converted data of the STE batches. The reports are
 `reports/2026-11-01-ste-batch-200.md` and `reports/2026-11-01-ste-batch-200-2.md`.
 There are 387 trajectories in 2 files. Each file has a run record that holds its
-sha256. A third batch is possible. The code reads one or more `converted.jsonl` files.
+sha256. The operator cancelled the third batch on 2026-11-02. No more
+batches use Gemini. The code reads one or more `converted.jsonl` files.
 The quantity of files can change.
 
 The scope has one exception to "Nemotron only". A render-only data record
@@ -66,8 +67,9 @@ These items are not in the scope:
 
 **PURPOSE-EMITTER.** The adapter writes STE100. The model operates as an agent of the
 OpenHands type on a software task. With the adapter, the model writes its agent text in
-STE100. The agent text is the text before each tool call and the `finish` message.
-The tool calls must stay as correct as before. The training data shows this result. In
+STE100. The agent text is the text before each tool request and the `finish` message. A tool
+request is one item of the `tool_calls` field of a message.
+The tool requests must stay as correct as before. The training data shows this result. In
 each trajectory, the conversion changed only the agent text. An adapter that rewrites
 text from a different source is a different task. That task must have different data,
 and this Spec does not include it. (Decision of the operator, 2026-11-02, section 10.)
@@ -77,10 +79,10 @@ without a measurement. The adapter is good when these 2 conditions apply:
 
 1. Its STE pass rate on the held-out set (section 6) is higher than the pass rate of
    the model without an adapter, as RUN-MARGIN measures.
-2. Its correct-call rate is flat or higher, as RUN-MARGIN measures.
+2. Its correct-request rate is flat or higher, as RUN-MARGIN measures.
 
-If the pass rate is higher and the correct-call rate is lower, the result is a trade.
-Tell the operator that it is a trade, not a good result. If the correct-call result
+If the pass rate is higher and the correct-request rate is lower, the result is a trade.
+Tell the operator that it is a trade, not a good result. If the correct-request result
 is "not shown", tell the operator. Do not tell that the adapter is good.
 
 ## 2. The training data
@@ -104,7 +106,7 @@ held-out set must not be in a row of the training data.
 with `apply_chat_template`. It gives the `tools` list of the row as `tools`. It sets
 `enable_thinking` from an argument that the operator must supply. The data script
 selects the same message fields as `ste_batch.TokenCounter`. It also changes the JSON
-text of each tool-call argument into an object, as `ste_batch.TokenCounter` does. The
+text of each tool-request argument into an object, as `ste_batch.TokenCounter` does. The
 data record holds the template hash, the `tools` value and the `enable_thinking`
 value. The score script rejects a data record with values that are different from the
 values of the score script. It also rejects a data record with a `tree_hash` that is
@@ -126,7 +128,7 @@ between 2 token sequences. For assistant message i, it applies the template 2 ti
 2. To the messages before i and to message i.
 
 The tokens that the second sequence adds are the tokens of the assistant. These
-tokens are the content, the tool calls and the end-of-turn token. The header that
+tokens are the content, the tool requests and the end-of-turn token. The header that
 `add_generation_prompt` adds comes from the template, not from the assistant. Its
 value stays 0.
 
@@ -173,7 +175,7 @@ change the loss. In batch 1, tool output was 57% of all tokens, and STE text was
 Without this clause, most of the training is on text that the model does not write.
 
 **LOSS-UNWEIGHTED.** Each assistant token has the same weight. STE text is
-about 16% of the assistant tokens. The remaining tokens are tool calls, which
+about 16% of the assistant tokens. The remaining tokens are tool requests, which
 the model can write before the training. This Spec does not give more weight to STE text.
 That is an open cell (section 10). Try it only if the curve stops its increase.
 
@@ -222,7 +224,7 @@ end of each epoch, in `adapter-epoch-N`. The directory holds adapter files only,
 - The maximum memory on each GPU.
 - The loss at each log step and the last loss.
 
-The stop rules of the run sequence read these values.
+The stop rules of the procedure sequence read these values.
 
 **TRAIN-STOP.** The trainer stops and writes the status `failed` when one of these
 conditions occurs:
@@ -234,10 +236,12 @@ conditions occurs:
 
 The trainer does not try again with different values.
 
-## 5. The sequence of runs
+## 5. The sequence of procedures
+
+A procedure is one item of RUN-ORDER: R0, R1, R2 or R3.
 
 **RUN-CONFIG.** The first values are in this table. They are the same for all the
-runs of the curve.
+procedures of the curve.
 
 | Key | Value |
 |---|---|
@@ -253,17 +257,17 @@ With 387 rows, one epoch is about 48 steps. These values are a first
 estimate. The curve measures them. (The operator must give a decision before a change
 to a value, section 10.)
 
-**RUN-ORDER.** Do the runs in this sequence. Do not start a run before the previous
-run is complete.
+**RUN-ORDER.** Do the procedures in this sequence. Do not start a procedure before
+the previous procedure is complete.
 
 1. **R0, the baseline.** Use the score script on the model without an adapter.
-2. **R1, 100 rows.** This run measures time and makes sure that the method operates.
+2. **R1, 100 rows.** This procedure measures time and makes sure that the method operates.
    After R1, stop. Tell the operator the time, the maximum memory, the loss curve and
-   the score. Do not start a longer run before this report.
+   the score. Do not start a longer procedure before this report.
 3. **R2, 200 rows**, then **R3, all rows**. Use the sets of BUILD-ORDER.
 
-Use the score script on the adapter of each epoch of each run. The curve shows 2 rates on the
-held-out set: the STE pass rate and the correct-call rate. It shows them for each
+Use the score script on the adapter of each epoch of each procedure. The curve shows 2 rates on the
+held-out set: the STE pass rate and the correct-request rate. It shows them for each
 quantity of training rows, at epoch 1 and at epoch 2.
 
 **RUN-MARGIN.** This Spec sets the margin before R0. Do not change the margin after a
@@ -292,12 +296,12 @@ If none of these results applies, the result is "not shown". "Not shown" is not
 show that there is no difference. For example, 5 segments that increase and none
 that decrease give `p` = 0.0625. That result is "not shown".
 
-Use the same rules for the correct-call rate. On 100 segments, a difference of less
+Use the same rules for the correct-request rate. On 100 segments, a difference of less
 than about 10 points usually shows as "not shown". This is a limit of the held-out
 set. Record the limit with each result. Do not make the margin smaller because of it.
 
 The 2 types of noise are different. SCORE-SPREAD measures the difference between 2
-runs that are the same. The sign test measures the error that comes from a sample of
+procedures that are the same. The sign test measures the error that comes from a sample of
 100 segments.
 
 **RUN-READ.** Read the curve with RUN-MARGIN:
@@ -307,13 +311,13 @@ runs that are the same. The sign test measures the error that comes from a sampl
   of LOSS-UNWEIGHTED.
 - If the result for R3 and R2 is "not shown", the cell "Sufficient data" stays open.
   Do not change the loss. Tell the operator. The operator selects the next step, for
-  example a larger held-out set or the third STE batch.
-- If the correct-call rate of an adapter is lower than the rate of R0, tell the
+  example a larger held-out set or more data from the conversion loop.
+- If the correct-request rate of an adapter is lower than the rate of R0, tell the
   operator. The adapter then decreases the skill of the model.
-- If the correct-call result of an adapter against R0 is "not shown", tell the
+- If the correct-request result of an adapter against R0 is "not shown", tell the
   operator. The held-out set then does not show the effect on the skill.
 
-**RUN-OUTPUT.** Each run writes to a new directory that is not in the model tree, as
+**RUN-OUTPUT.** Each procedure writes to a new directory that is not in the model tree, as
 the trainer makes sure. Put the adapters, the data records and the score files in a
 directory in `weaver-testing/` on the `shared bulk store`. Add a `SHA256SUMS` file and
 a README. Only the result note goes into git.
@@ -326,7 +330,7 @@ the model on the same path as the loader, after the model tree agrees with its
 manifest. It applies `pin_layer_devices`. Its engine label is `python-hf`.
 
 **SCORE-HELDOUT.** The held-out set is the kit of 100 segments. 90 segments are text
-before a tool call. 10 segments are `finish` messages. The kit is frozen since 2026-11-01. No uuid of
+before a tool request. 10 segments are `finish` messages. The kit is frozen since 2026-11-01. No uuid of
 the kit is in an STE batch. The kit also holds the decisions of the reviewers on the
 Gemini and DeepSeek rewrites. These decisions stay as a reference. The score of the
 model without an adapter is the baseline.
@@ -347,9 +351,9 @@ score script does not give a score to that segment.
 sample. The output limit is 2,048 tokens. The output stops at the end-of-turn token.
 Greedy decode gives the same score again, and the curve must have that.
 
-**SCORE-EXTRACT.** For a segment of text before a tool call, the score script uses the
-content of the output message before the first tool call. For a `finish` message, it uses
-the `message` argument of a `finish` call in the output. If the output has no such
+**SCORE-EXTRACT.** For a segment of text before a tool request, the score script uses the
+content of the output message before the first tool request. For a `finish` message, it uses
+the `message` argument of a `finish` request in the output. If the output has no such
 text and the original had it, the score record counts it as "no text". "No text" is
 not a pass.
 
@@ -359,29 +363,29 @@ the conversion: `ste_experiment.Judge`, prompt `e21370fcd140`. For each segment,
 the result and the rules that the text does not obey. It also holds the count of -ing
 words and the count of words. It also holds the totals.
 
-**SCORE-VALIDITY.** Until section 7 has code, the correct-call rate is the measure of
-skill. A tool call in the output is correct when these 3 conditions apply:
+**SCORE-VALIDITY.** Until section 7 has code, the correct-request rate is the measure of
+skill. A tool request in the output is correct when these 3 conditions apply:
 
 1. Its arguments are correct JSON.
 2. It names a tool in the `tools` list of the row.
 3. Its arguments include all the required parameters of that tool.
 
 These 3 conditions examine only the JSON, the tool name and the parameters of the
-tool call. The rate does not compare
-the tool call with the original tool call of the segment. SCORE-REVIEW examines if
+tool request. The rate does not compare
+the tool request with the original tool request of the segment. SCORE-REVIEW examines if
 the next action is correct.
 
-The call set is the held-out segments where the original message has a tool call.
+The request set is the held-out segments where the original message has a tool request.
 SCORE-LOCATE and SCORE-PREFIX can list a segment and give it no score. Their results
 come from the kit and the data record only, not from the model. Thus, before R0, the
-score script removes these segments from the call set and from the STE pass rate. The
-score record lists the removed segments. The same segments are removed for all runs.
-For a `finish` message, the `finish` call is that tool call. The call set is the same
-for all runs, and the score record lists it. For each segment of the call set, the
-result is correct or incorrect. If the output has no tool call, the result is
-incorrect. If the output has more than one tool call, each tool call must be correct.
-The correct-call rate is the quantity of correct results, divided by the quantity of
-segments in the call set. Thus, 2 runs give results for the same segments, and
+score script removes these segments from the request set and from the STE pass rate. The
+score record lists the removed segments. The same segments are removed for all procedures.
+For a `finish` message, the `finish` request is that tool request. The request set is the same
+for all procedures, and the score record lists it. For each segment of the request set, the
+result is correct or incorrect. If the output has no tool request, the result is
+incorrect. If the output has more than one tool request, each tool request must be correct.
+The correct-request rate is the quantity of correct results, divided by the quantity of
+segments in the request set. Thus, 2 procedures give results for the same segments, and
 RUN-MARGIN can compare them in pairs.
 
 **SCORE-REVIEW.** For each adapter and for R0, a reviewer reads 30 segments. The
@@ -399,19 +403,19 @@ The reviewer is a Claude model, `claude-opus-5-5`, with the reviewer prompt
 `ste/review-prompt.md`. That file goes into git with this code. It holds no text from
 the standard. The score record holds the model ID and the sha256 of the reviewer
 prompt, as SCORE-CHECK records the prompt hash of the checker. The reviewer does not
-know which model wrote a segment. The segments of all the runs that the curve compares go
+know which model wrote a segment. The segments of all the procedures that the curve compares go
 into one random sequence. Gemini and DeepSeek are not reviewers, because they wrote training
 data or reference data. No text from the reviewer goes into training data. The
 decisions of the reviewer are only for the score record. The operator can read a segment. The decision of the operator
 then replaces the decision of the model, with a mark that shows this.
 
 **SCORE-SPREAD.** Do R0 2 times. Greedy decode on a model on 2 GPUs can give a different
-result on a second run. The difference between the 2 scores of R0 is the decode
+result the second time. The difference between the 2 scores of R0 is the decode
 difference that RUN-MARGIN uses.
 
 **SCORE-OUTPUT.** For each segment, the score script writes one line of JSON. The line
 holds the prompt length, the output text, the extracted text, the checker result and
-the correct-call result. `score.json` is the score record. It holds these items:
+the correct-request result. `score.json` is the score record. It holds these items:
 
 - The `tree_hash` of the model.
 - The sha256 of the adapter, or "none".
@@ -536,7 +540,7 @@ model of `tests/conftest.py`.
 - **BUILD-INPUTS, BUILD-HELDOUT:** The data script rejects a converted file with a
   sha256 that is different from its run record. It rejects a row with a uuid from the
   held-out set.
-- **BUILD-MASK, BUILD-PREFIX:** Use fixture rows with tool calls. The tokens with mask
+- **BUILD-MASK, BUILD-PREFIX:** Use fixture rows with tool requests. The tokens with mask
   1 are the same as the assistant messages after the template. No system, user or tool
   token has the mask value 1. If a template does not keep each sequence as the start of the
   next, the data script stops.
@@ -547,13 +551,13 @@ model of `tests/conftest.py`.
 - **TRAIN-MASK-REACHES-LOSS:** Do one training step on the small model. Record the
   labels at the loss. The label is -100 at each token with mask 0, and only there.
   This test uses the GPU.
-- **TRAIN-EPOCH-ADAPTERS:** A run of 2 epochs on the small model gives 2 epoch adapters
+- **TRAIN-EPOCH-ADAPTERS:** A procedure of 2 epochs on the small model gives 2 epoch adapters
   and one last adapter. The directories hold adapter files only.
 - **SCORE-LOCATE, SCORE-EXTRACT, SCORE-VALIDITY:** The score record lists rows that
   are not found and rows that more than one row agrees with. The score script gets
-  the text and the `finish` message. It counts tool calls that are not correct. In
-  the call set, an output with no tool call is incorrect, and the call set is the same
-  for 2 runs. A segment that SCORE-LOCATE or SCORE-PREFIX lists is not in the call set
+  the text and the `finish` message. It counts tool requests that are not correct. In
+  the request set, an output with no tool request is incorrect, and the request set is the same
+  for 2 procedures. A segment that SCORE-LOCATE or SCORE-PREFIX lists is not in the request set
   or in the STE pass rate, and the score record lists it.
 - **RECONCILE-FIELDS:** `build.json` holds each field of the clause. The score script
   rejects a data record without one of the fields. The RECONCILE step is a record of
@@ -568,7 +572,7 @@ model of `tests/conftest.py`.
   increase and none that decrease. That case is "not shown". One case has an interval
   in the range from -5 to +5 points. That case is "flat".
 - **SCORE-REVIEW:** The score record holds the sha256 of the reviewer prompt and the
-  model ID. The random selection does not show which run wrote a segment. A segment
+  model ID. The random selection does not show which procedure wrote a segment. A segment
   that SCORE-LOCATE or SCORE-PREFIX lists is not in the sample set. A sample set of
   fewer than 30 segments gives a reviewer decision for all its segments.
 - `tests/test_independence.py` continues to agree with the code. The 2 new commands
@@ -580,7 +584,7 @@ model of `tests/conftest.py`.
 **Adapter function (PURPOSE-EMITTER).** Closed. Decision of the operator, 2026-11-02:
 the adapter writes STE100. This Spec does not make an adapter that rewrites text.
 Decision J of WeaverAgent recommended an adapter that rewrites text. This decision
-closes that difference on this side. The first local run of the STE conversion loop
+closes that difference on this side. The first local cycle of the STE conversion loop
 uses this adapter for step 5. An open cell of the loop
 (`toddwbucy/WeaverAgent#431`, section 11) measures the output format of the adapter. That
 cell shows if this adapter can also do the turn that rewrites text.
@@ -588,8 +592,8 @@ cell shows if this adapter can also do the turn that rewrites text.
 **The `enable_thinking` value (BUILD-RENDER).** Open. Decision of the operator,
 2026-11-02: `enable_thinking` is `false` in the data script and in the score script,
 for this Spec. The template can hold `reasoning_content`. The data has no
-`reasoning_content`. The model writes reasoning text only in the calls of the
-`think` tool. The think-scope decision continues to apply with this value. The cause of this decision: an adapter that rewrites text possibly must
+`reasoning_content`. In the data, the only text of
+that type is the text in the requests to the `think` tool. The think-scope decision continues to apply with this value. The cause of this decision: an adapter that rewrites text possibly must
 have the value `true`. An adapter that writes STE100 possibly operates more
 correctly with `false`. A new decision can try the value `true` with an adapter that rewrites
 text. Until that decision, this cell stays open.
@@ -613,7 +617,7 @@ second machine (RECONCILE-EARLY). Then do them on the 30B A3B model on this mach
 tokenizer files. Use the revision of the source of the GGUF. The approval is for the
 2 machines. Record which machine got which file, with the sha256 of each file.
 
-**The run values (RUN-CONFIG).** The curve closes this cell. If the loss of R1 does
+**The procedure values (RUN-CONFIG).** The curve closes this cell. If the loss of R1 does
 not decrease by its second epoch, the operator gives a decision about the learning
 rate before R2.
 
@@ -621,8 +625,8 @@ rate before R2.
 if R3 and R2 are flat.
 
 **Sufficient data.** RUN-READ closes this cell with R2 and R3, when the result is
-"higher" or "flat". If the result is "not shown", the cell stays open. If there is a
-third STE batch, keep it, unless R3 is higher than R2.
+"higher" or "flat". If the result is "not shown", the cell stays open. The third STE batch
+is cancelled. More data can come only from the conversion loop.
 
 **The 32K limit.** All training rows have 32K tokens or less. About one dataset
 row in 10 has this length. A held-out set of longer trajectories is necessary
