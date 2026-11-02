@@ -213,3 +213,24 @@ def test_build_output_cleans_failed_writes_and_preserves_existing_manifest(tmp_p
     with pytest.raises(build.BuildError, match="manifest already exists"):
         run()
     assert manifest.read_text() == "existing record" and list(dest.iterdir()) == []
+
+
+def test_build_output_has_one_owner_through_failure_cleanup(tmp_path):
+    """BUILD-OUTPUT: a second writer cannot enter an empty tree owned by the first writer."""
+    dest = tmp_path / "shared-output"
+    payload = dest / "train.jsonl"
+    lock = dest.with_name(dest.name + ".build.lock")
+    with pytest.raises(OSError, match="first writer failed"):
+        with build.output_files(dest, ["train.jsonl"]):
+            assert lock.exists()
+            with pytest.raises(build.BuildError, match="reserved by another build"):
+                with build.output_files(dest, ["train.jsonl"]):
+                    pytest.fail("second writer acquired the first writer's destination")
+            assert lock.exists() and dest.exists()
+            payload.write_text("first writer owns this file")
+            assert payload.read_text() == "first writer owns this file"
+            raise OSError("first writer failed")
+    assert not dest.exists() and not lock.exists()
+    with build.output_files(dest, ["train.jsonl"]):
+        payload.write_text("new owner")
+    assert payload.read_text() == "new owner" and not lock.exists()
