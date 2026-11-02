@@ -309,7 +309,7 @@ def check_adapter_only(adapter_dir: Path) -> None:
                            f"unexpected {sorted(extra)}")
 
 
-def tokenized_object(text: str, context: str) -> dict:
+def tokenized_object(text: str | bytes, context: str) -> dict:
     """TRAIN-TOKENIZED: reject malformed records before reading their fields."""
     try:
         value = json.loads(text)
@@ -320,26 +320,35 @@ def tokenized_object(text: str, context: str) -> dict:
     return value
 
 
-def validate_tokenized(dataset_path: Path, cfg: TrainConfig, model_hash: str, vocab_size: int) -> dict:
+def validate_tokenized(dataset_path: Path, cfg: TrainConfig, model_hash: str, vocab_size: int,
+                       *, snapshot: bytes | None = None) -> dict:
     """TRAIN-TOKENIZED: verify the build tree, model identity, length and masks."""
     parent = dataset_path.parent
     build_path = parent / "build.json"
     if not build_path.is_file():
         raise TrainConfigError("TRAIN-TOKENIZED: build.json is required")
-    build = tokenized_object(build_path.read_text(), "build.json")
+    build_bytes = build_path.read_bytes()
+    build = tokenized_object(build_bytes, "build.json")
     if build.get("render_only"):
         raise TrainConfigError("BUILD-RENDER-ONLY: trainer rejects render-only data")
     manifest_path = parent.with_name(parent.name + ".manifest.json")
     if not manifest_path.is_file():
         raise TrainConfigError("TRAIN-TOKENIZED: dataset manifest is required")
-    mf.require_tree(mf.load_tree(manifest_path), parent)
+    manifest = mf.load_tree(manifest_path)
+    mf.require_tree(manifest, parent)
+    if snapshot is None:
+        snapshot = dataset_path.read_bytes()
+    expected = {entry.path: entry.sha256 for entry in manifest.files}
+    for path, data in ((dataset_path, snapshot), (build_path, build_bytes)):
+        if hashlib.sha256(data).hexdigest() != expected.get(path.relative_to(parent).as_posix()):
+            raise TrainConfigError(f"TRAIN-TOKENIZED: captured {path.name} does not match manifest")
     if build.get("tree_hash") != model_hash:
         raise TrainConfigError("TRAIN-TOKENIZED: model tree_hash differs from build.json")
     if build.get("max_seq_length") != cfg.train.max_seq_length:
         raise TrainConfigError("TRAIN-TOKENIZED: max_seq_length differs from build.json")
     rows = 0
     assistant_tokens = 0
-    for number, line in enumerate(dataset_path.read_text().splitlines(), 1):
+    for number, line in enumerate(snapshot.splitlines(), 1):
         if not line.strip():
             continue
         row = tokenized_object(line, f"row {number}")
@@ -356,8 +365,20 @@ def validate_tokenized(dataset_path: Path, cfg: TrainConfig, model_hash: str, vo
         assistant_tokens += sum(masks)
     if not rows:
         raise TrainConfigError("TRAIN-TOKENIZED: dataset has no rows")
-    return {"build_sha256": mf.sha256_file(build_path), "rows": rows,
+    return {"build_sha256": hashlib.sha256(build_bytes).hexdigest(), "rows": rows,
             "assistant_tokens": assistant_tokens}
+
+
+def tokenized_dataset(snapshot: bytes):
+    """TRAIN-TOKENIZED, TRAIN-RECORD: load the same captured bytes used for validation and hashing."""
+    from datasets import Dataset
+    columns = {"input_ids": [], "assistant_masks": []}
+    for number, line in enumerate(snapshot.splitlines(), 1):
+        if line.strip():
+            row = tokenized_object(line, f"row {number}")
+            for key in columns:
+                columns[key].append(row[key])
+    return Dataset.from_dict(columns)
 
 
 class AssistantCollator:
@@ -417,11 +438,16 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
     metrics = {}
     record.save(out_dir / "run.json")
     try:
+        dataset_input = dataset_path
         if cfg.data_format == "tokenized":
+            dataset_input = dataset_path.read_bytes()
             model_config = json.loads((model_dir / "config.json").read_text())
-            record.dataset.update(validate_tokenized(dataset_path, cfg, tree_hash, model_config["vocab_size"]))
-        record.dataset["sha256"] = sha256_path(dataset_path)
-        _run_unsloth(model_dir, dataset_path, cfg, out_dir, metrics)
+            record.dataset.update(validate_tokenized(dataset_path, cfg, tree_hash, model_config["vocab_size"],
+                                                       snapshot=dataset_input))
+            record.dataset["sha256"] = hashlib.sha256(dataset_input).hexdigest()
+        else:
+            record.dataset["sha256"] = sha256_path(dataset_path)
+        _run_unsloth(model_dir, dataset_input, cfg, out_dir, metrics)
         adapter_dir = out_dir / "adapter"
         check_adapter_only(adapter_dir)
         am = mf.build_tree(adapter_dir, "model", f"{m.name}-lora-{record.run_id[:8]}")
@@ -442,7 +468,7 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
     return record
 
 
-def _run_unsloth(model_dir: Path, dataset_path: Path, cfg: TrainConfig, out_dir: Path, metrics: dict) -> None:
+def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig, out_dir: Path, metrics: dict) -> None:
     """TRAIN-MASK-REACHES-LOSS, TRAIN-EPOCH-ADAPTERS, TRAIN-RECORD: train and measure."""
     import unsloth  # noqa: F401
     from unsloth import FastLanguageModel
@@ -508,7 +534,8 @@ def _run_unsloth(model_dir: Path, dataset_path: Path, cfg: TrainConfig, out_dir:
         coverage = target_coverage(model, cfg.lora.target_modules)
         check_coverage(coverage)
         metrics.update(lora_coverage=coverage, component_coverage=component_coverage(model))
-        ds = load_dataset("json", data_files=str(dataset_path), split="train")
+        ds = (tokenized_dataset(dataset_input) if cfg.data_format == "tokenized"
+              else load_dataset("json", data_files=str(dataset_input), split="train"))
         if cfg.data_format == "text" and cfg.text_field not in ds.column_names:
             raise TrainConfigError(f"dataset has no field {cfg.text_field!r}")
         metrics["rows"] = len(ds)
