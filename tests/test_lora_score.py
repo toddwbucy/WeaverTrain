@@ -336,6 +336,29 @@ def test_score_spread_compares_same_request_set_and_rejects_missing_result(tmp_p
         score.compare_scores(plan_path, *paths)
 
 
+@pytest.mark.parametrize("location", ["inside", "same", "ancestor", "symlink"])
+def test_score_output_rejects_reference_overlap_before_load(tmp_path, tokenizer, monkeypatch, location):
+    """SCORE-OUTPUT: a path mistake cannot load a model or add files to its reference tree."""
+    model_dir = tmp_path / "reference"
+    model_dir.mkdir()
+    (model_dir / "weights").write_bytes(b"fixture")
+    manifest = mf.build_tree(model_dir, "model", NAME)
+    manifest.save(tmp_path / f"{NAME}.json")
+    monkeypatch.setenv("WEAVER_TRAIN_MANIFEST_DIR", str(tmp_path))
+    monkeypatch.setenv("WEAVER_TRAIN_MODEL_DIR", str(model_dir))
+    record = tmp_path / "record.json"
+    record.write_text(json.dumps(build_record(tokenizer)))
+    alias = tmp_path / "alias"
+    alias.symlink_to(model_dir, target_is_directory=True)
+    dest = {"inside": model_dir / "scores", "same": model_dir,
+            "ancestor": tmp_path, "symlink": alias / "scores"}[location]
+    monkeypatch.setattr(score.loader, "load", lambda *args, **kwargs: pytest.fail("overlap reached model loading"))
+    with pytest.raises(score.ScoreError, match="overlaps the reference model directory"):
+        score.score_model(record, record, dest, model_name=NAME, prompt_path=record)
+    assert mf.verify_tree(manifest, model_dir) == []
+    assert not (dest / "score.json").exists() and not (dest / "segments.jsonl").exists()
+
+
 @pytest.mark.multigpu
 def test_score_generate_twice_on_split_small_model(tmp_path, tiny_model, monkeypatch):
     """SCORE-GENERATE, SCORE-SPREAD, SCORE-OUTPUT: actual greedy generation on both GPUs."""

@@ -311,6 +311,12 @@ def score_model(plan_path, build_path, out_dir, *, model_name, prompt_path, adap
     """SCORE-GENERATE, SCORE-OUTPUT: greedy decode on the verified split model."""
     import torch
 
+    model_manifest_path = loader.manifest_path_for(model_name)
+    model_dir = loader.resolve_dir(mf.load_tree(model_manifest_path)).resolve()
+    out_dir = out_dir.resolve()
+    # SCORE-OUTPUT: keep score files outside the read-only reference tree in either direction.
+    if out_dir == model_dir or model_dir in out_dir.parents or out_dir in model_dir.parents:
+        raise ScoreError("SCORE-OUTPUT: output overlaps the reference model directory")
     if out_dir.exists():
         raise ScoreError("SCORE-OUTPUT: each score needs a new output directory")
     plan = json.loads(plan_path.read_text())
@@ -319,7 +325,7 @@ def score_model(plan_path, build_path, out_dir, *, model_name, prompt_path, adap
         if (field not in plan or field not in record or type(plan[field]) is not type(record[field])
                 or plan[field] != record[field]):
             raise ScoreError(f"RECONCILE-FIELDS: plan differs on {field}")
-    loaded = loader.load(model_name, device_map="balanced")
+    loaded = loader.load(model_name, path=model_dir, manifest_path=model_manifest_path, device_map="balanced")
     validate_build(record, loaded.tokenizer, loaded.tree_hash, plan["max_seq_length"])
     model = loaded.model
     if any(parameter.device.type != "cuda" for parameter in model.parameters()):
