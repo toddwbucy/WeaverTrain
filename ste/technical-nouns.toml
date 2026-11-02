@@ -20,4 +20,13 @@ nouns = [
   "statement", "string", "subclass", "syntax", "table", "terminal", "test case",
   "test suite", "thread", "timeout", "timestamp", "traceback", "tuple", "type", "unicode",
   "variable", "version", "workaround",
+  # Added 2026-11-02 for docs/lora-training-Spec.md, which the operator ruled is written
+  # in STE100: nouns of the model-training subject field that the Spec needs. "run" is
+  # one operation of the trainer or the score script from start to end. "tool call" is
+  # a call that the model writes to a tool (the call -> use mapping is for the verb).
+  "adapter", "baseline", "batch", "benchmark", "chat template", "checker", "collator",
+  "dataset", "end-of-turn", "epoch", "expert", "greedy decode", "harness", "hash",
+  "held-out set", "kit", "loader", "manifest", "margin", "message", "placeholder",
+  "reviewer", "run", "segment", "snapshot", "spec", "template", "tokenizer", "tool call",
+  "trainer", "trajectory", "tree", "uuid", "warmup",
 ]

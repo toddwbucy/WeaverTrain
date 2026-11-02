@@ -1,171 +1,237 @@
 # weaver-train Spec: LoRA training on STE100 trajectories
 
-**Status:** DRAFT. Awaiting the operator's rulings named in section 10.
+**Status:** DRAFT. The operator must give the decisions that section 10 lists.
 
-**Version:** 0.3 **Date filed:** 2026-11-02 **Parent:** `docs/decisions.md`
+**Version:** 0.3 **Date:** 2026-11-02 **Parent:** `docs/decisions.md`
 
-**Editorial:** ASCII only, no em-dashes, no semicolons, none of the Working Rules'
-banned words, absolute dates. Clause names are bold and
-stable. A merged version of this Spec authorizes the code it names, and where code and
-this Spec disagree, the same change fixes whichever is wrong.
+**Language:** STE100, on the operator's decision of 2026-11-02. The lexicon is `ste/`
+at commit `ab63a91`, with the technical nouns that this version adds to
+`ste/technical-nouns.toml`. The approved words come from the local copy of the
+standard, `var/ste/approved-verbs.json`, sha256 `c622bc230bc0c295...`. The checker is
+`scripts/ste_check.py` at `ab63a91`. Clause names, paths, keys and text in backticks
+are technical names.
 
-## 0. Scope and owning rulings
+**Editorial:** ASCII only. No em-dashes, no semicolons and no word from the banned list of the
+`Working Rules`. Use absolute dates. Clause names are bold and do not change. A
+merged version of this Spec gives approval for the code that it names. If the code and
+this Spec do not agree, one change makes the incorrect one correct.
 
-This Spec covers the code that turns converted trajectories into a LoRA adapter on
-`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` and scores the adapter against the
-untrained model. It names four pieces: a build step that renders and labels the
-training text (section 2), assistant-only loss (section 3), the trainer changes
-(section 4) and a held-out emission scorer (section 6). Section 5 fixes the run plan,
-and section 8 names the reconciliation step with the serving loop.
+## 0. Scope
 
-It inherits these rulings from `docs/decisions.md` and restates none of them:
-Nemotron only, bf16 only, LoRA on attention `q/k/v/o_proj` plus Mamba `in_proj` with
-no expert adapters, the `python-hf` engine label, read-only reference weights,
-`pin_layer_devices` on every split-model path, and stop and report on any failure.
+This Spec is for the code that makes a LoRA adapter on
+`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` from converted trajectories. The code
+also compares the adapter with the model that has no adapter. The Spec has 4 parts of
+code:
 
-The input is the converted data of the STE batches (`reports/2026-11-01-ste-batch-200.md`
-and `reports/2026-11-01-ste-batch-200-2.md`): 387 trajectories in two files, each with
-a run record that holds its sha256. A third batch may be added. The code reads any
-number of converted files and does not assume a count.
+1. A data script that applies the chat template and makes the labels (section 2).
+2. Loss on the assistant tokens only (section 3).
+3. Changes to the trainer (section 4).
+4. A score script for the held-out set (section 6).
 
-One carve-out from the Nemotron-only scope: a render-only build (BUILD-RENDER-ONLY)
-may name another verified model tree, so that RECONCILE-EARLY can run against a
-smaller model. A render-only build never loads weights and never feeds training.
+Section 5 gives the sequence of runs. Section 8 gives the step that aligns this
+training with the SPU loop.
 
-Out of scope: the SWE benchmark (section 7), any rewriter adapter, any change to the
-STE conversion scripts, and expert adapters.
+This Spec does not write the decisions in `docs/decisions.md` again. These
+decisions apply:
 
-## 1. What the adapter is for
+- Use Nemotron only, in bf16 only.
+- Attach LoRA to attention `q/k/v/o_proj` and to Mamba `in_proj`. Do not attach LoRA
+  to the experts.
+- The engine label is `python-hf`.
+- The reference weights are read-only.
+- Apply `pin_layer_devices` on each path that operates a model on 2 GPUs.
+- If a failure occurs, stop and tell the operator.
 
-**PURPOSE-EMITTER.** The adapter is an emitter. Run as an OpenHands-style agent on a
-software task, the model writes its own narration and its final report in STE100 while
-its tool calls stay as useful as before. The training data is exactly that behavior:
-whole trajectories in which only the agent's prose was converted. A rewriter adapter,
-which converts text it is handed, is a different task with different data and is not
-built here. (Proposed. Ruling owed, section 10.)
+The input is the converted data of the STE batches. The reports are
+`reports/2026-11-01-ste-batch-200.md` and `reports/2026-11-01-ste-batch-200-2.md`.
+There are 387 trajectories in 2 files. Each file has a run record that holds its
+sha256. A third batch is possible. The code reads one or more `converted.jsonl` files.
+The quantity of files can change.
 
-**PURPOSE-MEASURE.** Success is measured, never asserted. The adapter has worked when
-the held-out STE pass rate (section 6) rises above the untrained model's while the
-tool-call validity rate does not fall. A run that raises the pass rate and lowers
-validity is reported as a trade, not a success.
+The scope has one exception to "Nemotron only". A render-only data record
+(BUILD-RENDER-ONLY) can refer to a different model tree. This lets RECONCILE-EARLY
+operate on a smaller model. A render-only data record does not load weights, and the
+trainer does not use it.
 
-## 2. Building the training input
+These items are not in the scope:
 
-A new command, `scripts/lora_build.py build`, writes the trainer's input. It never
-loads model weights. It reads only the tokenizer files of the verified model tree.
+- The SWE benchmark (section 7).
+- An adapter that rewrites text.
+- Changes to the STE conversion scripts.
+- LoRA on the experts.
 
-**BUILD-INPUTS.** The command takes one or more converted files. For each, it reads
-the run record beside it and refuses the file if the file's sha256 differs from the
-record's `converted_sha256`. It refuses a row that two inputs both hold (same dataset
-row number).
+## 1. The function of the adapter
 
-**BUILD-HELDOUT.** The command takes the held-out kit (section 6) and refuses to run if
-any input row's uuid appears in it. The check is by uuid because the dataset repeats
-uuids across rows, and a task in the held-out set must not appear in training under
-any row.
+**PURPOSE-EMITTER.** The adapter writes STE100. The model operates as an agent of the
+OpenHands type on a software task. With the adapter, the model writes its agent text in
+STE100. The agent text is the text before each tool call and the `finish` message.
+The tool calls must stay as correct as before. The training data shows this result. In
+each trajectory, the conversion changed only the agent text. An adapter that rewrites
+text from a different source is a different task. That task must have different data,
+and this Spec does not include it. (Recommendation. The operator must give a decision,
+section 10.)
 
-**BUILD-RENDER.** Each row is rendered with the model's own chat template through
-`apply_chat_template`, with the row's `tools` list passed as `tools` and with
-`enable_thinking` set from a required argument. The messages pass through the same
-field selection and argument parsing as `ste_batch.TokenCounter`. The template hash,
-the `tools` choice and the `enable_thinking` value go into the build record, and the
-scorer refuses a build whose values differ from its own. (The value for
-`enable_thinking` is a ruling owed, section 10.)
+**PURPOSE-MEASURE.** Measure the result of the adapter. Do not tell that it is good
+without a measurement. The adapter is good when these 2 conditions apply:
 
-**BUILD-LENGTH.** A row longer than `max_seq_length` tokens after rendering is dropped
-whole and listed in the build record with its length. No row is truncated. Rows were
-sampled at 32,768 and 32,000 tokens without `tools`, so passing `tools` may push some
-over. The record counts them.
+1. Its STE pass rate on the held-out set (section 6) is higher than the pass rate of
+   the model without an adapter.
+2. Its correct-call rate does not decrease.
 
-**BUILD-MASK.** Each row gets an `assistant_masks` array the same length as its
-`input_ids`: 1 on tokens the assistant wrote, 0 on everything else. The tokens the
-assistant wrote are found by prefix difference. For each assistant message i, the
-template is rendered for messages before i with `add_generation_prompt=True`, and for
-messages up to and including i. The second rendering's extra tokens are the
-assistant's: its content, its tool calls and its end-of-turn token. The generation
-prompt header is the template's, not the assistant's, and stays 0.
+If the pass rate increases and the correct-call rate decreases, the result is a trade.
+Tell the operator that it is a trade, not a good result.
 
-**BUILD-PREFIX.** Prefix difference is valid only if each rendering is a token prefix
-of the next. The command checks this for every assistant turn of every row. On the
-first row that fails, it stops and reports the row and turn. It does not skip the row
-or work around the template. Nemotron's template has no `{% generation %}` markers,
-which is why the mask is computed here and not by TRL.
+## 2. The training data
 
-**BUILD-ORDER.** Rows are written in a seeded order. With `--limit N`, the first N rows
-of that order are written, so the subsets for the learning curve (section 5) are
-nested: the 100-row set is inside the 200-row set, which is inside the full set.
+A new command, `scripts/lora_build.py build`, writes the data for the trainer. In
+this Spec, its name is the data script. The data script does not load model weights. It reads
+only the tokenizer files of the model tree. Before it reads them, it makes sure that
+the model tree agrees with its manifest.
 
-**BUILD-OUTPUT.** The command writes `train.jsonl` (one row per line: `input_ids`,
-`assistant_masks`, and the batch, trajectory and dataset row it came from) and
-`build.json`: the input files and their sha256, the model's `tree_hash`, the template
-hash, the `tools` and `enable_thinking` values, `max_seq_length`, the seed and limit,
-and counts (rows in, rows dropped and why, total tokens, masked tokens, and the
-masked tokens that fall in converted STE prose). It then writes a tree manifest of the
-output directory with `weaver_train.manifest`. The output goes under
-`$WEAVER_TRAIN_STATE_DIR`, never into git.
+**BUILD-INPUTS.** The data script reads one or more `converted.jsonl` files. For each file, it
+reads the run record next to the file. If the sha256 of the file is not the same as the
+`converted_sha256` of the record, the data script rejects the file. The data script
+also rejects a row that is in 2 input files (the same dataset row number).
 
-**BUILD-RENDER-ONLY.** With `--render-only --model NAME`, the command writes a
-`build.json` and the RECONCILE-RENDER renderings, and no `train.jsonl`. NAME may be any
-model entry in `config/models.toml` whose tree verifies against its manifest. A
-manifest that covers only the tokenizer files is enough, since a render-only build
-reads the tokenizer and template and never loads weights. The trainer refuses a
-render-only build. Adding a model entry, such as the 4B's tokenizer files at the
-revision its GGUF was converted from, is a download and waits on the operator's go
-like any other.
+**BUILD-HELDOUT.** The data script reads the held-out set (section 6). If a uuid of an
+input row is in the held-out set, the data script stops. The dataset uses one uuid for
+more than one row. Thus, the data script compares uuids, not rows. A task in the
+held-out set must not be in a row of the training data.
 
-## 3. Loss on the assistant turns only
+**BUILD-RENDER.** The data script applies the chat template of the model to each row,
+with `apply_chat_template`. It gives the `tools` list of the row as `tools`. It sets
+`enable_thinking` from an argument that the operator must supply. The data script
+selects the same message fields as `ste_batch.TokenCounter`. It also changes the JSON
+text of each tool-call argument into an object, as `ste_batch.TokenCounter` does. The
+data record holds the template hash, the `tools` value and the `enable_thinking`
+value. The score script rejects a data record with values that are different from the
+values of the score script. (The operator must give a decision about `enable_thinking`, section 10.)
 
-**LOSS-ASSISTANT.** The loss is computed only on tokens whose mask is 1. System,
-issue, tool output and template tokens add nothing to the loss. In batch 1, tool
-output was 57% of all tokens and STE prose 5%. Without this clause most of training
-goes to text the model does not write.
+**BUILD-LENGTH.** If a row has more tokens than `max_seq_length` after the template,
+the data script removes the full row. The data record lists the row and its length.
+The data script does not cut a row. The sample limits were 32,768 and 32,000 tokens,
+without `tools`. Thus, some rows can become too long when the `tools` list is in the
+template. The data record gives the count of these rows.
 
-**LOSS-UNWEIGHTED.** Every masked token weighs the same. STE prose is about 16% of the
-assistant tokens, and the rest is tool calls the model already writes. Weighting prose
-above tool calls is not built here. It is an open cell (section 10), to be tried only if
-the learning curve stalls.
+**BUILD-MASK.** Each row gets an `assistant_masks` array with the same length as its
+`input_ids`. The value is 1 for each token that the assistant wrote. The value is 0
+for all other tokens. The data script finds the assistant tokens from a difference
+between 2 token sequences. For assistant message i, it applies the template 2 times:
 
-## 4. Trainer changes
+1. To the messages before i, with `add_generation_prompt=True`.
+2. To the messages before i and to message i.
 
-`src/weaver_train/trainer.py` keeps its order of work (verify, load, attach, train,
-save adapter only, re-verify, record). These clauses add to it.
+The tokens that the second sequence adds are the tokens of the assistant. These
+tokens are the content, the tool calls and the end-of-turn token. The header that
+`add_generation_prompt` adds comes from the template, not from the assistant. Its
+value stays 0.
 
-**TRAIN-TOKENIZED.** A new required config key `data.format` takes `"text"` (today's
-behavior, the `text_field`) or `"tokenized"` (`input_ids` and `assistant_masks` from
-section 2). There is no default. With `"tokenized"`, the trainer refuses a dataset
-whose `build.json` it cannot find or whose manifest does not verify, and it refuses a
-`max_seq_length` that differs from the build's.
+**BUILD-PREFIX.** This method is correct only if each token sequence is the start of
+the next token sequence. The data script examines this for each assistant message of
+each row. At the first row where it is not correct, the data script stops. It tells the
+operator the row and the message. It does not ignore the row, and it does not change
+the method to continue. The Nemotron template has no `{% generation %}` markers. Thus,
+TRL cannot find the assistant tokens, and the data script must find them.
 
-**TRAIN-MASK-REACHES-LOSS.** With `"tokenized"`, the labels the loss sees are -100
-exactly where the mask is 0 and equal to `input_ids` where it is 1. Whether this uses
-TRL's own `assistant_masks` support or a collator of ours is an implementation
-choice. Either way the test in section 9 must pass, because a mask that is silently
-ignored trains on everything and logs no warning.
+**BUILD-ORDER.** The data script writes the rows in a random sequence from a seed. With
+`--limit N`, it writes the first N rows of that sequence. Thus, the sets for the curve
+(section 5) are in each other. The set of 100 rows is in the set of 200 rows. The
+set of 200 rows is in the full set.
 
-**TRAIN-NO-PACKING.** Packing is off. Each row is one sequence, batch size per device
-is 1, and no row is split.
+**BUILD-OUTPUT.** The data script writes 2 files. `train.jsonl` has one row on each
+line, with `input_ids`, `assistant_masks`, and the batch, trajectory and dataset row
+of the source. `build.json` is the data record. It holds these items:
 
-**TRAIN-EPOCHS.** The `[train]` table takes exactly one of `max_steps` or
-`num_train_epochs`. Giving both or neither is a config error.
+- The input files and their sha256.
+- The `tree_hash` of the model.
+- The template hash, the `tools` value and the `enable_thinking` value.
+- `max_seq_length`, the seed and the limit.
+- The counts: rows in, rows removed and the cause, all tokens, assistant tokens, and
+  the assistant tokens in converted STE text.
 
-**TRAIN-EPOCH-ADAPTERS.** With `num_train_epochs`, the adapter is saved at the end of
-each epoch under `adapter-epoch-N`, adapter files only, as `check_adapter_only` already
-enforces. The final adapter is also saved as `adapter`.
+Then the data script writes a tree manifest of the output directory with
+`weaver_train.manifest`. The output goes into `$WEAVER_TRAIN_STATE_DIR`, not into git.
 
-**TRAIN-RECORD.** The run record adds: the `build.json` sha256 and the rows trained on,
-the masked token count, steps and epochs, wall time per step and in total, peak
-memory per GPU, the loss per logging step, and the final loss. These are the numbers
-the run plan's stop rules read.
+**BUILD-RENDER-ONLY.** With `--render-only --model NAME`, the data script writes a
+`build.json` and the token sequences for RECONCILE-RENDER. It does not write
+`train.jsonl`. NAME can be a model in `config/models.toml` with a tree that agrees with
+its manifest. A manifest of the tokenizer files only is sufficient, because a
+render-only data record does not load weights. The trainer rejects a render-only data
+record. A new model entry, for example the tokenizer files of the 4B model, is a
+download. The operator must give approval for it, as for all downloads.
 
-**TRAIN-STOP.** The run stops and records `failed` on a loss that is NaN or infinite,
-an out-of-memory error, a `TargetCoverageError`, or any sign that layers were placed on
-CPU. It does not retry with other settings.
+## 3. Loss on the assistant tokens only
 
-## 5. Run plan
+**LOSS-ASSISTANT.** Calculate the loss only on tokens with the value 1 in the mask. The
+system tokens, the issue tokens, the tool output and the template tokens do not
+change the loss. In batch 1, tool output was 57% of all tokens, and STE text was 5%.
+Without this clause, most of the training is on text that the model does not write.
 
-**RUN-CONFIG.** The first configuration, unchanged across the learning curve:
+**LOSS-UNWEIGHTED.** Each assistant token has the same weight. STE text is
+about 16% of the assistant tokens. The remaining tokens are tool calls, which
+the model can write before the training. This Spec does not give more weight to STE text.
+That is an open cell (section 10). Try it only if the curve stops its increase.
 
-| Setting | Value |
+## 4. Changes to the trainer
+
+`src/weaver_train/trainer.py` keeps its sequence of work. The sequence is: examine the
+model tree, load, attach, train, save the adapter only, examine the model tree again,
+write the run record. These clauses add to that sequence.
+
+**TRAIN-TOKENIZED.** A new config key, `data.format`, is necessary. Its value is
+`"text"` or `"tokenized"`. With `"text"`, the trainer operates as before, with
+`text_field`. With `"tokenized"`, the trainer reads `input_ids` and `assistant_masks`
+from section 2. There is no default value. With `"tokenized"`, the trainer rejects
+these items:
+
+- A dataset without its `build.json`.
+- A dataset with a manifest that does not agree with the files.
+- A `max_seq_length` that is different from the value in the data record.
+
+**TRAIN-MASK-REACHES-LOSS.** With `"tokenized"`, the labels that go to the loss must
+agree with the mask. Where the mask is 0, the label is -100. Where the mask is 1, the
+label is the same as the `input_ids` value. The code can use the `assistant_masks`
+function of TRL or a new collator. With the 2 methods, the test in section 9 must
+show the correct labels. If the code ignores the mask, the training uses all tokens,
+and no warning occurs.
+
+**TRAIN-NO-PACKING.** Do not use packing. Each row is one sequence. The value of
+`per_device_batch_size` is 1. The trainer does not divide a row.
+
+**TRAIN-EPOCHS.** The `[train]` table must have one of `max_steps` or
+`num_train_epochs`. If it has the 2 keys or no key, the trainer gives a config error.
+
+**TRAIN-EPOCH-ADAPTERS.** With `num_train_epochs`, the trainer saves the adapter at the
+end of each epoch, in `adapter-epoch-N`. The directory holds adapter files only, as
+`check_adapter_only` makes sure. The trainer also saves the last adapter as `adapter`.
+
+**TRAIN-RECORD.** The run record also holds these items:
+
+- The sha256 of `build.json` and the quantity of rows in the training.
+- The quantity of assistant tokens.
+- The steps and the epochs.
+- The time for each step and the full time.
+- The maximum memory on each GPU.
+- The loss at each log step and the last loss.
+
+The stop rules of the run sequence read these values.
+
+**TRAIN-STOP.** The trainer stops and writes the status `failed` when one of these
+conditions occurs:
+
+- The loss is `NaN` or `inf`.
+- The GPU memory is not sufficient.
+- A `TargetCoverageError` occurs.
+- A layer goes to the CPU.
+
+The trainer does not try again with different values.
+
+## 5. The sequence of runs
+
+**RUN-CONFIG.** The first values are in this table. They are the same for all the
+runs of the curve.
+
+| Key | Value |
 |---|---|
 | `lora.r` / `lora.alpha` / `lora.dropout` | 16 / 32 / 0.0 |
 | `lora.target_modules` | `q_proj`, `k_proj`, `v_proj`, `o_proj`, `in_proj` |
@@ -175,249 +241,328 @@ CPU. It does not retry with other settings.
 | `train.num_train_epochs` | 2 |
 | `train.seed` | 0 |
 
-With 387 rows, an epoch is about 48 optimizer steps. These values are a first guess,
-and the curve is what tests them. (Ruling owed on changing any of them, section 10.)
+With 387 rows, one epoch is about 48 steps. These values are a first
+estimate. The curve measures them. (The operator must give a decision before a change
+to a value, section 10.)
 
-**RUN-ORDER.** Runs happen in this order, and each waits for the one before:
+**RUN-ORDER.** Do the runs in this sequence. Do not start a run before the previous
+run is complete.
 
-1. **R0, baseline.** The scorer on the untrained model.
-2. **R1, 100 rows.** A timing and sanity run. It stops after this run and reports wall
-   time, peak memory, the loss curve and its score, before any longer run.
-3. **R2, 200 rows**, then **R3, all rows**, each on the nested subsets of BUILD-ORDER.
+1. **R0, the baseline.** Use the score script on the model without an adapter.
+2. **R1, 100 rows.** This run measures time and makes sure that the method operates.
+   After R1, stop. Tell the operator the time, the maximum memory, the loss curve and
+   the score. Do not start a longer run before this report.
+3. **R2, 200 rows**, then **R3, all rows**. Use the sets of BUILD-ORDER.
 
-Each run's epoch adapters are scored. The curve is the held-out pass rate and the
-validity rate against rows trained on, at epochs 1 and 2.
+Use the score script on the adapter of each epoch of each run. The curve shows 2 rates on the
+held-out set: the STE pass rate and the correct-call rate. It shows them for each
+quantity of training rows, at epoch 1 and at epoch 2.
 
-**RUN-MARGIN.** This margin is fixed here, before R0 runs, and is not changed after any
-score is seen. Every comparison in the curve is between two scorings of the same
-segments, so it is paired. For two scorings A and B, b counts the segments that pass
-under B and fail under A, and c counts the reverse. B is higher than A only when both
-hold: an exact two-sided sign test on b and c gives p below 0.05, and the difference
-in pass rate is larger than SCORE-SPREAD's decode spread. If either fails, the two are
-equal for this Spec's purposes ("flat"). The same rule, applied to valid tool calls,
-decides a fall in validity. On 100 segments, differences under about 10 points will
-usually read as flat. That is a limit of the held-out set, recorded with each reading,
-not a reason to loosen the margin. The two noises are separate: SCORE-SPREAD is decode
-nondeterminism between identical runs, and the sign test covers sampling error on the
-segments.
+**RUN-MARGIN.** This Spec sets the margin before R0. Do not change the margin after a
+score is known. The curve compares 2 scores of the same segments each time. Thus, it
+compares pairs. For 2 scores A and B:
 
-**RUN-READ.** If R3 is higher than R2 under RUN-MARGIN, more data is worth getting. If
-they are flat, the next change is LOSS-UNWEIGHTED's open cell, not more data. If an
-adapter's validity is lower than R0's under RUN-MARGIN, the adapter is reported as
-costing skill.
+- `b` is the quantity of segments that the checker accepts with B and rejects with A.
+- `c` is the quantity of segments that the checker accepts with A and rejects with B.
 
-**RUN-OUTPUT.** Each run writes to a fresh directory outside the model tree, as the
-trainer already enforces. Adapters, build outputs and score files are deposited under
-`weaver-testing/` on the shared bulk store with a `SHA256SUMS` and a README. Nothing
-but the result note enters git.
+B is higher than A only when these 2 conditions apply:
 
-## 6. The held-out emission scorer
+1. An `exact two-sided sign test` on `b` and `c` gives `p` less than 0.05.
+2. The difference in pass rate is larger than the decode difference of SCORE-SPREAD.
 
-A new command, `scripts/lora_score.py`, scores a model, with or without an adapter, on
-the held-out set. It loads the model through the same verified path as the loader,
-applies `pin_layer_devices`, and records the engine as `python-hf`.
+If one condition does not apply, the name of the result is "flat". Use the same rule
+for the correct-call rate. On 100 segments, a difference of less than about 10 points
+usually shows as flat. This is a limit of the held-out set. Record the limit with
+each result. Do not make the margin smaller because of it.
 
-**SCORE-HELDOUT.** The held-out set is the 100-segment kit (90 narration, 10 final
-reports), frozen since 2026-11-01. None of its uuids appear in any STE batch. Its
-recorded verdicts for Gemini and DeepSeek rewrites stay as reference, and the
-untrained model's score is the baseline.
+The 2 types of noise are different. SCORE-SPREAD measures the difference between 2
+runs that are the same. The sign test measures the error that comes from a sample of
+100 segments.
 
-**SCORE-LOCATE.** The kit records each segment's uuid, its location (message index and
-field) and its original text, but not its dataset row. The scorer finds the row whose
-uuid matches and whose text at that location equals the kit's. No match, or more than
-one, is listed in the score record and the segment is not scored.
+**RUN-READ.** Read the curve with RUN-MARGIN:
 
-**SCORE-PREFIX.** For a segment at message i, the prompt is messages before i,
-rendered as BUILD-RENDER renders them, with `add_generation_prompt=True`. A prompt
-that leaves less than the generation budget inside `max_seq_length` is listed and not
-scored.
+- If R3 is higher than R2, more data can help.
+- If R3 and R2 are flat, more data does not help. Then the next change is the open cell
+  of LOSS-UNWEIGHTED.
+- If the correct-call rate of an adapter is lower than the rate of R0, tell the
+  operator. The adapter then decreases the skill of the model.
 
-**SCORE-GENERATE.** Generation is greedy (no sampling), with a budget of 2,048 new
-tokens, and stops at the end-of-turn token. Greedy decoding keeps a score repeatable,
-which the curve depends on.
+**RUN-OUTPUT.** Each run writes to a new directory that is not in the model tree, as
+the trainer makes sure. Put the adapters, the data records and the score files in a
+directory in `weaver-testing/` on the `shared bulk store`. Add a `SHA256SUMS` file and
+a README. Only the result note goes into git.
 
-**SCORE-EXTRACT.** For a narration segment, the text scored is the generated message's
-content before any tool call. For a final segment, it is the `message` argument of a
-generated `finish` call. A generation with no such text, where the original had it, is
-counted as "no prose" and is not a pass.
+## 6. The score script for the held-out set
 
-**SCORE-CHECK.** The prose is masked with `ste_convert.mask` and judged with the same
-checker and prompt hash as the conversion (`ste_experiment.Judge`, prompt
-`e21370fcd140`). The record holds pass or fail, the rules broken, the -ing count and
-the word count per segment, and the totals.
+A new command, `scripts/lora_score.py`, gives the score of a model, with an adapter or
+without an adapter, on the held-out set. In this Spec, its name is the score script. It loads
+the model on the same path as the loader, after the model tree agrees with its
+manifest. It applies `pin_layer_devices`. Its engine label is `python-hf`.
 
-**SCORE-VALIDITY.** A cheap skill signal until section 7 exists: a generated tool call
-is valid if it parses and names a tool in the row's `tools` list with arguments that
-satisfy that tool's required parameters. The rate is over all segments with a
-generated tool call.
+**SCORE-HELDOUT.** The held-out set is the kit of 100 segments. 90 segments are text
+before a tool call. 10 segments are `finish` messages. The kit is frozen since 2026-11-01. No uuid of
+the kit is in an STE batch. The kit also holds the decisions of the reviewers on the
+Gemini and DeepSeek rewrites. These decisions stay as a reference. The score of the
+model without an adapter is the baseline.
 
-**SCORE-REVIEW.** For each scored adapter and for R0, 30 segments in a fixed seeded
-selection are read against their prompt: does the prose fit what the agent is doing,
-and is the next action sensible. Verdicts are fits, odd or wrong. The checker cannot
-see this, as the conversion batches showed. The reader is a Claude model session,
-`claude-opus-5-5`, given the review prompt `ste/review-prompt.md`. That file is
-committed with this code and holds no standard text, and its sha256 and the model id
-go into the score record, as SCORE-CHECK records the checker's prompt hash. The read is
-blind: the segments of every run being compared are shuffled together, and the reader
-is not told which model wrote which. Neither Gemini nor DeepSeek reads, because both
-wrote training or reference data. The operator may read any segment, and an operator
-verdict replaces the model's for that segment and is marked as such.
+**SCORE-LOCATE.** For each segment, the kit holds the uuid, the location (message
+index and field) and the original text. It does not hold the dataset row. The score
+script finds the row with the same uuid and the same text at that location. If no row
+or more than one row agrees, the score record lists the segment. The score script does
+not give a score to that segment.
 
-**SCORE-SPREAD.** R0 runs twice. Greedy decoding on a split model can still differ
-between runs, and the difference between the two R0 scores is the decode spread
-RUN-MARGIN uses.
+**SCORE-PREFIX.** For a segment at message i, the prompt is the messages before i. The
+score script applies the template as BUILD-RENDER does, with
+`add_generation_prompt=True`. The output limit is 2,048 tokens. If the prompt and the
+output limit are more than `max_seq_length`, the score record lists the segment. The
+score script does not give a score to that segment.
 
-**SCORE-OUTPUT.** Per segment, a JSON Lines record with the prompt length, the
-generated text, the extracted prose, the checker result and the validity result. In
-total, `score.json` with the model `tree_hash`, the adapter's sha256 (or none), the
-build's template hash and `enable_thinking`, and the totals. Results under one engine
-label are never pooled with another's.
+**SCORE-GENERATE.** The model writes its output with greedy decode, without a random
+sample. The output limit is 2,048 tokens. The output stops at the end-of-turn token.
+Greedy decode gives the same score again, and the curve must have that.
+
+**SCORE-EXTRACT.** For a segment of text before a tool call, the score script uses the
+content of the output message before the first tool call. For a `finish` message, it uses
+the `message` argument of a `finish` call in the output. If the output has no such
+text and the original had it, the score record counts it as "no text". "No text" is
+not a pass.
+
+**SCORE-CHECK.** The score script replaces code in the text with placeholders, with
+`ste_convert.mask`. Then it examines the text with the same checker and prompt hash as
+the conversion: `ste_experiment.Judge`, prompt `e21370fcd140`. For each segment, the score record holds
+the result and the rules that the text does not obey. It also holds the count of -ing
+words and the count of words. It also holds the totals.
+
+**SCORE-VALIDITY.** Until section 7 has code, the correct-call rate is the measure of
+skill. A tool call in the output is correct when these 3 conditions apply:
+
+1. Its arguments are correct JSON.
+2. It names a tool in the `tools` list of the row.
+3. Its arguments include all the required parameters of that tool.
+
+The rate is for all segments where the output has a tool call.
+
+**SCORE-REVIEW.** For each adapter and for R0, a reviewer reads 30 segments. A seed
+selects the 30 segments, and the selection does not change. The reviewer reads each
+segment with its prompt and gives one decision: `fits`, `odd` or `incorrect`. The reviewer
+examines 2 items: Is the text correct for the work of the agent? Is the next action
+correct? The
+checker cannot find these problems, as the conversion batches showed.
+
+The reviewer is a Claude model, `claude-opus-5-5`, with the reviewer prompt
+`ste/review-prompt.md`. That file goes into git with this code. It holds no text from
+the standard. The score record holds the model ID and the sha256 of the reviewer
+prompt, as SCORE-CHECK records the prompt hash of the checker. The reviewer does not
+know which model wrote a segment. The segments of all the runs that the curve compares go
+into one random sequence. Gemini and DeepSeek are not reviewers, because they wrote training
+data or reference data. The operator can read a segment. The decision of the operator
+then replaces the decision of the model, with a mark that shows this.
+
+**SCORE-SPREAD.** Do R0 2 times. Greedy decode on a model on 2 GPUs can give a different
+result on a second run. The difference between the 2 scores of R0 is the decode
+difference that RUN-MARGIN uses.
+
+**SCORE-OUTPUT.** For each segment, the score script writes one line of JSON. The line
+holds the prompt length, the output text, the extracted text, the checker result and
+the correct-call result. `score.json` is the score record. It holds these items:
+
+- The `tree_hash` of the model.
+- The sha256 of the adapter, or "none".
+- The template hash and the `enable_thinking` value of the data record.
+- The totals.
+
+Do not put the results of one engine label together with the results of a different
+engine label.
 
 ## 7. The SWE benchmark
 
-**BENCH-DEFERRED.** The frozen benchmark snapshots need a Docker harness, and none
-exists yet. This Spec authorizes no benchmark code. Until the harness exists, task
-skill is read only through SCORE-VALIDITY and SCORE-REVIEW, and no claim is made that
-an adapter keeps or loses SWE skill. When the harness lands, the trained-minus-untrained
-comparison follows `docs/benchmarks.md`.
+**BENCH-DEFERRED.** The frozen benchmark snapshots must have a Docker harness. There is no
+harness at this time. This Spec does not give approval for benchmark code. Until the
+harness is available, only SCORE-VALIDITY and SCORE-REVIEW measure the skill. Do not
+tell that an adapter keeps or decreases the SWE skill of the model. When the harness is
+available, compare the models with and without an adapter as
+`docs/benchmarks.md` tells.
 
-## 8. Reconciliation with the serving loop
+## 8. The RECONCILE step and the SPU loop
 
-The STE conversion loop is built and verified on a second machine, through the SPU, as
-WeaverAgent's bootstrap agent (`toddwbucy/WeaverAgent` #430 and #431), while this
-machine trains the adapter. The two halves will not finish in step, and training-side
-work goes on while the loop is built. Reconciliation is therefore a named step, not a
-surprise. The interface between the two sides is the build record of section 2 and
-nothing else: no code, fixture or path couples this repository to WeaverAgent.
+A second machine makes the STE conversion loop and makes sure that it operates. The
+loop operates through the SPU, as the first agent of WeaverAgent (`toddwbucy/WeaverAgent`
+#430 and #431). At the same time, this machine makes the adapter. The 2 parts will not
+be complete at the same time. Work on the training side continues while the second
+machine makes the loop. Thus, a RECONCILE step is necessary, and this Spec gives it a
+name. The only connection between the 2 sides is the data record of section 2. No
+code, fixture or path connects this repository to WeaverAgent.
 
-**RECONCILE-STEP.** Reconciliation sits between two milestones: the loop verified end
-to end on the second machine, and the loop running with this Spec's adapter on this
-machine. It holds the three checks below. The loop does not run with the adapter until
-all three are recorded under RECONCILE-RECORD.
+**RECONCILE-STEP.** The RECONCILE step occurs between these 2 points of the work:
 
-**RECONCILE-FIELDS.** The SPU side must match these `build.json` fields of the build
-the adapter was trained on: the model `tree_hash` (the tokenizer comes from it), the
-template hash, the `tools` choice, the `enable_thinking` value and `max_seq_length`.
-BUILD-RENDER and BUILD-OUTPUT already record them. This clause adds no field, and a
-change to any of them after reconciliation reopens it.
+1. The loop operates from start to end on the second machine.
+2. The loop operates with the adapter of this Spec on this machine.
 
-**RECONCILE-RENDER.** Training stays in Python, and the SPU does not train, but it must
-feed the model the tokens the trainer saw. Two prompts are each rendered two ways,
-through BUILD-RENDER with the build record's values and through the SPU's family entry
-for the model, and each pair of token ID sequences is compared:
+The step has the 3 checks below. Do not operate the loop with the adapter before the
+3 results are in the record of RECONCILE-RECORD.
 
-1. **The trajectory turn.** One held-out prompt as SCORE-PREFIX builds it, with the
-   row's `tools` passed as the build record says.
-2. **The loop turn.** The turn the loop's stage 5 sends (ruling P of the #431 brief):
-   the rules prompt `e21370fcd140` as the system message and one kit segment, masked,
-   as the user message, with `tools` absent. This takes a different path through the
-   chat template, and the loop sends it however PURPOSE-EMITTER is ruled.
+**RECONCILE-FIELDS.** The SPU side must agree with these fields of the `build.json`
+that the adapter came from:
 
-Each prompt's message list is written once, as JSON, and both sides render that same
-list, so the comparison tests the rendering and not two ways of building the messages.
-The loop turn's list holds standard text, so it lives only in the RECONCILE-RECORD
-deposit, never in git. If a pair matches, the adapter sees in serving what it saw in
-training for that turn. If it differs, the SPU's rendering is fixed to match the build
-record, never the reverse. The GGUF carries the chat template in its metadata, so a
-match is expected, but it is measured, not assumed.
+- The `tree_hash` of the model. The tokenizer comes from this tree.
+- The template hash.
+- The `tools` value.
+- The `enable_thinking` value.
+- `max_seq_length`.
 
-**RECONCILE-ADAPTER.** The bf16 PEFT adapter is converted to a GGUF LoRA the SPU loads.
-The SPU has no LoRA load path yet, and that work is WeaverAgent's (issue 4 of the #431
-brief). This Spec's obligation ends at an adapter that passes TRAIN-EPOCH-ADAPTERS and
-a recorded sha256 for each adapter handed over.
+BUILD-RENDER and BUILD-OUTPUT record these fields at this time. This clause adds no
+field. If one of these fields changes after the RECONCILE step, do the RECONCILE step
+again.
 
-**RECONCILE-DRIFT.** Anything this side changed while the loop was being built is read
-against what the loop assumes: the template, `enable_thinking`, the `tools` choice and
-`max_seq_length`. Each difference is resolved by RECONCILE-RENDER's rule: the build
-record is the reference, unless a ruling changes the build and a new adapter is
-trained under it.
+**RECONCILE-RENDER.** The training uses Python, and the SPU does not train. But the SPU
+must give the model the same tokens that the trainer gave. Use 2 prompts. Apply the
+template to each prompt with 2 methods:
 
-**RECONCILE-EARLY.** The second machine can run RECONCILE-RENDER now on the
-Nemotron-3-Nano-4B GGUF, against a render-only build (BUILD-RENDER-ONLY) made for that
-model. Two things are needed for that. The build names the 4B's model entry, and the
-second machine holds the 4B's Hugging Face tokenizer files beside its GGUF, at the
-revision the GGUF was converted from, since the GGUF alone cannot produce a
-BUILD-RENDER rendering. That proves the method before this machine is free. Only this
-machine can confirm it for the 30B A3B.
+- With BUILD-RENDER and the values of the data record.
+- With the family entry of the model in the SPU.
 
-**RECONCILE-RECORD.** Each reconciliation is one deposit under `weaver-testing/` on the
-shared bulk store, named `lora-reconcile-<date>-<model>-<first 8 of the adapter
-sha256>` (`none` for the early check), with a `SHA256SUMS` and a README, as RUN-OUTPUT
-deposits are. It holds the `build.json` the adapter was trained on (or the render-only
-build), both message lists, both sides' token ID sequences for each prompt and the
-result of each comparison, the PEFT adapter's sha256 and the GGUF LoRA's sha256, and
-the RECONCILE-DRIFT table. Both repositories cite the deposit by name, so neither seat
-takes the other's word.
+Then compare the 2 token ID sequences of each prompt. These are the 2 prompts:
 
-## 9. Enforcement
+1. **The trajectory turn.** One held-out prompt, as SCORE-PREFIX makes it. The `tools`
+   list of the row goes in, as the data record tells.
+2. **The loop turn.** The turn that step 5 of the loop sends (decision P of the #431
+   brief). The system message is the rules prompt `e21370fcd140`. The user message is
+   one kit segment, with placeholders for the code. There is no `tools` list. This
+   turn goes through a different path of the chat template. The loop sends this turn
+   for all decisions about PURPOSE-EMITTER.
 
-Each clause has a test under `tests/`, on the stand-in model of `tests/conftest.py`
-where a model is needed.
+Write the message list of each prompt one time, as JSON. The 2 sides use the same
+list. Thus, the 2 sides compare the template and not 2 methods that make the
+messages. The message list of the loop turn holds text from the standard. Thus, it
+goes only into the RECONCILE-RECORD directory, not into git.
 
-- **BUILD-INPUTS, BUILD-HELDOUT:** a converted file whose hash differs from its run
-  record is refused, and a row whose uuid is in the kit is refused.
-- **BUILD-MASK, BUILD-PREFIX:** on fixture rows with tool calls, the decoded masked
-  tokens equal the assistant turns as the template renders them, and no system, user
-  or tool token is masked. A template that breaks prefix stability makes the build
-  stop.
-- **BUILD-LENGTH, BUILD-ORDER:** an over-length row is dropped and listed, and the
-  `--limit` subsets are nested.
-- **TRAIN-TOKENIZED, TRAIN-EPOCHS:** the config errors fire.
-- **TRAIN-MASK-REACHES-LOSS:** one training step on the stand-in model, with labels
-  captured at the loss, shows -100 exactly where the mask is 0. This test runs on GPU.
-- **TRAIN-EPOCH-ADAPTERS:** a two-epoch run on the stand-in model leaves two epoch
-  adapters and a final one, adapter files only.
-- **SCORE-LOCATE, SCORE-EXTRACT, SCORE-VALIDITY:** ambiguous and missing rows are
-  listed, prose and `finish` messages are extracted, and invalid tool calls are
-  counted.
-- **RECONCILE-FIELDS:** `build.json` carries every field the clause names, and the
-  scorer refuses a build missing one. The render check itself is a recorded act on
-  real artifacts, not a unit test.
-- **BUILD-RENDER-ONLY:** a render-only build on the stand-in model's tokenizer writes
-  `build.json` and both renderings and no `train.jsonl`, and the trainer refuses it.
-- **RUN-MARGIN:** the sign test and the spread rule, on fixed pass and fail vectors,
-  give the expected "higher" and "flat" readings, including a case where the sign test
-  passes but the difference is inside the spread.
-- **SCORE-REVIEW:** the score record carries the review prompt's sha256 and the model
-  id, and the shuffled selection holds no label of which run wrote a segment.
-- `tests/test_independence.py` still passes. The two new commands are scripts and may
-  import scripts, and no module under `src/` imports another except `manifest`.
+If the 2 token sequences of a prompt are the same, the adapter gets the same tokens in
+service as in training. If they are different, change the SPU side to agree with the
+data record. Do not change the data record to agree with the SPU. The GGUF holds the
+chat template in its metadata. Thus, the 2 sequences are usually the same. But
+measure them. Do not think that they are the same without a measurement.
 
-## 10. Open cells and rulings owed
+**RECONCILE-ADAPTER.** Change the bf16 PEFT adapter into a GGUF LoRA that the SPU can
+load. The SPU cannot load a LoRA at this time. That work is for WeaverAgent (issue 4
+of the #431 brief). This Spec supplies the adapter. Each adapter must agree with
+TRAIN-EPOCH-ADAPTERS and must have a recorded sha256.
 
-**Emitter or rewriter (PURPOSE-EMITTER).** Proposed: emitter. Settled by the
-operator's ruling. WeaverAgent's ruling J currently reads the other way, toward a
-rewriter, so the two documents disagree until this cell is ruled. The reconciliation
-note of 2026-11-02 does not settle it.
+**RECONCILE-DRIFT.** The training side can change while the second machine makes the
+loop. Compare each change with the values that the loop uses: the template,
+`enable_thinking`, the `tools` value and `max_seq_length`. For each difference, use
+the rule of RECONCILE-RENDER. The data record is the reference. The only exception is
+a decision that changes the data record. Then the trainer makes a new adapter with
+the new data record.
 
-**The reconciliation render check (RECONCILE-RENDER).** Settled by the two token ID
-comparisons, the trajectory turn and the loop turn, first on the 4B GGUF on the second
-machine (RECONCILE-EARLY), then on the 30B A3B here.
+**RECONCILE-EARLY.** The second machine can do RECONCILE-RENDER before this machine is
+free. It uses the Nemotron-3-Nano-4B GGUF and a render-only data record
+(BUILD-RENDER-ONLY) for that model. This step has 2 conditions:
 
-**The 4B's tokenizer files (RECONCILE-EARLY).** Settled by the operator's go to add the
-4B's model entry at the revision its GGUF was converted from.
+1. The data record uses the model entry of the 4B model.
+2. The second machine holds the `Hugging Face` tokenizer files of the 4B model next to
+   its GGUF. The files must have the same revision as the source of the GGUF. The GGUF
+   cannot give a BUILD-RENDER sequence without these files.
 
-**Thinking on or off (BUILD-RENDER).** The template supports reasoning content and
-`enable_thinking`, and the data holds no reasoning content, only the `think` tool's
-calls. Proposed: off, in both build and scoring, so training does not teach empty
-reasoning blocks. Settled by the operator's ruling, or by scoring R0 both ways.
+This step shows that the method operates. Only this machine can show it for the 30B
+A3B model.
 
-**Tools in the rendering (BUILD-RENDER).** Proposed: passed, so the model sees the tool
-schemas it sees when run as an agent. Settled by the BUILD-LENGTH drop count with and
-without: if passing them drops many rows, this cell is ruled again.
+**RECONCILE-RECORD.** Each RECONCILE step has one directory in `weaver-testing/` on
+the `shared bulk store`. Its name is `lora-reconcile-<date>-<model>-<first 8 of the adapter
+sha256>`. For RECONCILE-EARLY, the last part of the name is `none`. The directory has
+a `SHA256SUMS` file and a README, as in RUN-OUTPUT. It holds these items:
 
-**Starting without the benchmark (BENCH-DEFERRED).** Proposed: start. Settled by the
-operator's ruling.
+- The `build.json` of the adapter, or the render-only data record.
+- The 2 message lists.
+- The token ID sequences of the 2 sides for each prompt, and the result when the
+  2 sides compare them.
+- The sha256 of the PEFT adapter and the sha256 of the GGUF LoRA.
+- The table of RECONCILE-DRIFT.
 
-**The run configuration (RUN-CONFIG).** Settled by the curve: if R1's loss has not
-fallen by its second epoch, the learning rate is ruled again before R2.
+The 2 repositories refer to this directory by its name. Thus, each side has the record
+and does not use only the word of the other side.
 
-**Weighting prose above tool calls (LOSS-UNWEIGHTED).** Settled by RUN-READ: tried only
-if the pass rate is flat between R2 and R3.
+## 9. Tests
 
-**Enough data.** Settled by RUN-READ's comparison of R2 and R3. A third STE batch, if
-finished, is held back as reserve unless the curve is still rising.
+Each clause has a test in `tests/`. Where a test must have a model, it uses the small
+model of `tests/conftest.py`.
 
-**The 32K bias.** All training rows are 32K tokens or shorter, about one dataset row in
-ten. Whether STE holds on longer tasks is settled only by a held-out set of longer
-trajectories, which needs a longer `max_seq_length` and a memory test at 64K first.
+- **BUILD-INPUTS, BUILD-HELDOUT:** The data script rejects a converted file with a
+  sha256 that is different from its run record. It rejects a row with a uuid from the
+  held-out set.
+- **BUILD-MASK, BUILD-PREFIX:** Use fixture rows with tool calls. The tokens with mask
+  1 are the same as the assistant messages after the template. No system, user or tool
+  token has the mask value 1. If a template does not keep each sequence as the start of the
+  next, the data script stops.
+- **BUILD-LENGTH, BUILD-ORDER:** The data script removes a row that is too long and
+  lists it. The sets of `--limit` are in each other.
+- **TRAIN-TOKENIZED, TRAIN-EPOCHS:** The config errors occur.
+- **TRAIN-MASK-REACHES-LOSS:** Do one training step on the small model. Record the
+  labels at the loss. The label is -100 at each token with mask 0, and only there.
+  This test uses the GPU.
+- **TRAIN-EPOCH-ADAPTERS:** A run of 2 epochs on the small model gives 2 epoch adapters
+  and one last adapter. The directories hold adapter files only.
+- **SCORE-LOCATE, SCORE-EXTRACT, SCORE-VALIDITY:** The score record lists rows that
+  are not found and rows that more than one row agrees with. The score script gets
+  the text and the `finish` message. It counts tool calls that are not correct.
+- **RECONCILE-FIELDS:** `build.json` holds each field of the clause. The score script
+  rejects a data record without one of the fields. The RECONCILE step is a record of
+  work on the model files, not a unit test.
+- **BUILD-RENDER-ONLY:** A render-only data record with the tokenizer of the small
+  model has `build.json` and the 2 token sequences, and no `train.jsonl`. The trainer
+  rejects it.
+- **RUN-MARGIN:** Use test vectors of accept and reject results. The sign test and the
+  difference rule give the correct "higher" and "flat" results. One case has a sign test
+  with p less than 0.05 and a difference that is smaller than the decode difference.
+  That case is flat.
+- **SCORE-REVIEW:** The score record holds the sha256 of the reviewer prompt and the
+  model ID. The random selection does not show which run wrote a segment.
+- `tests/test_independence.py` continues to agree with the code. The 2 new commands
+  are scripts, and scripts can import scripts. A module in `src/` imports no
+  different module, but it can import `manifest`.
+
+## 10. Open cells and decisions for the operator
+
+**Adapter function (PURPOSE-EMITTER).** Recommendation: the adapter writes STE100. The
+decision of the operator closes this cell. Decision J of WeaverAgent recommends an
+adapter that rewrites text. Thus, the 2 documents do not agree until the operator
+gives the decision. The operator note of 2026-11-02 about the RECONCILE step does not close this
+cell.
+
+**The `enable_thinking` value (BUILD-RENDER).** The template can hold
+`reasoning_content`. The data has no `reasoning_content`. It has only the tool calls
+of the `think` tool. Recommendation: `enable_thinking` is `false` in the data script and in the score
+script. Then the training does not show empty `<think>` parts to the model. The
+decision of the operator closes this cell. A different method: do R0 with the 2 values
+and compare.
+
+**Tools in the template (BUILD-RENDER).** Recommendation: give the `tools` list to the
+template. Then the model sees the tool schemas, as it does when it operates as an
+agent. The count of rows that BUILD-LENGTH removes closes this cell. Count with the
+`tools` list and without it. If the `tools` list causes the removal of many rows, the
+operator gives a new decision.
+
+**Start without the benchmark (BENCH-DEFERRED).** Recommendation: start. The decision of the
+operator closes this cell.
+
+**The RECONCILE token check (RECONCILE-RENDER).** The 2 token ID checks close this
+cell: the trajectory turn and the loop turn. Do them first on the 4B GGUF on the
+second machine (RECONCILE-EARLY). Then do them on the 30B A3B model on this machine.
+
+**The 4B tokenizer files (RECONCILE-EARLY).** The approval of the operator closes this
+cell. The approval is for a model entry of the 4B model, at the revision of the source
+of its GGUF.
+
+**The run values (RUN-CONFIG).** The curve closes this cell. If the loss of R1 does
+not decrease by its second epoch, the operator gives a decision about the learning
+rate before R2.
+
+**More weight on STE text (LOSS-UNWEIGHTED).** RUN-READ closes this cell. Try it only
+if R3 and R2 are flat.
+
+**Sufficient data.** RUN-READ closes this cell with R2 and R3. If there is a third STE
+batch, keep it, unless R3 is higher than R2.
+
+**The 32K limit.** All training rows have 32K tokens or less. About one dataset
+row in 10 has this length. A held-out set of longer trajectories is necessary
+to show if STE text continues on longer tasks. That set must have a larger
+`max_seq_length`. Before that, a memory test at 64K must occur.
