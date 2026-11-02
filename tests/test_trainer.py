@@ -189,8 +189,14 @@ def make_tokenized(tmp_path, model_hash, *, render_only=False, length=64):
     return dest / "train.jsonl", values, mask
 
 
-@pytest.mark.parametrize("case", ["missing_record", "bad_manifest", "wrong_model", "wrong_length", "render_only"])
-def test_train_tokenized_rejects_invalid_build(tmp_path, case):
+@pytest.mark.parametrize("case, reason", [
+    ("missing_record", "build.json is required"),
+    ("bad_manifest", "does not match manifest"),
+    ("wrong_model", "tree_hash differs"),
+    ("wrong_length", "max_seq_length differs"),
+    ("render_only", "BUILD-RENDER-ONLY"),
+])
+def test_train_tokenized_rejects_invalid_build(tmp_path, case, reason):
     """TRAIN-TOKENIZED and BUILD-RENDER-ONLY: reject before model loading."""
     import tomllib
     cfg = trainer.parse_config(tomllib.loads(CONFIG.replace('format = "text"', 'format = "tokenized"')))
@@ -200,7 +206,7 @@ def test_train_tokenized_rejects_invalid_build(tmp_path, case):
         path.with_name("build.json").unlink()
     elif case == "bad_manifest":
         path.write_text(path.read_text() + "\n")
-    with pytest.raises((trainer.TrainConfigError, mf.ManifestError)):
+    with pytest.raises((trainer.TrainConfigError, mf.ManifestError), match=reason):
         trainer.validate_tokenized(path, cfg, "model")
 
 
@@ -218,9 +224,15 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
     def inspected(base):
         class Inspected(checked_class(base)):
             def compute_loss(self, model, inputs, *args, **kwargs):
-                observed.append((inputs["input_ids"].detach().cpu().tolist(),
-                                 inputs["labels"].detach().cpu().tolist()))
-                return super().compute_loss(model, inputs, *args, **kwargs)
+                # TRAIN-MASK-REACHES-LOSS: observe the base model after trainer and PEFT processing.
+                def at_forward(module, positional, keywords):
+                    observed.append((keywords["input_ids"].detach().cpu().tolist(),
+                                     keywords["labels"].detach().cpu().tolist()))
+                handle = model.get_base_model().register_forward_pre_hook(at_forward, with_kwargs=True)
+                try:
+                    return super().compute_loss(model, inputs, *args, **kwargs)
+                finally:
+                    handle.remove()
         return Inspected
 
     monkeypatch.setattr(trainer, "checked_trainer_class", inspected)
