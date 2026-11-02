@@ -138,7 +138,8 @@ def parse_config(raw: dict) -> TrainConfig:
         for key, typ in fields.items():
             if key not in sec:
                 raise TrainConfigError(f"[{section}] {key} is required")
-            if not isinstance(sec[key], typ) or isinstance(sec[key], bool) and typ is int:
+            if (not isinstance(sec[key], typ)
+                    or isinstance(sec[key], bool) and (typ is int or typ == (int, float))):
                 raise TrainConfigError(f"[{section}] {key} has the wrong type")
         for key, typ in _OPTIONAL[section].items():
             if key in sec and (not isinstance(sec[key], typ) or typ is int and isinstance(sec[key], bool)):
@@ -151,6 +152,9 @@ def parse_config(raw: dict) -> TrainConfig:
     limits = [key for key in ("max_steps", "num_train_epochs") if key in tr]
     if len(limits) != 1:
         raise TrainConfigError("TRAIN-EPOCHS: supply exactly one of max_steps or num_train_epochs")
+    # TRAIN-STOP: reject a non-finite optimizer rate before loading weights.
+    if not math.isfinite(tr["learning_rate"]):
+        raise TrainConfigError("[train] learning_rate must be finite")
     if tr[limits[0]] <= 0 or tr["max_seq_length"] <= 0 or tr["learning_rate"] <= 0:
         raise TrainConfigError("[train] steps or epochs, max_seq_length and learning_rate must be positive")
     if tr["per_device_batch_size"] != 1:

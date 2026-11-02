@@ -67,6 +67,24 @@ def test_config_rejects_incomplete_or_wrong(edit, msg):
         trainer.parse_config(__import__("tomllib").loads(edit(CONFIG)))
 
 
+@pytest.mark.parametrize("field, value, reason", [
+    ("learning_rate", "true", "wrong type"),
+    ("learning_rate", "false", "wrong type"),
+    ("learning_rate", "nan", "must be finite"),
+    ("learning_rate", "+inf", "must be finite"),
+    ("learning_rate", "-inf", "must be finite"),
+    ("dropout", "true", "wrong type"),
+    ("dropout", "false", "wrong type"),
+])
+def test_train_stop_rejects_invalid_numeric_config(field, value, reason):
+    """TRAIN-STOP: invalid numeric settings fail before a training procedure can start."""
+    import tomllib
+    original = "1e-3" if field == "learning_rate" else "0.0"
+    text = CONFIG.replace(f"{field} = {original}", f"{field} = {value}")
+    with pytest.raises(trainer.TrainConfigError, match=reason):
+        trainer.parse_config(tomllib.loads(text))
+
+
 def test_refuses_out_dir_inside_reference(tiny_model, dataset_path, config_path):
     model_dir, manifest_path = tiny_model
     with pytest.raises(trainer.TrainConfigError, match="overlaps"):
