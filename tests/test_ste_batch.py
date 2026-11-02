@@ -172,7 +172,13 @@ def test_budget_pause_resumes(world, monkeypatch):
 
 def test_sample_drops_rows_over_the_token_limit(world, monkeypatch):
     # the trainer's sequence length: a row longer than --max-tokens is not used
-    monkeypatch.setattr(batch, "TokenCounter", lambda model: lambda r: 50000 if r["uuid"] == "u1" else 1000)
+    class Counter:
+        render_settings = {"tools": True, "enable_thinking": False}
+
+        def __call__(self, source):
+            return 50000 if source["uuid"] == "u1" else 1000
+
+    monkeypatch.setattr(batch, "TokenCounter", lambda model: Counter())
     monkeypatch.setattr(batch, "var_dir", lambda name: world.tmp / "var2")
     a = SimpleNamespace(name="t", dataset="d", trajectories=1, seed=1, max_chars=6000, exclude=[],
                         max_tokens=32768, model="m", read_factor=2)
@@ -180,6 +186,7 @@ def test_sample_drops_rows_over_the_token_limit(world, monkeypatch):
     meta = json.loads((world.tmp / "var2" / "sample.json").read_text())
     assert {r["uuid"] for r in batch.read_jsonl(world.tmp / "var2" / "source.jsonl")} == {"u2"}
     assert meta["skipped"].get("over_max_tokens", 0) <= 1
+    assert meta["tools"] is True and meta["enable_thinking"] is False
 
 
 @needs_lexicon
@@ -226,12 +233,14 @@ def test_assemble_drops_a_row_that_the_rewrites_made_too_long(world, monkeypatch
             "T002.001": "I will examine [[C1]] now.", "T002.002": "I repaired [[C1]] in [[C2]]."}
     monkeypatch.setenv("OPENCODE_BIN", fake_opencode(world.tmp, {"1": good}))
     assert batch.cmd_run(args()) == 0
-    (world.tmp / "var" / "sample.json").write_text(json.dumps({"max_tokens": 1000, "model": "sampled-model"}))
+    (world.tmp / "var" / "sample.json").write_text(json.dumps({
+        "max_tokens": 1000, "model": "sampled-model", "tools": True, "enable_thinking": False}))
     used = []
     monkeypatch.setattr(batch, "TokenCounter",
-                        lambda model: used.append(model) or (lambda r: 2000 if r["uuid"] == "u2" else 500))
+                        lambda model, enable_thinking: used.append((model, enable_thinking))
+                        or (lambda r: 2000 if r["uuid"] == "u2" else 500))
     batch.cmd_assemble(args(model=None))
-    assert used == ["sampled-model"]       # the tokenizer the sample measured with
+    assert used == [("sampled-model", False)]
     assert [r["uuid"] for r in batch.read_jsonl(world.tmp / "var" / "converted.jsonl")] == ["u1"]
     failed = batch.read_jsonl(world.tmp / "var" / "failed.jsonl")
     assert failed == [{"traj": "T002", "row": 1, "uuid": "u2", "failed": [], "over_max_tokens": 2000}]
@@ -288,7 +297,8 @@ def test_sampler_count_equals_build_render():
     tok = PreTrainedTokenizerFast(tokenizer_object=tokenizer, unk_token="<unk>")
     tok.chat_template = (
         "{% if tools %}tools {{ tools | tojson }} {% endif %}"
-        "{% if enable_thinking %}think {% else %}quiet {% endif %}"
+        "{% if enable_thinking is not defined %}think think think "
+        "{% elif enable_thinking %}think think {% else %}quiet {% endif %}"
         "{% for m in messages %}{{ m.role }} {{ m.content }} "
         "{% for c in m.tool_calls | default([]) %}{{ c.function.arguments.message }}"
         "{% endfor %}{% endfor %}"
@@ -309,6 +319,11 @@ def test_sampler_count_equals_build_render():
     assert render_row(tok, source, enable_thinking=False) == expected
     assert counter(source) == len(expected)
     assert counter(source) > len(tok.apply_chat_template(expected_messages, tokenize=True, return_dict=False))
+    thinking_ids = render_row(tok, source, enable_thinking=True)
+    assert thinking_ids != expected and len(thinking_ids) == len(expected) + 1
+    counter.enable_thinking = True
+    assert counter(source) == len(thinking_ids)
+    assert counter.render_settings == {"tools": True, "enable_thinking": True}
     assert source == before
 
 
@@ -382,3 +397,58 @@ def test_assemble_records_and_refuses_corrupt_rows(world, monkeypatch):
     assert record["integrity_failed"] == 1
     assert record["converted"] == 1
     assert batch.read_jsonl(world.tmp / "var" / "failed.jsonl")[0]["traj"] == "T001"
+
+
+@pytest.mark.parametrize("settings", [{}, {"tools": True}, {"tools": False, "enable_thinking": False},
+                                      {"tools": True, "enable_thinking": True}])
+def test_assemble_refuses_unknown_or_different_sample_rendering(world, settings):
+    """Issue #6 review: a legacy sample cannot overwrite a frozen batch with fewer rows."""
+    directory = world.tmp / "var"
+    (directory / "sample.json").write_text(json.dumps({"max_tokens": 32768, **settings}))
+    for name in ("converted.jsonl", "run.json", "failed.jsonl"):
+        (directory / name).write_text("unchanged\n")
+    before = {p.name: p.read_bytes() for p in directory.iterdir()}
+    with pytest.raises(SystemExit, match="render settings"):
+        batch.cmd_assemble(args())
+    assert {p.name: p.read_bytes() for p in directory.iterdir()} == before
+
+
+def test_sampler_default_thinking_and_counter_forwarding(monkeypatch):
+    """BUILD-RENDER: the default is false and the counter forwards its selected value."""
+    import inspect
+    assert inspect.signature(batch.TokenCounter).parameters["enable_thinking"].default is False
+    counter = batch.TokenCounter.__new__(batch.TokenCounter)
+    counter.tok = object()
+    calls = []
+
+    def render(tokenizer, source, *, enable_thinking):
+        assert tokenizer is counter.tok
+        calls.append(enable_thinking)
+        return [1, 2] if enable_thinking else [1]
+
+    monkeypatch.setattr(batch, "render_row", render)
+    for selected in (False, True):
+        counter.enable_thinking = selected
+        assert counter({}) == (2 if selected else 1)
+    assert calls == [False, True]
+
+
+@pytest.mark.parametrize("max_tokens", [0, 32768])
+def test_sample_records_counter_settings_only_when_counted(world, monkeypatch, max_tokens):
+    """Issue #6 review: metadata comes from the counter, never from literal values."""
+    class Counter:
+        render_settings = {"tools": True, "enable_thinking": True}
+
+        def __call__(self, source):
+            return 100
+
+    monkeypatch.setattr(batch, "TokenCounter", lambda model: Counter())
+    monkeypatch.setattr(batch, "var_dir", lambda name: world.tmp / "sample-out")
+    options = SimpleNamespace(name="t", dataset="d", trajectories=1, seed=1, max_chars=6000,
+                              exclude=[], max_tokens=max_tokens, model="m", read_factor=2)
+    assert batch.cmd_sample(options) == 0
+    record = json.loads((world.tmp / "sample-out" / "sample.json").read_text())
+    if max_tokens:
+        assert record["enable_thinking"] is True and record["tools"] is True
+    else:
+        assert "enable_thinking" not in record and "tools" not in record

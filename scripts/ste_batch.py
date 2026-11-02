@@ -150,6 +150,11 @@ class TokenCounter:
         self.tok = AutoTokenizer.from_pretrained(d)
         self.enable_thinking = enable_thinking
 
+    @property
+    def render_settings(self) -> dict:
+        """BUILD-RENDER: the settings used for the sample's length measurement."""
+        return {"tools": True, "enable_thinking": self.enable_thinking}
+
     def __call__(self, row: dict) -> int:
         # BUILD-RENDER and issue #6: sampling measures the same tokens as training.
         return len(render_row(self.tok, row, enable_thinking=self.enable_thinking))
@@ -201,9 +206,11 @@ def cmd_sample(a) -> int:
     prose = sum(s["prose"] for _, _, segs in picked for s in segs)
     meta = {"made_at": now(), "dataset": a.dataset, "seed": a.seed, "trajectories": len(picked),
             "segments": n_seg, "prose_segments": prose, "max_chars": a.max_chars, "max_tokens": a.max_tokens,
-            "model": a.model, "enable_thinking": False, "tools": True,
+            "model": a.model,
             "exclude": [Path(p).name for p in a.exclude], "skipped": skipped,
             "rows_considered": len(picked) + sum(skipped.values())}
+    if count is not None:
+        meta.update(count.render_settings)
     (out_dir / "sample.json").write_text(json.dumps(meta, indent=1) + "\n")
     print(json.dumps(meta, indent=1))
     return 0
@@ -516,6 +523,11 @@ def check_assembled_row(source: dict, converted: dict, segments: list[dict]) -> 
 
 def cmd_assemble(a) -> int:
     root, vd = exp_dir(a.name), var_dir(a.name)
+    # Issue #6: never apply new rendering to a limit measured with unknown settings.
+    sampled = json.loads((vd / "sample.json").read_text()) if (vd / "sample.json").exists() else {}
+    limit = sampled.get("max_tokens", 0)
+    if limit and (sampled.get("tools") is not True or sampled.get("enable_thinking") is not False):
+        raise SystemExit("sample render settings are absent or incompatible. Refusing assembly before writes")
     src = read_jsonl(vd / "source.jsonl")
     codes = {r["id"]: r for r in read_jsonl(vd / "codes.jsonl")}
     out: dict[str, str] = {}
@@ -564,12 +576,11 @@ def cmd_assemble(a) -> int:
         done[t] = row
     # the rewrites can make a row longer: a row over the sample's token limit after them
     # would be cut at the trainer's sequence length, so it is not converted
-    sampled = json.loads((vd / "sample.json").read_text()) if (vd / "sample.json").exists() else {}
-    limit = sampled.get("max_tokens", 0)
     over: dict[str, int] = {}
     if limit:
         # the tokenizer the sample measured with, unless --model names another
-        count = TokenCounter(a.model or sampled.get("model") or DEFAULT_MODEL)
+        count = TokenCounter(a.model or sampled.get("model") or DEFAULT_MODEL,
+                             enable_thinking=sampled["enable_thinking"])
         over = {t: n for t, row in done.items() if (n := count(row)) > limit}
     with open(vd / "converted.jsonl", "w", encoding="utf-8") as fo:
         for t, row in done.items():
