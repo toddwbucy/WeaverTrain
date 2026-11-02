@@ -13,8 +13,8 @@ Order of work:
      reference was unchanged.
   7. Write ``out_dir/run.json`` (status ``completed`` or ``failed``).
 
-Dataset: JSON Lines, one object per line, with the text in ``data.text_field``.
-This is provisional: no training data has been chosen yet.
+Dataset: JSON Lines with explicit data.format, as Spec 0.3 TRAIN-TOKENIZED requires.
+Text uses data.text_field. Tokenized rows use verified input_ids and assistant_masks.
 
 Config schema (TOML)::
 
@@ -39,6 +39,7 @@ Config schema (TOML)::
     device_map = "balanced"             # optional: how Unsloth places layers on GPUs
 
     [data]
+    format = "text"
     text_field = "text"
 """
 
@@ -49,6 +50,8 @@ import hashlib
 import json
 import os
 import sys
+import time
+import math
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -86,12 +89,13 @@ class LoraConfig:
 class TrainSettings:
     max_seq_length: int
     learning_rate: float
-    max_steps: int
     per_device_batch_size: int
     gradient_accumulation_steps: int
     warmup_steps: int
     lr_scheduler: str
     seed: int
+    max_steps: int | None = None
+    num_train_epochs: int | None = None
     gradient_checkpointing: str | bool = "unsloth"
     logging_steps: int = 1
     device_map: str = "balanced"
@@ -101,25 +105,28 @@ class TrainSettings:
 class TrainConfig:
     lora: LoraConfig
     train: TrainSettings
-    text_field: str
+    data_format: str
+    text_field: str | None = None
     raw: dict = field(default_factory=dict)
 
 
 _REQUIRED = {
     "lora": {"r": int, "alpha": int, "dropout": (int, float), "target_modules": list},
-    "train": {"max_seq_length": int, "learning_rate": (int, float), "max_steps": int,
+    "train": {"max_seq_length": int, "learning_rate": (int, float),
               "per_device_batch_size": int, "gradient_accumulation_steps": int,
               "warmup_steps": int, "lr_scheduler": str, "seed": int},
-    "data": {"text_field": str},
+    "data": {"format": str},
 }
 _OPTIONAL = {
     "lora": {"bias": str},
-    "train": {"gradient_checkpointing": (str, bool), "logging_steps": int, "device_map": str},
-    "data": {},
+    "train": {"gradient_checkpointing": (str, bool), "logging_steps": int, "device_map": str,
+              "max_steps": int, "num_train_epochs": int},
+    "data": {"text_field": str},
 }
 
 
 def parse_config(raw: dict) -> TrainConfig:
+    """TRAIN-TOKENIZED, TRAIN-EPOCHS, TRAIN-NO-PACKING: require explicit choices."""
     for section, fields in _REQUIRED.items():
         sec = raw.get(section)
         if not isinstance(sec, dict):
@@ -134,17 +141,27 @@ def parse_config(raw: dict) -> TrainConfig:
             if not isinstance(sec[key], typ) or isinstance(sec[key], bool) and typ is int:
                 raise TrainConfigError(f"[{section}] {key} has the wrong type")
         for key, typ in _OPTIONAL[section].items():
-            if key in sec and not isinstance(sec[key], typ):
+            if key in sec and (not isinstance(sec[key], typ) or typ is int and isinstance(sec[key], bool)):
                 raise TrainConfigError(f"[{section}] {key} has the wrong type")
     lora, tr = raw["lora"], raw["train"]
     if not lora["target_modules"] or not all(isinstance(t, str) for t in lora["target_modules"]):
         raise TrainConfigError("[lora] target_modules must be a non-empty list of names")
     if lora["r"] <= 0 or lora["alpha"] <= 0 or not 0 <= lora["dropout"] < 1:
         raise TrainConfigError("[lora] r and alpha must be positive, dropout in [0, 1)")
-    if tr["max_steps"] <= 0 or tr["max_seq_length"] <= 0 or tr["learning_rate"] <= 0:
-        raise TrainConfigError("[train] max_steps, max_seq_length and learning_rate must be positive")
+    limits = [key for key in ("max_steps", "num_train_epochs") if key in tr]
+    if len(limits) != 1:
+        raise TrainConfigError("TRAIN-EPOCHS: supply exactly one of max_steps or num_train_epochs")
+    if tr[limits[0]] <= 0 or tr["max_seq_length"] <= 0 or tr["learning_rate"] <= 0:
+        raise TrainConfigError("[train] steps or epochs, max_seq_length and learning_rate must be positive")
+    if tr["per_device_batch_size"] != 1:
+        raise TrainConfigError("TRAIN-NO-PACKING: per_device_batch_size must be 1")
+    data = raw["data"]
+    if data["format"] not in ("text", "tokenized"):
+        raise TrainConfigError("TRAIN-TOKENIZED: data.format must be text or tokenized")
+    if data["format"] == "text" and not data.get("text_field"):
+        raise TrainConfigError("TRAIN-TOKENIZED: text_field is required for text data")
     return TrainConfig(lora=LoraConfig(**lora), train=TrainSettings(**tr),
-                       text_field=raw["data"]["text_field"], raw=raw)
+                       data_format=data["format"], text_field=data.get("text_field"), raw=raw)
 
 
 def load_config(path: str | os.PathLike) -> TrainConfig:
@@ -288,27 +305,107 @@ def check_adapter_only(adapter_dir: Path) -> None:
                            f"unexpected {sorted(extra)}")
 
 
+def validate_tokenized(dataset_path: Path, cfg: TrainConfig, model_hash: str) -> dict:
+    """TRAIN-TOKENIZED: verify the build tree, model identity, length and masks."""
+    parent = dataset_path.parent
+    build_path = parent / "build.json"
+    if not build_path.is_file():
+        raise TrainConfigError("TRAIN-TOKENIZED: build.json is required")
+    build = json.loads(build_path.read_text())
+    if build.get("render_only"):
+        raise TrainConfigError("BUILD-RENDER-ONLY: trainer rejects render-only data")
+    manifest_path = parent.with_name(parent.name + ".manifest.json")
+    if not manifest_path.is_file():
+        raise TrainConfigError("TRAIN-TOKENIZED: dataset manifest is required")
+    mf.require_tree(mf.load_tree(manifest_path), parent)
+    if build.get("tree_hash") != model_hash:
+        raise TrainConfigError("TRAIN-TOKENIZED: model tree_hash differs from build.json")
+    if build.get("max_seq_length") != cfg.train.max_seq_length:
+        raise TrainConfigError("TRAIN-TOKENIZED: max_seq_length differs from build.json")
+    rows = 0
+    assistant_tokens = 0
+    for line in dataset_path.read_text().splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        ids, masks = row.get("input_ids"), row.get("assistant_masks")
+        if not isinstance(ids, list) or not isinstance(masks, list) or len(ids) != len(masks):
+            raise TrainConfigError("TRAIN-MASK-REACHES-LOSS: IDs and masks must have equal lengths")
+        if not ids or len(ids) > cfg.train.max_seq_length:
+            raise TrainConfigError("TRAIN-NO-PACKING: an intact row must fit max_seq_length")
+        if any(type(value) is not int or value < 0 for value in ids):
+            raise TrainConfigError("TRAIN-TOKENIZED: token IDs must be nonnegative integers")
+        if any(type(value) is not int or value not in (0, 1) for value in masks) or not any(masks[1:]):
+            raise TrainConfigError("TRAIN-MASK-REACHES-LOSS: binary masks need a target after token zero")
+        rows += 1
+        assistant_tokens += sum(masks)
+    if not rows:
+        raise TrainConfigError("TRAIN-TOKENIZED: dataset has no rows")
+    return {"build_sha256": mf.sha256_file(build_path), "rows": rows,
+            "assistant_tokens": assistant_tokens}
+
+
+class AssistantCollator:
+    """LOSS-ASSISTANT, LOSS-UNWEIGHTED, TRAIN-NO-PACKING: label one intact sequence."""
+
+    def __call__(self, examples):
+        import torch
+        if len(examples) != 1:
+            raise TrainConfigError("TRAIN-NO-PACKING: expected one row per batch")
+        row = examples[0]
+        ids = torch.tensor([row["input_ids"]], dtype=torch.long)
+        mask = torch.tensor([row["assistant_masks"]], dtype=torch.bool)
+        labels = ids.clone()
+        labels[~mask] = -100
+        return {"input_ids": ids, "attention_mask": torch.ones_like(ids), "labels": labels}
+
+
+def require_gpu_layers(model):
+    """TRAIN-STOP: no reference or adapter parameter may reside on CPU or meta."""
+    devices = {parameter.device.type for parameter in model.parameters()}
+    if devices != {"cuda"}:
+        raise RuntimeError(f"TRAIN-STOP: model parameters left GPUs: {sorted(devices)}")
+
+
+def checked_trainer_class(base):
+    """TRAIN-STOP: inspect the real loss before backward, including each microbatch."""
+    class CheckedTrainer(base):
+        def compute_loss(self, model, inputs, *args, **kwargs):
+            import torch
+            require_gpu_layers(model)
+            result = super().compute_loss(model, inputs, *args, **kwargs)
+            loss = result[0] if isinstance(result, tuple) else result
+            if not torch.isfinite(loss).all().item():
+                raise RuntimeError("TRAIN-STOP: non-finite loss")
+            return result
+    return CheckedTrainer
+
+
 def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
           dataset_path: str | os.PathLike, config_path: str | os.PathLike,
           out_dir: str | os.PathLike, *, verify_reference_after: bool = True,
           verify_workers: int = 8) -> mf.RunRecord:
+    """TRAIN-RECORD, TRAIN-STOP: persist measurements and failures without retry."""
+    started = time.monotonic()
     model_dir, out_dir, dataset_path = Path(model_dir), Path(out_dir), Path(dataset_path)
     cfg = load_config(config_path)
     check_out_dir(out_dir, model_dir)
     m = mf.load_tree(manifest_path)
     if m.kind != "model":
         raise TrainConfigError(f"{manifest_path} is not a model manifest")
-
     tree_hash = mf.require_tree(m, model_dir, workers=verify_workers)
     out_dir.mkdir(parents=True, exist_ok=True)
     record = mf.RunRecord(
         kind="train", model={"name": m.name, "tree_hash": tree_hash}, seed=cfg.train.seed,
-        dataset={"file_name": dataset_path.name, "sha256": sha256_path(dataset_path)},
-        config=cfg.raw,
+        dataset={"file_name": dataset_path.name}, config=cfg.raw,
     )
+    metrics = {}
     record.save(out_dir / "run.json")
     try:
-        metrics = _run_unsloth(model_dir, dataset_path, cfg, out_dir)
+        if cfg.data_format == "tokenized":
+            record.dataset.update(validate_tokenized(dataset_path, cfg, tree_hash))
+        record.dataset["sha256"] = sha256_path(dataset_path)
+        _run_unsloth(model_dir, dataset_path, cfg, out_dir, metrics)
         adapter_dir = out_dir / "adapter"
         check_adapter_only(adapter_dir)
         am = mf.build_tree(adapter_dir, "model", f"{m.name}-lora-{record.run_id[:8]}")
@@ -317,73 +414,117 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
         if verify_reference_after:
             mf.require_tree(m, model_dir, workers=verify_workers)
             metrics["reference_verified_after"] = True
-        record.results = metrics
         record.status = "completed"
-    except BaseException as e:
+    except BaseException as exc:
         record.status = "failed"
-        record.results = {"error": f"{type(e).__name__}: {e}"}
-        record.save(out_dir / "run.json")
+        metrics["error"] = f"{type(exc).__name__}: {exc}"
         raise
-    record.save(out_dir / "run.json")
+    finally:
+        metrics["wall_seconds"] = time.monotonic() - started
+        record.results = metrics
+        record.save(out_dir / "run.json")
     return record
 
 
-def _run_unsloth(model_dir: Path, dataset_path: Path, cfg: TrainConfig, out_dir: Path) -> dict:
-    # Unsloth must be imported before transformers/trl/peft so its patches apply.
+def _run_unsloth(model_dir: Path, dataset_path: Path, cfg: TrainConfig, out_dir: Path, metrics: dict) -> None:
+    """TRAIN-MASK-REACHES-LOSS, TRAIN-EPOCH-ADAPTERS, TRAIN-RECORD: train and measure."""
     import unsloth  # noqa: F401
     from unsloth import FastLanguageModel
-
     import torch
     from datasets import load_dataset
+    from transformers import TrainerCallback
     from trl import SFTConfig, SFTTrainer
 
     t = cfg.train
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=str(model_dir), max_seq_length=t.max_seq_length, dtype=torch.bfloat16,
-        load_in_4bit=False, load_in_8bit=False, full_finetuning=False,
-        device_map=t.device_map, trust_remote_code=False, local_files_only=True,
-    )
-    model = FastLanguageModel.get_peft_model(
-        model, r=cfg.lora.r, lora_alpha=cfg.lora.alpha, lora_dropout=cfg.lora.dropout,
-        target_modules=cfg.lora.target_modules, bias=cfg.lora.bias,
-        use_gradient_checkpointing=t.gradient_checkpointing, random_state=t.seed,
-    )
-    if len({p.device for p in model.parameters()}) > 1:
-        pin_layer_devices(model)  # required for split hybrid models; see its docstring
-    coverage = target_coverage(model, cfg.lora.target_modules)
-    check_coverage(coverage)  # before any training step
-    components = component_coverage(model)
-    ds = load_dataset("json", data_files=str(dataset_path), split="train")
-    if cfg.text_field not in ds.column_names:
-        raise TrainConfigError(f"dataset has no field {cfg.text_field!r}; columns {ds.column_names}")
+    metrics.update(step_seconds=[], loss_history=[], epoch_adapters=[])
 
-    for i in range(torch.cuda.device_count()):
-        torch.cuda.reset_peak_memory_stats(i)
-    trainer = SFTTrainer(
-        model=model, processing_class=tokenizer, train_dataset=ds,
-        args=SFTConfig(
-            output_dir=str(out_dir / "trainer"), dataset_text_field=cfg.text_field,
-            max_length=t.max_seq_length, per_device_train_batch_size=t.per_device_batch_size,
-            gradient_accumulation_steps=t.gradient_accumulation_steps, max_steps=t.max_steps,
-            learning_rate=t.learning_rate, warmup_steps=t.warmup_steps,
-            lr_scheduler_type=t.lr_scheduler, seed=t.seed, bf16=True, fp16=False,
-            logging_steps=t.logging_steps, save_strategy="no", report_to=[],
-        ),
-    )
-    out = trainer.train()
-    model.save_pretrained(str(out_dir / "adapter"))  # PEFT model: adapter weights only
-    # The trainer directory holds logs only (save_strategy="no"); keep its log history.
-    (out_dir / "trainer").mkdir(exist_ok=True)
-    (out_dir / "trainer" / "log_history.json").write_text(
-        json.dumps(trainer.state.log_history, indent=1) + "\n")
-    return {
-        "lora_coverage": coverage,
-        "component_coverage": components,
-        "train_loss": out.training_loss,
-        "global_step": out.global_step,
-        "peak_vram_gib": {f"cuda:{i}": round(torch.cuda.max_memory_allocated(i) / 2**30, 2)
-                          for i in range(torch.cuda.device_count())},
-    }
+    def sync():
+        for device in range(torch.cuda.device_count()):
+            torch.cuda.synchronize(device)
+
+    class Measurements(TrainerCallback):
+        def on_step_begin(self, args, state, control, **kwargs):
+            sync()
+            self.step_start = time.monotonic()
+
+        def on_step_end(self, args, state, control, **kwargs):
+            sync()
+            metrics["step_seconds"].append({"step": state.global_step,
+                                            "seconds": time.monotonic() - self.step_start})
+            metrics.update(global_step=state.global_step, epochs=state.epoch)
+
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            if logs and "loss" in logs:
+                if not math.isfinite(logs["loss"]):
+                    raise RuntimeError("TRAIN-STOP: non-finite logged loss")
+                metrics["loss_history"].append({"step": state.global_step, "epoch": state.epoch,
+                                                "loss": logs["loss"]})
+                metrics["last_loss"] = logs["loss"]
+
+        def on_epoch_end(self, args, state, control, model=None, **kwargs):
+            if t.num_train_epochs is None:
+                return
+            number = round(state.epoch)
+            dest = out_dir / f"adapter-epoch-{number}"
+            model.save_pretrained(str(dest))
+            check_adapter_only(dest)
+            manifest = mf.build_tree(dest, "model", dest.name)
+            manifest.save(out_dir / f"{dest.name}.manifest.json")
+            metrics["epoch_adapters"].append({"epoch": number, "tree_hash": manifest.tree_hash})
+
+    for device in range(torch.cuda.device_count()):
+        torch.cuda.reset_peak_memory_stats(device)
+    try:
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=str(model_dir), max_seq_length=t.max_seq_length, dtype=torch.bfloat16,
+            load_in_4bit=False, load_in_8bit=False, full_finetuning=False,
+            device_map=t.device_map, offload_embedding=False,
+            trust_remote_code=False, local_files_only=True,
+        )
+        require_gpu_layers(model)
+        model = FastLanguageModel.get_peft_model(
+            model, r=cfg.lora.r, lora_alpha=cfg.lora.alpha, lora_dropout=cfg.lora.dropout,
+            target_modules=cfg.lora.target_modules, bias=cfg.lora.bias,
+            use_gradient_checkpointing=t.gradient_checkpointing, random_state=t.seed,
+        )
+        if len({p.device for p in model.parameters()}) > 1:
+            pin_layer_devices(model)
+        coverage = target_coverage(model, cfg.lora.target_modules)
+        check_coverage(coverage)
+        metrics.update(lora_coverage=coverage, component_coverage=component_coverage(model))
+        ds = load_dataset("json", data_files=str(dataset_path), split="train")
+        if cfg.data_format == "text" and cfg.text_field not in ds.column_names:
+            raise TrainConfigError(f"dataset has no field {cfg.text_field!r}")
+        metrics["rows"] = len(ds)
+        options = {"max_steps": t.max_steps} if t.max_steps is not None else {"num_train_epochs": t.num_train_epochs}
+        tokenized = cfg.data_format == "tokenized"
+        trainer = checked_trainer_class(SFTTrainer)(
+            model=model, processing_class=tokenizer, train_dataset=ds,
+            data_collator=AssistantCollator() if tokenized else None,
+            callbacks=[Measurements()],
+            args=SFTConfig(
+                output_dir=str(out_dir / "trainer"), dataset_text_field=cfg.text_field or "text",
+                dataset_kwargs={"skip_prepare_dataset": True} if tokenized else None,
+                remove_unused_columns=False, packing=False, padding_free=False,
+                max_length=t.max_seq_length, per_device_train_batch_size=1,
+                gradient_accumulation_steps=t.gradient_accumulation_steps,
+                learning_rate=t.learning_rate, warmup_steps=t.warmup_steps,
+                lr_scheduler_type=t.lr_scheduler, seed=t.seed, bf16=True, fp16=False,
+                logging_steps=t.logging_steps, logging_nan_inf_filter=False,
+                save_strategy="no", report_to=[], **options,
+            ),
+        )
+        result = trainer.train()
+        if not math.isfinite(result.training_loss):
+            raise RuntimeError("TRAIN-STOP: non-finite final loss")
+        model.save_pretrained(str(out_dir / "adapter"))
+        (out_dir / "trainer").mkdir(exist_ok=True)
+        (out_dir / "trainer" / "log_history.json").write_text(json.dumps(trainer.state.log_history, indent=1) + "\n")
+        metrics.update(train_loss=result.training_loss, global_step=result.global_step,
+                       epochs=trainer.state.epoch)
+    finally:
+        metrics["peak_vram_gib"] = {f"cuda:{i}": torch.cuda.max_memory_allocated(i) / 2**30
+                                     for i in range(torch.cuda.device_count())}
 
 
 def main(argv: list[str] | None = None) -> int:
