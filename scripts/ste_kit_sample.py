@@ -105,7 +105,8 @@ def main(argv=None) -> int:
     need_final = a.final
     picked: dict[int, dict] = {}                      # rank -> segment
     have = [0] * len(BINS)
-    stats = {"rows_read": 0, "finals_too_long": 0, "excluded": 0}
+    stats = {"rows_read": 0, "finals_too_long": 0, "excluded": 0, "repeated_uuid": 0}
+    seen: set[str] = set()                            # one segment per trajectory uuid
 
     def eligible(row):
         out = []
@@ -138,6 +139,9 @@ def main(argv=None) -> int:
     for k in sorted(rows):
         if sum(have) >= a.n:
             break
+        if rows[k]["uuid"] in seen:
+            stats["repeated_uuid"] += 1
+            continue
         stats["rows_read"] += 1
         segs = eligible(rows[k])
         finals = [s for s in segs if s["kind"] == "final" and have[s["bin"]] < want[s["bin"]]]
@@ -151,6 +155,7 @@ def main(argv=None) -> int:
                 continue
             s = rng.choice(pool)
         picked[k] = s
+        seen.add(s["uuid"])
         have[s["bin"]] += 1
     if sum(have) < a.n or need_final:
         raise SystemExit(f"kit incomplete: {have} of {want}, finals still needed {need_final}")

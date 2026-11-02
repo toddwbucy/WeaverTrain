@@ -243,7 +243,7 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
         noun_ok = verb_lemma is not None and (verb_lemma in lex.approved or verb_lemma in lex.technical_nouns)
         if verb_lemma and not tech_noun and nominal and not low.endswith("ing"):
             # a noun or an adjective here: judge it as one, not as a verb
-            pos = set(lex.unapproved.get(low, [])) | set(lex.unapproved.get(verb_lemma, []) if low == verb_lemma else [])
+            pos = set(lex.unapproved.get(low, [])) | set(lex.unapproved.get(verb_lemma, []))
             if pos & {"n", "adj"}:
                 unapproved_words.add(low)
             continue
@@ -314,4 +314,10 @@ def repair_note(result: dict, lex: Lexicon) -> str:
     for s in h.get("length", []):
         lines.append(f'This sentence has {s["words"]} words; the maximum is {s["limit"]}. '
                      f'Divide it: "{s["sentence"]}"')
+    if h.get("invented_markup"):
+        lines.append("Your rewrite has markup that is not in the text: "
+                     + ", ".join(h["invented_markup"]) + ". Remove it.")
+    if h.get("altered_literals"):
+        lines.append("Your rewrite changed text that is joined to code or a name. Keep this text "
+                     "exactly as it is in the input: " + ", ".join(h["altered_literals"]) + ".")
     return "\n".join(f"- {x}" for x in lines)

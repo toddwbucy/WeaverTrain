@@ -50,3 +50,29 @@ def test_substitution_scripts_and_near_copies(tmp_path):
     assert exp.substitution_scripts(tmp_path) == ["fix.py"]
     inputs = [{"id": "a", "text": "Let me fix the parser now."}, {"id": "b", "text": "Let me fix it."}]
     assert exp.near_copies({"a": "Let me fix the parser now!", "b": "I will repair it."}, inputs) == ["a"]
+    # with a judge, an input that already passes may come back unchanged: not a copy
+    passes = lambda out, text: {"ok": text.startswith("Let me fix the parser")}
+    assert exp.near_copies({"a": "Let me fix the parser now!"}, inputs, judge=passes) == []
+    fails = lambda out, text: {"ok": False}
+    assert exp.near_copies({"a": "Let me fix the parser now!"}, inputs, judge=fails) == ["a"]
+
+
+def test_malformed_grade_records_are_problems_not_crashes(tmp_path):
+    (tmp_path / "grades.jsonl").write_text(
+        '{"gid": "g1", "verdict": "Faithful"}\n["not", "an", "object"]\n{"verdict": "minor"}\n')
+    out, problems = exp.read_grades(tmp_path, {"g1": {}, "g2": {}})
+    assert set(out) == {"g1"} and out["g1"]["verdict"] == "faithful"
+    assert any("TypeError" in p for p in problems) and any("KeyError" in p for p in problems)
+    assert any(p.startswith("INCOMPLETE") for p in problems)
+
+
+def test_send_parts_with_nothing_to_send(tmp_path, monkeypatch, capsys):
+    # every rewrite passed: repair-1.jsonl is empty, and send-parts says so without a crash
+    from types import SimpleNamespace
+    d = tmp_path / "m"
+    (d / "messages").mkdir(parents=True)
+    (d / "round1.jsonl").write_text("")
+    (d / "repair-1.jsonl").write_text("")
+    monkeypatch.setattr(exp, "models", lambda names: [d])
+    assert exp.cmd_send_parts(SimpleNamespace(task="repair", names=["m"], size=10)) == 0
+    assert "queued 0 parts" in capsys.readouterr().out

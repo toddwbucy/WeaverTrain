@@ -188,3 +188,29 @@ def test_no_session_without_the_permission_policy(world, monkeypatch):
     monkeypatch.setenv("OPENCODE_BIN", fake_opencode(world.tmp, {}))
     assert batch.cmd_run(args()) == 2
     assert not (world.tmp / "exp" / "p001" / "round1.jsonl").exists()
+
+
+def test_no_opencode_database_costs_nothing(tmp_path, monkeypatch):
+    # a batch run only through the Gemini API never made an opencode database
+    monkeypatch.setenv("OPENCODE_DB", str(tmp_path / "absent.db"))
+    assert batch.spent(tmp_path) == 0.0
+
+
+def test_session_timeout_is_a_failed_session(tmp_path, monkeypatch):
+    import subprocess
+    (tmp_path / "opencode.json").write_text(json.dumps(batch.PERMISSIONS))
+
+    def slow(*a, **kw):
+        raise subprocess.TimeoutExpired(a[0], kw["timeout"])
+    monkeypatch.setattr(batch.subprocess, "run", slow)
+    assert batch.session(tmp_path, "m", "msg", "r1", 5) == -1
+    assert "timed out after 5s" in (tmp_path / "logs" / "r1.log").read_text()
+
+
+@needs_lexicon
+def test_changed_literal_goes_back_to_repair(tmp_path):
+    judge = batch.exp.Judge(batch.DEFAULT_PROMPT)
+    inputs = [{"id": "s1", "kind": "narration", "text": "I will examine 1.[[C1]] now."}]
+    (tmp_path / "round1.jsonl").write_text(json.dumps({"id": "s1", "output": "I will examine 1. [[C1]] now."}) + "\n")
+    ok, fails = batch.judge_round(tmp_path, inputs, judge)
+    assert ok == 0 and "1.[[C1]]" in fails[0]["problems"]

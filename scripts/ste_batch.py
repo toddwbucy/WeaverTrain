@@ -274,7 +274,10 @@ def opencode_db() -> Path:
 
 
 def spent(root: Path, under: Path | None = None) -> float:
-    """Cost of every opencode session whose directory is under ROOT (or UNDER), in USD."""
+    """Cost of every opencode session whose directory is under ROOT (or UNDER), in USD.
+    No opencode database (a batch run only through the Gemini API) costs 0."""
+    if not Path(opencode_db()).exists():
+        return 0.0
     con = sqlite3.connect(f"file:{opencode_db()}?mode=ro", uri=True)
     try:
         prefix = str(under or root)
@@ -299,13 +302,14 @@ def session(d: Path, model: str, message: str, title: str, timeout: int) -> int:
     logs = d / "logs"
     logs.mkdir(exist_ok=True)
     with open(logs / f"{title}.log", "w", encoding="utf-8") as log:
-        p = subprocess.run([opencode_bin(), "run", "-m", model, "--auto", "--title", title, message],
-                           cwd=d, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
+        try:
+            p = subprocess.run([opencode_bin(), "run", "-m", model, "--auto", "--title", title, message],
+                               cwd=d, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            # the caller's incomplete-round path handles it like any failed session
+            log.write(f"\nsession timed out after {timeout}s\n")
+            return -1
     return p.returncode
-
-
-def text_of(inputs: list[dict], i: str) -> str:
-    return next(r["text"] for r in inputs if r["id"] == i)
 
 
 def guard(d: Path, inputs: list[dict], n: int, judge) -> None:
@@ -315,7 +319,7 @@ def guard(d: Path, inputs: list[dict], n: int, judge) -> None:
     src = inputs if n == 1 else read_jsonl(d / f"repair-{n - 1}.jsonl")
     ids = {r["id"] for r in src}
     # an input that already passes may come back unchanged; a failing one may not
-    copies = [i for i in exp.near_copies(out, inputs) if i in ids and not judge(i_text := text_of(inputs, i), i_text)["ok"]]
+    copies = [i for i in exp.near_copies(out, inputs, judge=judge) if i in ids]
     if len(copies) > NEAR_COPY_LIMIT * len(src):
         raise Stop(f"{d.name}: round {n}: {len(copies)} of {len(src)} outputs are near-copies of the input")
 
@@ -325,11 +329,12 @@ def judge_round(d: Path, inputs: list[dict], judge) -> tuple[int, list[dict]]:
     fails = []
     for r in inputs:
         res = judge(out.get(r["id"]), r["text"])
+        # the same literal check cmd_assemble applies, so a changed literal is repaired
+        # here instead of failing its whole trajectory at assembly
+        if res["ok"] and (lits := exp.altered_literals(out.get(r["id"]), r["text"])):
+            res = {**res, "ok": False, "hard": {**res["hard"], "altered_literals": lits}}
         if not res["ok"]:
             note = ste_check.repair_note(res, judge.lex)
-            if "invented_markup" in res["hard"]:
-                note += ("\n- Your rewrite has markup that is not in the text: "
-                         + ", ".join(res["hard"]["invented_markup"]) + ". Remove it.")
             fails.append({"id": r["id"], "kind": r["kind"], "text": r["text"], "previous": out.get(r["id"], ""),
                           "problems": note.strip() or "- " + ", ".join(res["hard"])})
     return len(inputs) - len(fails), fails

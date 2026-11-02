@@ -390,11 +390,13 @@ def substitution_scripts(d: Path) -> list[str]:
                   and SUBSTITUTION.search(p.read_text(encoding="utf-8", errors="replace")))
 
 
-def near_copies(out: dict[str, str], inputs: list[dict], limit: float = 0.95) -> list[str]:
-    """Ids whose rewrite is over LIMIT similar to the input although the checker fails the input."""
+def near_copies(out: dict[str, str], inputs: list[dict], limit: float = 0.95, judge=None) -> list[str]:
+    """Ids whose rewrite is over LIMIT similar to the input. With JUDGE, only inputs that
+    the checker fails count: an input that already passes may come back unchanged."""
     import difflib
     return [r["id"] for r in inputs if r["id"] in out
-            and difflib.SequenceMatcher(None, r["text"], out[r["id"]]).ratio() > limit]
+            and difflib.SequenceMatcher(None, r["text"], out[r["id"]]).ratio() > limit
+            and (judge is None or not judge(r["text"], r["text"])["ok"])]
 
 
 def incomplete(d: Path, n: int) -> tuple[int, int] | None:
@@ -475,7 +477,7 @@ def cmd_score(a) -> int:
                            if (short := incomplete(d, n)) else "") + " | "
                         + (", ".join(f"{r['id']} {t}" for r in inputs
                                      for t in altered_literals(out.get(r["id"]), r["text"])) or "none") + " | "
-                        + str(len(near_copies(out, inputs))) + " |")
+                        + str(len(near_copies(out, inputs, judge=judge))) + " |")
         if (bad_scripts := substitution_scripts(d)):
             rows.append(f"| {d.name} | ALL | INVALID: text changed by script {bad_scripts} |"
                         + " |" * (len(kinds) + 3))
@@ -583,12 +585,13 @@ def read_grades(d: Path, key: dict) -> tuple[dict, list[str]]:
         try:
             g = json.loads(line)
             v = g["verdict"].strip().lower()
-        except (json.JSONDecodeError, KeyError, AttributeError) as e:
-            problems.append(f"line {n}: {e}")
+            gid = g["gid"]
+        except (json.JSONDecodeError, KeyError, AttributeError, TypeError) as e:
+            problems.append(f"line {n}: {type(e).__name__} {e}")
             continue
         if v not in VERDICTS:
             problems.append(f"line {n}: verdict {v!r}")
-        out[g["gid"]] = {**g, "verdict": v}
+        out[gid] = {**g, "verdict": v}
     missing = sorted(set(key) - set(out))
     if missing:
         problems.append(f"INCOMPLETE: {len(key) - len(missing)} of {len(key)} graded; missing {missing[:10]}")
@@ -674,7 +677,8 @@ def cmd_send_parts(a) -> int:
         s_name, d_name = src.format(n=n), dst.format(m=n + 1)
         total = sum(1 for line in open(d / s_name, encoding="utf-8") if line.strip())
         start = 1 + max((num for num, _, _ in messages(d)), default=0)
-        for k, lo in enumerate(range(1, total + 1, a.size)):
+        starts = range(1, total + 1, a.size)
+        for k, lo in enumerate(starts):
             hi = min(total, lo + a.size - 1)
             body = (f"Read {prompt} in this directory and obey it, with one change: in this task, "
                     f"{verb} only lines {lo} to {hi} of {s_name} ({hi - lo + 1} records). Append "
@@ -686,7 +690,7 @@ def cmd_send_parts(a) -> int:
             tmp = d / "messages" / f".{name}.tmp"
             tmp.write_text(body, encoding="utf-8")
             os.replace(tmp, d / "messages" / name)
-        print(f"{d.name}: queued {k + 1} parts of {a.size} ({s_name} -> {d_name}, {total} records)")
+        print(f"{d.name}: queued {len(starts)} parts of {a.size} ({s_name} -> {d_name}, {total} records)")
     return 0
 
 

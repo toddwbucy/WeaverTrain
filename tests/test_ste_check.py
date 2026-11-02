@@ -160,3 +160,15 @@ def test_fixed_mapping_replaces_the_standards_alternatives():
     r = ste.check("I call the parser.", "x", lex)
     note = ste.repair_note(r, lex)
     assert 'Write "use" for it' in note and "TELL" not in note, note
+
+
+def test_inflected_noun_takes_the_part_of_speech_of_its_lemma():
+    # PR #4 review: "orders" after "the" was skipped with no finding; "order" was reported
+    r = ste.check("Do the orders.", "x", NOUN_LEX)
+    assert "verbs" not in r["hard"] and r["soft"].get("unapproved_words") == ["orders"], r
+
+
+def test_repair_note_names_invented_markup_and_changed_literals():
+    note = ste.repair_note({"hard": {"invented_markup": ["<h4>"], "altered_literals": ["1.[[C3]]"]}}, LEX)
+    assert "<h4>" in note and "Remove it" in note
+    assert "1.[[C3]]" in note and "exactly as it is in the input" in note

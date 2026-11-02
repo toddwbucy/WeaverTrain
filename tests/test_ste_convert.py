@@ -186,3 +186,14 @@ def test_markup_in_a_rewrite_that_is_not_in_the_text_fails():
     res = {"hard": {}}
     conv.Converter.guard(fake, res, "Use [[C1]] here.", "Use [[C1]] here.")
     assert "invented_markup" not in res["hard"]
+
+
+def test_lazy_continuation_line_stays_in_the_quotation():
+    # Markdown continues a quote on the next line without ">": that line is quoted text too
+    text = "The issue says:\n> First line\nsecond line\n\nI will fix it."
+    masked, codes = conv.mask(text)
+    assert masked == "The issue says:\n[[C1]]\n\nI will fix it."
+    assert codes[0] == "> First line\nsecond line"
+    # a list or a heading after the quote is not a continuation
+    masked, _ = conv.mask("> quoted\n- I will fix it.")
+    assert masked == "[[C1]]\n- I will fix it."

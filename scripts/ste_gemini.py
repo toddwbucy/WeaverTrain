@@ -169,9 +169,13 @@ def unit_request(recs: list[dict], prompt: dict, a, cache: str | None) -> dict:
 def unit_outputs(resp: dict, recs: list[dict], group: int) -> tuple[dict[str, str], list[str]]:
     """Rewrites by id from one response, and what went wrong."""
     text, why = text_of(resp)
-    problems = [f"{recs[0]['id']}..: finish {why}"] if why not in ("STOP", "") else []
+    if why not in ("STOP", ""):
+        # a cut-off answer (MAX_TOKENS) or a blocked one is not a rewrite: its ids are
+        # asked for again as missing, as ste_convert.Converter.segment rejects truncation
+        return {}, [f"{recs[0]['id']}..: finish {why}, not used"]
     if text is None:
-        return {}, problems or [f"{recs[0]['id']}..: no text"]
+        return {}, [f"{recs[0]['id']}..: no text"]
+    problems: list[str] = []
     if group <= 1:
         return {recs[0]["id"]: text}, problems
     try:
@@ -239,8 +243,17 @@ def cmd_live(a) -> int:
             async def one(unit):
                 async with sem:
                     for attempt in range(4):
-                        r = await ac.post(f"/v1beta/models/{a.model}:generateContent",
-                                          json=unit_request(unit, prompt, a, cache))
+                        try:
+                            r = await ac.post(f"/v1beta/models/{a.model}:generateContent",
+                                              json=unit_request(unit, prompt, a, cache))
+                        except httpx.HTTPError as e:
+                            # one unit's timeout or dropped connection must not lose the
+                            # results the other units already paid for
+                            if attempt < 3:
+                                await asyncio.sleep(10 * (attempt + 1))
+                                continue
+                            problems.append(f"{unit[0]['id']}..: {type(e).__name__} {e}")
+                            return
                         if r.status_code in (429, 500, 503) and attempt < 3:
                             await asyncio.sleep(10 * (attempt + 1))
                             continue
@@ -248,7 +261,11 @@ def cmd_live(a) -> int:
                 if r.status_code >= 400:
                     problems.append(f"{unit[0]['id']}..: HTTP {r.status_code} {r.text[:200]}")
                     return
-                j = r.json()
+                try:
+                    j = r.json()
+                except ValueError as e:
+                    problems.append(f"{unit[0]['id']}..: unreadable response ({e})")
+                    return
                 add_usage(usage, j)
                 got, bad = unit_outputs(j, unit, a.group)
                 results.update(got)

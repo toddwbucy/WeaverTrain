@@ -3,6 +3,21 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-02: no more Gemini runs; the third STE batch is cancelled
+
+Operator ruling, given through the review seat on PR #5. No more Gemini runs and no
+further spend on Gemini. The third batch of 200 trajectories (seed 2033) is cancelled,
+not paused. Its round 1 ran (5,985 of 6,930 segments passing, $19.23). Round 2 was
+never submitted, because the submit hit Gemini's spend limit. Nothing from it is
+training data. The Google API key is revoked: do not ask for it or use it.
+
+- The 387 converted trajectories of the first two batches (196 + 191, $48.83) are the
+  data for the first adapter (`docs/lora-training-Spec.md`).
+- The next time the conversion loop runs, the operator's own model with the LoRA
+  adapter replaces Gemini in stage 5.
+- `scripts/ste_gemini.py` stays in the repository as the record of how the two batches
+  were made. It is not to be run again.
+
 ## 2026-11-01: training data rewritten by Gemini, whole trajectories (first batch run)
 
 The operator asked for a plan to convert whole trajectories with Gemini 4 Argon, in

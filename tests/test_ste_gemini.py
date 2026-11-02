@@ -65,3 +65,11 @@ def test_group_request_and_answer(monkeypatch):
     assert rep.startswith("These rewrites break the rules") and "- verbs: let" in rep and "<<<REWRITE\nb" in rep
     missing = gem.group_message([{"id": "t2", "text": "a", "previous": "", "problems": "- missing"}])
     assert "did not return a rewrite of t2" in missing and "<<<REWRITE" not in missing
+
+
+def test_cut_off_answer_is_not_a_rewrite():
+    # PR #4 review: a MAX_TOKENS answer must be asked for again, not judged as a rewrite
+    recs = [{"id": "t1", "text": "Let me look at the parser and the tests."}]
+    resp = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [{"text": "I will look at"}]}}]}
+    out, problems = gem.unit_outputs(resp, recs, 1)
+    assert out == {} and problems == ["t1..: finish MAX_TOKENS, not used"]
