@@ -116,6 +116,22 @@ def test_build_prefix_checks_full_trajectory(tokenizer):
         build.tokenize_row(tokenizer, row(), enable_thinking=False)
 
 
+def test_build_prefix_rejects_overlength_bad_prefix_before_removal(tmp_path, tokenizer):
+    """BUILD-PREFIX: an overlength row cannot hide a required row and message diagnostic."""
+    tokenizer.chat_template = (
+        "{% if messages | length > 2 %}answer {% else %}issue {% endif %}"
+        + tokenizer.chat_template
+    )
+    source = row()
+    assert len(build.render_row(tokenizer, source, enable_thinking=False)) > 1
+    path = inputs(tmp_path, [source])
+    dest = tmp_path / "rejected"
+    with pytest.raises(build.BuildError, match="BUILD-PREFIX: row 0, message 2"):
+        build.build_dataset(tokenizer, [path], heldout(tmp_path), dest, tree_hash="model-hash",
+                            max_seq_length=1, seed=0, limit=None, enable_thinking=False)
+    assert not dest.exists() and not dest.with_name(dest.name + ".manifest.json").exists()
+
+
 def test_build_length_order_output_and_reconcile_fields(tmp_path, tokenizer):
     rows = [row(i) for i in range(5)]
     rows[-1]["messages"][1]["content"] = "issue " * 100
