@@ -33,6 +33,19 @@ def kit_for(source, key="sample"):
             "loc": {"msg": 2, "field": "content"}, "raw": source["messages"][2]["content"]}
 
 
+@pytest.fixture
+def score_reference(tmp_path, monkeypatch):
+    """SCORE-OUTPUT and section 1: a local reference tree for output-path checks."""
+    model_dir = tmp_path / "reference"
+    model_dir.mkdir()
+    (model_dir / "weights").write_bytes(b"fixture")
+    manifest = mf.build_tree(model_dir, "model", NAME)
+    manifest.save(tmp_path / f"{NAME}.json")
+    monkeypatch.setenv("WEAVER_TRAIN_MANIFEST_DIR", str(tmp_path))
+    monkeypatch.setenv("WEAVER_TRAIN_MODEL_DIR", str(model_dir))
+    return model_dir, manifest
+
+
 @pytest.mark.parametrize("field", score.FIELDS)
 def test_reconcile_fields_rejects_missing_and_changed_values(tokenizer, field):
     record = build_record(tokenizer)
@@ -218,10 +231,11 @@ def test_score_review_freezes_sample_blinds_procedures_and_marks_operator(tmp_pa
                                                       for decision in ("odd", "incorrect")])
 
 
-def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokenizer, capsys):
+def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokenizer, capsys, score_reference):
     """SCORE-REVIEW: invalid or incomplete multi-run imports cannot change an earlier record."""
     source = row()
-    plan = score.make_plan(tokenizer, [kit_for(source)], [source], build_record(tokenizer))
+    record = {**build_record(tokenizer), "tree_hash": score_reference[1].tree_hash}
+    plan = score.make_plan(tokenizer, [kit_for(source)], [source], record)
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(plan))
     prompt = tmp_path / "review.md"
@@ -238,7 +252,7 @@ def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokeniz
         rows[0]["output"] = "Read the file." if index == 0 else "Read the next file."
         segments.write_text(json.dumps(rows[0]) + "\n")
     export = tmp_path / "review"
-    assert score.main(["review-export", "--plan", str(plan_path), "--prompt", str(prompt),
+    assert score.main(["review-export", "--model", NAME, "--plan", str(plan_path), "--prompt", str(prompt),
                        "--score", str(first.parent), "--score", str(second.parent), "--out", str(export)]) == 0
     bundle = json.loads((export / "blinded.json").read_text())
     mapping = json.loads((export / "mapping.json").read_text())
@@ -253,7 +267,7 @@ def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokeniz
     original = first.read_bytes()
     second_original = second.read_bytes()
     other_export = tmp_path / "review-other"
-    assert score.main(["review-export", "--plan", str(plan_path), "--prompt", str(prompt), "--seed", "1",
+    assert score.main(["review-export", "--model", NAME, "--plan", str(plan_path), "--prompt", str(prompt), "--seed", "1",
                        "--score", str(first.parent), "--score", str(second.parent), "--out", str(other_export)]) == 0
     other_mapping = json.loads((other_export / "mapping.json").read_text())
     assert mapping["items"] != other_mapping["items"]
@@ -337,15 +351,9 @@ def test_score_spread_compares_same_request_set_and_rejects_missing_result(tmp_p
 
 
 @pytest.mark.parametrize("location", ["inside", "same", "ancestor", "symlink"])
-def test_score_output_rejects_reference_overlap_before_load(tmp_path, tokenizer, monkeypatch, location):
+def test_score_output_rejects_reference_overlap_before_load(tmp_path, tokenizer, monkeypatch, score_reference, location):
     """SCORE-OUTPUT: a path mistake cannot load a model or add files to its reference tree."""
-    model_dir = tmp_path / "reference"
-    model_dir.mkdir()
-    (model_dir / "weights").write_bytes(b"fixture")
-    manifest = mf.build_tree(model_dir, "model", NAME)
-    manifest.save(tmp_path / f"{NAME}.json")
-    monkeypatch.setenv("WEAVER_TRAIN_MANIFEST_DIR", str(tmp_path))
-    monkeypatch.setenv("WEAVER_TRAIN_MODEL_DIR", str(model_dir))
+    model_dir, manifest = score_reference
     record = tmp_path / "record.json"
     record.write_text(json.dumps(build_record(tokenizer)))
     alias = tmp_path / "alias"
@@ -357,6 +365,89 @@ def test_score_output_rejects_reference_overlap_before_load(tmp_path, tokenizer,
         score.score_model(record, record, dest, model_name=NAME, prompt_path=record)
     assert mf.verify_tree(manifest, model_dir) == []
     assert not (dest / "score.json").exists() and not (dest / "segments.jsonl").exists()
+
+
+@pytest.mark.parametrize("location", ["inside", "symlink", "outside"])
+def test_score_plan_output_protects_reference_before_load(
+        tmp_path, tokenizer, monkeypatch, capsys, score_reference, location):
+    """SCORE-OUTPUT and section 1: plans cannot add files to the reference tree."""
+    from transformers import AutoTokenizer
+
+    model_dir, manifest = score_reference
+    record = tmp_path / "build.json"
+    record.write_text(json.dumps({**build_record(tokenizer), "tree_hash": manifest.tree_hash}))
+    source = row()
+    dataset, kit = tmp_path / "source.jsonl", tmp_path / "kit.jsonl"
+    dataset.write_text(json.dumps(source) + "\n")
+    kit.write_text(json.dumps(kit_for(source)) + "\n")
+    alias = tmp_path / "alias"
+    alias.symlink_to(model_dir, target_is_directory=True)
+    dest = {"inside": model_dir / "plans/plan.json", "symlink": alias / "plans/plan.json",
+            "outside": tmp_path / "plans/plan.json"}[location]
+    loads = []
+
+    def load_tokenizer(path, **kwargs):
+        loads.append(path)
+        if location != "outside":
+            pytest.fail("plan overlap reached tokenizer loading")
+        return tokenizer
+
+    monkeypatch.setattr(AutoTokenizer, "from_pretrained", load_tokenizer)
+    result = score.main(["plan", "--model", NAME, "--build", str(record), "--kit", str(kit),
+                         "--dataset", str(dataset), "--out", str(dest)])
+    if location == "outside":
+        assert result == 0 and loads == [model_dir]
+        assert json.loads(dest.read_text())["review_sample"] == ["sample"]
+    else:
+        assert result == 1 and loads == []
+        assert "overlaps the reference model directory" in capsys.readouterr().err
+        assert not dest.parent.exists()
+    assert mf.verify_tree(manifest, model_dir) == []
+
+
+@pytest.mark.parametrize("location", ["inside", "symlink", "outside"])
+def test_score_review_export_protects_reference_before_write(
+        tmp_path, tokenizer, monkeypatch, capsys, score_reference, location):
+    """SCORE-REVIEW and section 1: a blinded export cannot change the reference tree."""
+    model_dir, manifest = score_reference
+    source = row()
+    record = {**build_record(tokenizer), "tree_hash": manifest.tree_hash}
+    plan = score.make_plan(tokenizer, [kit_for(source)], [source], record)
+    plan_path, prompt = tmp_path / "plan.json", tmp_path / "prompt.md"
+    plan_path.write_text(json.dumps(plan))
+    prompt.write_text("Assess the work.\n")
+    run = tmp_path / "run"
+    write_scored(run, plan_path, [True])
+    record = json.loads((run / "score.json").read_text())
+    record.update(reviewer_prompt_sha256=mf.sha256_file(prompt))
+    (run / "score.json").write_text(json.dumps(record))
+    outputs = score.build.read_jsonl(run / "segments.jsonl")
+    outputs[0]["output"] = "Read the file."
+    (run / "segments.jsonl").write_text(json.dumps(outputs[0]) + "\n")
+    alias = tmp_path / "alias"
+    alias.symlink_to(model_dir, target_is_directory=True)
+    dest = {"inside": model_dir / "review", "symlink": alias / "review",
+            "outside": tmp_path / "review"}[location]
+    original_bundle = score.review_bundle
+    calls = []
+
+    def review_bundle(*args, **kwargs):
+        calls.append(1)
+        if location != "outside":
+            pytest.fail("export overlap reached bundle creation")
+        return original_bundle(*args, **kwargs)
+
+    monkeypatch.setattr(score, "review_bundle", review_bundle)
+    result = score.main(["review-export", "--model", NAME, "--plan", str(plan_path),
+                         "--prompt", str(prompt), "--score", str(run), "--out", str(dest)])
+    if location == "outside":
+        assert result == 0 and calls == [1]
+        assert (dest / "blinded.json").is_file() and (dest / "mapping.json").is_file()
+    else:
+        assert result == 1 and calls == []
+        assert "overlaps the reference model directory" in capsys.readouterr().err
+        assert not dest.exists()
+    assert mf.verify_tree(manifest, model_dir) == []
 
 
 @pytest.mark.multigpu

@@ -307,16 +307,21 @@ def apply_review(bundle, mapping, verdicts, overrides=()):
             "decisions": [{**item, **mapping[key]} for key, item in decisions.items()]}
 
 
+def checked_output_path(out_dir, model_dir):
+    """SCORE-OUTPUT and section 1: keep outputs outside the read-only reference tree."""
+    out_dir, model_dir = out_dir.resolve(), model_dir.resolve()
+    if out_dir == model_dir or model_dir in out_dir.parents or out_dir in model_dir.parents:
+        raise ScoreError("SCORE-OUTPUT: output overlaps the reference model directory")
+    return out_dir
+
+
 def score_model(plan_path, build_path, out_dir, *, model_name, prompt_path, adapter=None):
     """SCORE-GENERATE, SCORE-OUTPUT: greedy decode on the verified split model."""
     import torch
 
     model_manifest_path = loader.manifest_path_for(model_name)
     model_dir = loader.resolve_dir(mf.load_tree(model_manifest_path)).resolve()
-    out_dir = out_dir.resolve()
-    # SCORE-OUTPUT: keep score files outside the read-only reference tree in either direction.
-    if out_dir == model_dir or model_dir in out_dir.parents or out_dir in model_dir.parents:
-        raise ScoreError("SCORE-OUTPUT: output overlaps the reference model directory")
+    out_dir = checked_output_path(out_dir, model_dir)
     if out_dir.exists():
         raise ScoreError("SCORE-OUTPUT: each score needs a new output directory")
     plan = json.loads(plan_path.read_text())
@@ -487,6 +492,7 @@ def main(argv=None):
     export.add_argument("--score", type=Path, action="append", required=True)
     export.add_argument("--prompt", type=Path, required=True)
     export.add_argument("--out", type=Path, required=True)
+    export.add_argument("--model", default="nemotron-3-nano-30b-a3b")
     export.add_argument("--seed", type=int, default=0)
     ingest = commands.add_parser("review-import")
     ingest.add_argument("--bundle", type=Path, required=True)
@@ -501,7 +507,8 @@ def main(argv=None):
                 raise ScoreError("SCORE-REVIEW: plan is frozen and cannot be overwritten")
             record = json.loads(args.build.read_text())
             model_manifest = mf.load_tree(loader.manifest_path_for(args.model))
-            model_dir = loader.resolve_dir(model_manifest)
+            model_dir = loader.resolve_dir(model_manifest).resolve()
+            args.out = checked_output_path(args.out, model_dir)
             mf.require_tree(model_manifest, model_dir)
             from transformers import AutoTokenizer
             tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True, trust_remote_code=False)
@@ -518,6 +525,8 @@ def main(argv=None):
         elif args.command == "compare":
             print(json.dumps(compare_scores(args.plan, args.a, args.b, args.r0_first, args.r0_second), indent=2))
         elif args.command == "review-export":
+            model_manifest = mf.load_tree(loader.manifest_path_for(args.model))
+            args.out = checked_output_path(args.out, loader.resolve_dir(model_manifest))
             if args.out.exists() or len({path.name for path in args.score}) != len(args.score):
                 raise ScoreError("SCORE-REVIEW: use a fresh directory and unique score directory names")
             plan = json.loads(args.plan.read_text())
