@@ -228,6 +228,20 @@ def test_train_tokenized_rejects_invalid_build(tmp_path, case, reason):
         trainer.validate_tokenized(path, cfg, "model", 64)
 
 
+@pytest.mark.parametrize("name", ["train.jsonl", "build.json"])
+def test_train_tokenized_captured_bytes_must_match_manifest(tmp_path, monkeypatch, name):
+    """TRAIN-TOKENIZED: a valid on-disk tree cannot attest to a different captured payload."""
+    import tomllib
+    cfg = trainer.parse_config(tomllib.loads(CONFIG.replace('format = "text"', 'format = "tokenized"')))
+    path, _, _ = make_tokenized(tmp_path, "model")
+    target = path.parent / name
+    read_bytes = type(path).read_bytes
+    captured = target.read_bytes() + b"\n"
+    monkeypatch.setattr(type(path), "read_bytes", lambda item: captured if item == target else read_bytes(item))
+    with pytest.raises(trainer.TrainConfigError, match=f"captured {name} does not match manifest"):
+        trainer.validate_tokenized(path, cfg, "model", 64)
+
+
 @pytest.mark.parametrize("filename, contents, reason", [
     ("build.json", "{", "build.json is not valid JSON"),
     ("build.json", "[]", "build.json must contain an object"),
@@ -257,6 +271,8 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
     import torch
     model_dir, manifest_path = tiny_model
     path, ids, mask = make_tokenized(tmp_path, mf.load_tree(manifest_path).tree_hash)
+    build_digest = mf.sha256_file(path.with_name("build.json"))
+    data_digest = mf.sha256_file(path)
     config_path.write_text(CONFIG.replace('format = "text"', 'format = "tokenized"')
                           .replace('max_steps = 2', 'num_train_epochs = 2'))
     checked_class = trainer.checked_trainer_class
@@ -277,6 +293,15 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
         return Inspected
 
     monkeypatch.setattr(trainer, "checked_trainer_class", inspected)
+    run_unsloth = trainer._run_unsloth
+
+    def replace_source_after_validation(*args):
+        # TRAIN-TOKENIZED, TRAIN-RECORD: loading uses captured bytes after the source is replaced.
+        path.write_text("replaced dataset\n")
+        path.with_name("build.json").write_text("{}\n")
+        return run_unsloth(*args)
+
+    monkeypatch.setattr(trainer, "_run_unsloth", replace_source_after_validation)
     out = tmp_path / "tokenized-run"
     record = trainer.train(model_dir, manifest_path, path, config_path, out)
     expected = [[value if keep else -100 for value, keep in zip(ids, mask)]]
@@ -284,7 +309,9 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
     assert all(seen_ids == [ids] and labels == expected for seen_ids, labels in observed)
     for name in ("adapter-epoch-1", "adapter-epoch-2", "adapter"):
         trainer.check_adapter_only(out / name)
-    assert record.dataset["build_sha256"] == mf.sha256_file(path.with_name("build.json"))
+    assert record.dataset["build_sha256"] == build_digest
+    assert record.dataset["sha256"] == data_digest
+    assert record.dataset["sha256"] != mf.sha256_file(path)
     assert record.dataset["rows"] == 2 and record.dataset["assistant_tokens"] == 8
     assert record.results["epochs"] == 2 and record.results["global_step"] == 4
     assert len(record.results["step_seconds"]) == 4
