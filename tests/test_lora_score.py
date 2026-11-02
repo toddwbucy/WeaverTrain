@@ -207,7 +207,7 @@ def test_score_review_freezes_sample_blinds_procedures_and_marks_operator(tmp_pa
     assert set(plan["review_sample"]) != {f"s{i}" for i in range(30)}
     assert set(plan["review_sample"]) != set(other["review_sample"])
     prompt = tmp_path / "review.md"
-    prompt.write_text("Assess the work and the next action.\n")
+    prompt.write_bytes((score.REPO / score.REVIEW_PROMPT).read_bytes())
     runs = {name: [{"id": entry["id"], "output": "Read the file."} for entry in plan["entries"]]
             for name in ("baseline", "epoch-1")}
     bundle, mapping = score.review_bundle(plan, runs, prompt)
@@ -229,6 +229,12 @@ def test_score_review_freezes_sample_blinds_procedures_and_marks_operator(tmp_pa
     with pytest.raises(score.ScoreError, match="distinct item"):
         score.apply_review(bundle, mapping, verdicts, [{"id": verdicts[0]["id"], "decision": decision}
                                                       for decision in ("odd", "incorrect")])
+    wrong_prompt = tmp_path / "wrong-prompt.md"
+    wrong_prompt.write_text("Different review rules.\n")
+    with pytest.raises(score.ScoreError, match="review prompt differs from the specified prompt"):
+        score.review_bundle(plan, runs, wrong_prompt)
+    with pytest.raises(score.ScoreError, match="review prompt differs from the specified prompt"):
+        score.apply_review({**bundle, "prompt_sha256": mf.sha256_file(wrong_prompt)}, mapping, verdicts)
 
 
 def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokenizer, capsys, score_reference):
@@ -239,7 +245,7 @@ def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokeniz
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(plan))
     prompt = tmp_path / "review.md"
-    prompt.write_text("Assess the work.\n")
+    prompt.write_bytes((score.REPO / score.REVIEW_PROMPT).read_bytes())
     first, second = tmp_path / "a/score.json", tmp_path / "b/score.json"
     for index, path in enumerate((first, second)):
         write_scored(path.parent, plan_path, [True])
@@ -362,7 +368,7 @@ def test_score_output_rejects_reference_overlap_before_load(tmp_path, tokenizer,
             "ancestor": tmp_path, "symlink": alias / "scores"}[location]
     monkeypatch.setattr(score.loader, "load", lambda *args, **kwargs: pytest.fail("overlap reached model loading"))
     with pytest.raises(score.ScoreError, match="overlaps the reference model directory"):
-        score.score_model(record, record, dest, model_name=NAME, prompt_path=record)
+        score.score_model(record, record, dest, model_name=NAME, prompt_path=score.REPO / score.REVIEW_PROMPT)
     assert mf.verify_tree(manifest, model_dir) == []
     assert not (dest / "score.json").exists() and not (dest / "segments.jsonl").exists()
 
@@ -430,17 +436,20 @@ def test_score_output_protects_adapter_before_load(tmp_path, tokenizer, monkeypa
         raise ReachedModelLoad
 
     monkeypatch.setattr(score.loader, "load", load_model)
+    prompt = score.REPO / score.REVIEW_PROMPT
     if location == "outside":
         with pytest.raises(ReachedModelLoad):
-            score.score_model(record, record, dest, model_name=NAME, prompt_path=record, adapter=adapter)
+            score.score_model(record, record, dest, model_name=NAME, prompt_path=prompt, adapter=adapter)
     else:
         with pytest.raises(score.ScoreError, match="overlaps the adapter directory"):
-            score.score_model(record, record, dest, model_name=NAME, prompt_path=record, adapter=adapter)
+            score.score_model(record, record, dest, model_name=NAME, prompt_path=prompt, adapter=adapter)
     assert mf.verify_tree(manifest, adapter) == mf.verify_tree(model_manifest, model_dir) == []
     assert not (dest / "score.json").exists() and not (dest / "segments.jsonl").exists()
 
 
-@pytest.mark.parametrize("location", ["inside", "symlink", "outside", "wrong_model_inside", "wrong_model_symlink"])
+@pytest.mark.parametrize("location", [
+    "inside", "symlink", "outside", "wrong_model_inside", "wrong_model_symlink", "wrong_directory", "wrong_prompt",
+])
 def test_score_review_export_protects_reference_before_write(
         tmp_path, tokenizer, monkeypatch, capsys, score_reference, location):
     """SCORE-REVIEW and section 1: a blinded export cannot change the reference tree."""
@@ -450,7 +459,9 @@ def test_score_review_export_protects_reference_before_write(
     plan = score.make_plan(tokenizer, [kit_for(source)], [source], record)
     plan_path, prompt = tmp_path / "plan.json", tmp_path / "prompt.md"
     plan_path.write_text(json.dumps(plan))
-    prompt.write_text("Assess the work.\n")
+    prompt.write_bytes((score.REPO / score.REVIEW_PROMPT).read_bytes())
+    if location == "wrong_prompt":
+        prompt.write_text("Different review rules.\n")
     run = tmp_path / "run"
     write_scored(run, plan_path, [True])
     record = json.loads((run / "score.json").read_text())
@@ -462,15 +473,17 @@ def test_score_review_export_protects_reference_before_write(
     alias = tmp_path / "alias"
     alias.symlink_to(model_dir, target_is_directory=True)
     selected_model = NAME
-    if location.startswith("wrong_model_"):
-        selected_model = "other-model"
+    if location.startswith("wrong_model_") or location == "wrong_directory":
+        if location.startswith("wrong_model_"):
+            selected_model = "other-model"
         other_dir = tmp_path / "other-reference"
         other_dir.mkdir()
         (other_dir / "weights").write_bytes(b"other fixture")
-        mf.build_tree(other_dir, "model", selected_model).save(tmp_path / f"{selected_model}.json")
+        mf.build_tree(other_dir, "model", "other-model").save(tmp_path / "other-model.json")
         monkeypatch.setenv("WEAVER_TRAIN_MODEL_DIR", str(other_dir))
     dest = {"inside": model_dir / "review", "symlink": alias / "review",
-            "outside": tmp_path / "review"}[location.removeprefix("wrong_model_")]
+            "wrong_directory": model_dir / "review",
+            "outside": tmp_path / "review", "wrong_prompt": tmp_path / "review"}[location.removeprefix("wrong_model_")]
     original_bundle = score.review_bundle
     calls = []
 
@@ -490,9 +503,103 @@ def test_score_review_export_protects_reference_before_write(
         assert result == 1 and calls == []
         reason = ("review model tree differs from the plan" if location.startswith("wrong_model_")
                   else "overlaps the reference model directory")
+        if location == "wrong_prompt":
+            reason = "review prompt differs from the specified prompt"
+        elif location == "wrong_directory":
+            reason = "tree does not match manifest"
         assert reason in capsys.readouterr().err
         assert not dest.exists()
     assert mf.verify_tree(manifest, model_dir) == []
+
+
+@pytest.mark.parametrize("prompt_kind", ["specified", "copy", "different"])
+def test_score_review_requires_specified_prompt_before_load(
+        tmp_path, tokenizer, monkeypatch, score_reference, prompt_kind):
+    """SCORE-REVIEW: a substituted review prompt fails before loading or output creation."""
+    specified = score.REPO / score.REVIEW_PROMPT
+    prompt = specified if prompt_kind == "specified" else tmp_path / "review.md"
+    if prompt_kind == "copy":
+        prompt.write_bytes(specified.read_bytes())
+    elif prompt_kind == "different":
+        prompt.write_text("Different review rules.\n")
+    record = tmp_path / "record.json"
+    record.write_text(json.dumps(build_record(tokenizer)))
+    dest = tmp_path / "score"
+    calls = []
+
+    class ReachedModelLoad(Exception):
+        """A valid prompt reached the model loader."""
+
+    def load_model(*args, **kwargs):
+        calls.append(1)
+        if prompt_kind == "different":
+            pytest.fail("wrong review prompt reached model loading")
+        raise ReachedModelLoad
+
+    monkeypatch.setattr(score.loader, "load", load_model)
+    if prompt_kind == "different":
+        with pytest.raises(score.ScoreError, match="review prompt differs from the specified prompt"):
+            score.score_model(record, record, dest, model_name=NAME, prompt_path=prompt)
+        assert calls == []
+    else:
+        with pytest.raises(ReachedModelLoad):
+            score.score_model(record, record, dest, model_name=NAME, prompt_path=prompt)
+        assert calls == [1]
+    assert not dest.exists()
+
+
+@pytest.mark.parametrize("command", ["plan", "score", "review-export"])
+@pytest.mark.parametrize("kind", ["adapter", "dataset"])
+@pytest.mark.parametrize("symlink", [False, True])
+def test_score_output_protects_all_manifested_trees(
+        tmp_path, tokenizer, monkeypatch, capsys, score_reference, command, kind, symlink):
+    """SCORE-OUTPUT, BUILD-OUTPUT, TRAIN-EPOCH-ADAPTERS: no output enters any manifested tree."""
+    from transformers import AutoTokenizer
+
+    model_dir, model_manifest = score_reference
+    protected = tmp_path / "protected"
+    protected.mkdir()
+    (protected / "payload").write_bytes(b"fixture")
+    manifest = mf.build_tree(protected, kind, "fixture")
+    manifest.save(tmp_path / "protected.manifest.json")
+    alias = tmp_path / "alias"
+    alias.symlink_to(protected, target_is_directory=True)
+    root = alias if symlink else protected
+    dest = root / ("new/plan.json" if command == "plan" else "new")
+    record = {**build_record(tokenizer), "tree_hash": model_manifest.tree_hash}
+    record_path = tmp_path / "build.json"
+    record_path.write_text(json.dumps(record))
+    source = row()
+    plan = score.make_plan(tokenizer, [kit_for(source)], [source], record)
+    plan_path, prompt = tmp_path / "plan.json", score.REPO / score.REVIEW_PROMPT
+    plan_path.write_text(json.dumps(plan))
+    dataset, kit = tmp_path / "source.jsonl", tmp_path / "kit.jsonl"
+    dataset.write_text(json.dumps(source) + "\n")
+    kit.write_text(json.dumps(kit_for(source)) + "\n")
+    run = tmp_path / "run"
+    write_scored(run, plan_path, [True])
+    run_record = json.loads((run / "score.json").read_text())
+    run_record.update(reviewer_prompt_sha256=mf.sha256_file(prompt))
+    (run / "score.json").write_text(json.dumps(run_record))
+    output = score.build.read_jsonl(run / "segments.jsonl")[0]
+    output["output"] = "Read the file."
+    (run / "segments.jsonl").write_text(json.dumps(output) + "\n")
+
+    def reached(*args, **kwargs):
+        pytest.fail("unprotected manifested tree reached loading or bundle creation")
+
+    monkeypatch.setattr(AutoTokenizer, "from_pretrained", reached)
+    monkeypatch.setattr(score.loader, "load", reached)
+    monkeypatch.setattr(score, "review_bundle", reached)
+    inputs = {
+        "plan": ["--build", str(record_path), "--kit", str(kit), "--dataset", str(dataset)],
+        "score": ["--build", str(record_path), "--plan", str(plan_path), "--review-prompt", str(prompt)],
+        "review-export": ["--plan", str(plan_path), "--prompt", str(prompt), "--score", str(run)],
+    }
+    assert score.main([command, "--model", NAME, "--out", str(dest), *inputs[command]]) == 1
+    assert "output is inside a manifested tree" in capsys.readouterr().err
+    assert mf.verify_tree(manifest, protected) == mf.verify_tree(model_manifest, model_dir) == []
+    assert not dest.exists() and not (protected / "new").exists()
 
 
 @pytest.mark.multigpu
@@ -500,6 +607,7 @@ def test_score_generate_twice_on_split_small_model(tmp_path, tiny_model, monkeyp
     """SCORE-GENERATE, SCORE-SPREAD, SCORE-OUTPUT: actual greedy generation on both GPUs."""
     from transformers import AutoTokenizer
 
+    prompt_bytes = (score.REPO / score.REVIEW_PROMPT).read_bytes()
     model_dir, manifest_path = tiny_model
     tok = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
     tok.add_special_tokens({"additional_special_tokens": ["<|im_end|>"]})
@@ -530,7 +638,10 @@ def test_score_generate_twice_on_split_small_model(tmp_path, tiny_model, monkeyp
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(plan))
     prompt = tmp_path / "review.md"
-    prompt.write_text("Assess the work.\n")
+    prompt.write_bytes(prompt_bytes)
+    specified_prompt = tmp_path / score.REVIEW_PROMPT
+    specified_prompt.parent.mkdir()
+    specified_prompt.write_bytes(prompt_bytes)
     results = []
     for index in range(2):
         dest = tmp_path / f"r0-{index}"

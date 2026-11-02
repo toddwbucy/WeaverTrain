@@ -22,6 +22,7 @@ import ste_experiment
 from weaver_train import loader, manifest as mf
 
 REVIEW_MODEL = "claude-opus-5-5"
+REVIEW_PROMPT = Path("config/lora-review-prompt.md")
 CHECKER_PROMPT = "prompt-e21370fcd140.json"
 CHECKER_SHA256 = "e21370fcd140a4bb5e7a0d2dd415c58d8ecead9333a9e730adb66ab96e7a851c"
 FIELDS = ("tree_hash", "template_hash", "tools", "enable_thinking", "max_seq_length")
@@ -267,8 +268,17 @@ def compare_pairs(a, b, decode_difference):
             "limit": "On 100 segments, differences below about 10 points often remain not shown."}
 
 
+def review_prompt_hash(prompt_path):
+    """SCORE-REVIEW: accept the specified prompt or a copy with identical bytes."""
+    digest = mf.sha256_file(prompt_path)
+    if digest != mf.sha256_file(REPO / REVIEW_PROMPT):
+        raise ScoreError("SCORE-REVIEW: review prompt differs from the specified prompt")
+    return digest
+
+
 def review_bundle(plan, runs, prompt_path, *, seed=0):
     """SCORE-REVIEW: blind all compared procedures together with one fixed segment sample."""
+    prompt_hash = review_prompt_hash(prompt_path)
     items, mapping = [], {}
     prompts = {entry["id"]: entry["prompt"] for entry in plan["entries"]}
     for name, results in runs.items():
@@ -281,12 +291,14 @@ def review_bundle(plan, runs, prompt_path, *, seed=0):
         key = f"review-{index + 1:04d}"
         blinded.append({"id": key, **item})
         mapping[key] = {"run": name, "segment": segment}
-    return {"model": REVIEW_MODEL, "prompt_sha256": mf.sha256_file(prompt_path),
+    return {"model": REVIEW_MODEL, "prompt_sha256": prompt_hash,
             "count_per_run": len(plan["review_sample"]), "items": blinded}, mapping
 
 
 def apply_review(bundle, mapping, verdicts, overrides=()):
     """SCORE-REVIEW: require every blinded verdict and mark operator replacements."""
+    if bundle.get("prompt_sha256") != mf.sha256_file(REPO / REVIEW_PROMPT):
+        raise ScoreError("SCORE-REVIEW: review prompt differs from the specified prompt")
     decisions = {item["id"]: item for item in verdicts}
     if bundle.get("model") != REVIEW_MODEL or {item["id"] for item in bundle["items"]} != set(mapping):
         raise ScoreError("SCORE-REVIEW: model or blinded item mapping differs")
@@ -308,10 +320,13 @@ def apply_review(bundle, mapping, verdicts, overrides=()):
 
 
 def checked_output_path(out_dir, model_dir, *, kind="reference model"):
-    """SCORE-OUTPUT, TRAIN-EPOCH-ADAPTERS and section 1: preserve reference and adapter trees."""
+    """SCORE-OUTPUT, BUILD-OUTPUT and TRAIN-EPOCH-ADAPTERS: preserve verified input trees."""
     out_dir, model_dir = out_dir.resolve(), model_dir.resolve()
     if out_dir == model_dir or model_dir in out_dir.parents or out_dir in model_dir.parents:
         raise ScoreError(f"SCORE-OUTPUT: output overlaps the {kind} directory")
+    for tree in (out_dir, *out_dir.parents):
+        if (tree.parent / f"{tree.name}.manifest.json").is_file():
+            raise ScoreError("SCORE-OUTPUT: output is inside a manifested tree")
     return out_dir
 
 
@@ -321,11 +336,12 @@ def score_model(plan_path, build_path, out_dir, *, model_name, prompt_path, adap
 
     model_manifest_path = loader.manifest_path_for(model_name)
     model_dir = loader.resolve_dir(mf.load_tree(model_manifest_path)).resolve()
-    out_dir = checked_output_path(out_dir, model_dir)
     if adapter is not None:
         out_dir = checked_output_path(out_dir, adapter, kind="adapter")
+    out_dir = checked_output_path(out_dir, model_dir)
     if out_dir.exists():
         raise ScoreError("SCORE-OUTPUT: each score needs a new output directory")
+    reviewer_prompt_hash = review_prompt_hash(prompt_path)
     plan = json.loads(plan_path.read_text())
     record = json.loads(build_path.read_text())
     for field in FIELDS:
@@ -355,7 +371,7 @@ def score_model(plan_path, build_path, out_dir, *, model_name, prompt_path, adap
              **{field: record[field] for field in FIELDS}, "plan_sha256": mf.sha256_file(plan_path),
              "build_sha256": mf.sha256_file(build_path), "status": "started",
              "checker_prompt_sha256": checker_hash,
-             "reviewer_model": REVIEW_MODEL, "reviewer_prompt_sha256": mf.sha256_file(prompt_path),
+             "reviewer_model": REVIEW_MODEL, "reviewer_prompt_sha256": reviewer_prompt_hash,
              "review_sample": plan["review_sample"], "review_count": plan["review_count"],
              "review_status": "pending", "excluded": plan["excluded"], "request_set": plan["request_set"],
              "sampler": {"do_sample": False, "num_beams": 1, "max_new_tokens": OUTPUT_LIMIT,
@@ -532,11 +548,14 @@ def main(argv=None):
             # RECONCILE-FIELDS: the protected reference must be the model in the frozen plan.
             if plan.get("tree_hash") != model_manifest.tree_hash:
                 raise ScoreError("RECONCILE-FIELDS: review model tree differs from the plan")
-            args.out = checked_output_path(args.out, loader.resolve_dir(model_manifest))
+            model_dir = loader.resolve_dir(model_manifest).resolve()
+            args.out = checked_output_path(args.out, model_dir)
+            mf.require_tree(model_manifest, model_dir)
             if args.out.exists() or len({path.name for path in args.score}) != len(args.score):
                 raise ScoreError("SCORE-REVIEW: use a fresh directory and unique score directory names")
             records = {path.name: read_score(path, args.plan) for path in args.score}
-            if any(record["reviewer_prompt_sha256"] != mf.sha256_file(args.prompt)
+            prompt_hash = review_prompt_hash(args.prompt)
+            if any(record["reviewer_prompt_sha256"] != prompt_hash
                    for record, _ in records.values()):
                 raise ScoreError("SCORE-REVIEW: prompt hash differs from the scores")
             runs = {name: rows for name, (_, rows) in records.items()}
