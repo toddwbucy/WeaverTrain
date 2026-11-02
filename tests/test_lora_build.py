@@ -230,7 +230,35 @@ def test_build_output_has_one_owner_through_failure_cleanup(tmp_path):
             payload.write_text("first writer owns this file")
             assert payload.read_text() == "first writer owns this file"
             raise OSError("first writer failed")
-    assert not dest.exists() and not lock.exists()
+    assert not dest.exists() and lock.exists()
     with build.output_files(dest, ["train.jsonl"]):
         payload.write_text("new owner")
-    assert payload.read_text() == "new owner" and not lock.exists()
+    assert payload.read_text() == "new owner" and lock.exists()
+
+
+def test_build_output_releases_ownership_when_process_is_terminated(tmp_path):
+    """BUILD-OUTPUT: an interrupted process cannot keep the output reserved after it exits."""
+    import subprocess
+
+    dest = tmp_path / "interrupted"
+    program = "\n".join([
+        "import sys, time",
+        "from pathlib import Path",
+        "sys.path.insert(0, str(Path.cwd() / 'scripts'))",
+        "import lora_build as build",
+        "with build.output_files(Path(sys.argv[1]), ['train.jsonl']):",
+        "    print('reserved', flush=True)",
+        "    time.sleep(30)",
+    ])
+    process = subprocess.Popen([sys.executable, "-c", program, str(dest)], stdout=subprocess.PIPE, text=True)
+    try:
+        assert process.stdout.readline().strip() == "reserved"
+        with pytest.raises(build.BuildError, match="reserved by another build"):
+            with build.output_files(dest, ["train.jsonl"]):
+                pytest.fail("active owner lost exclusion")
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+    with build.output_files(dest, ["train.jsonl"]):
+        (dest / "train.jsonl").write_text("new owner")
+    assert (dest / "train.jsonl").read_text() == "new owner"
