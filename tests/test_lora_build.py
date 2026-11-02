@@ -244,13 +244,15 @@ def test_build_output_releases_ownership_when_process_is_terminated(tmp_path):
     program = "\n".join([
         "import sys, time",
         "from pathlib import Path",
-        "sys.path.insert(0, str(Path.cwd() / 'scripts'))",
+        "sys.path.insert(0, sys.argv[2])",
         "import lora_build as build",
         "with build.output_files(Path(sys.argv[1]), ['train.jsonl']):",
         "    print('reserved', flush=True)",
         "    time.sleep(30)",
     ])
-    process = subprocess.Popen([sys.executable, "-c", program, str(dest)], stdout=subprocess.PIPE, text=True)
+    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    process = subprocess.Popen([sys.executable, "-c", program, str(dest), str(scripts)],
+                               stdout=subprocess.PIPE, text=True)
     try:
         assert process.stdout.readline().strip() == "reserved"
         with pytest.raises(build.BuildError, match="reserved by another build"):
