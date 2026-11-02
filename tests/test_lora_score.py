@@ -71,6 +71,34 @@ def test_score_locate_prefix_freezes_exclusions_and_request_set(tokenizer):
         score.make_plan(tokenizer, kit + [kit[0]], rows, build_record(tokenizer))
 
 
+def test_score_locate_uses_the_kit_boundary_whitespace_rule():
+    """SCORE-LOCATE: raw kit text is the body from ste_convert.split_ws, not a rewritten segment."""
+    source = row()
+    source["messages"][2]["content"] = "\n  Read the file.\n\t"
+    wanted = {**kit_for(source), "raw": "Read the file."}
+    located, excluded = score.locate_segments([wanted], [source])
+    assert located["sample"] == (0, source) and excluded == []
+    source["messages"][2]["content"] = "\nRead  the file.\n"
+    located, excluded = score.locate_segments([wanted], [source])
+    assert not located and excluded[0]["matches"] == 0
+    source["messages"][2]["content"] = " Read the file. "
+    located, excluded = score.locate_segments([wanted], [source, source])
+    assert not located and excluded[0]["matches"] == 2
+
+
+def test_score_prefix_reserves_all_output_tokens(tokenizer):
+    """SCORE-PREFIX: a prompt that fits alone can still exceed the total context budget."""
+    source = row()
+    prompt = {"messages": source["messages"][:2], "tools": source["tools"]}
+    prompt_tokens = len(score.build.render_row(tokenizer, prompt, enable_thinking=False,
+                                               add_generation_prompt=True))
+    record = build_record(tokenizer, prompt_tokens + 2048 - 1)
+    plan = score.make_plan(tokenizer, [kit_for(source)], [source], record)
+    assert prompt_tokens < record["max_seq_length"]
+    assert plan["entries"] == plan["request_set"] == plan["review_sample"] == []
+    assert plan["excluded"] == [{"id": "sample", "cause": "SCORE-PREFIX", "prompt_tokens": prompt_tokens}]
+
+
 def native_call(name="finish", parameters="<parameter=message>\nThe work is complete.\n</parameter>"):
     """SCORE-EXTRACT: Nemotron's native template surrounds requests with these tags."""
     return f"<tool_call>\n<function={name}>\n{parameters}\n</function>\n</tool_call>"
@@ -137,6 +165,10 @@ def test_run_margin_vectors_and_decode_spread():
     assert flat["result"] == "flat"
     assert -0.05 <= flat["interval_95"][0] <= flat["interval_95"][1] <= 0.05
     assert "100 segments" in flat["limit"]
+    wider = score.compare_pairs([True] * 57, [True] * 57, 0)
+    assert -0.10 < wider["interval_95"][0] < -0.05
+    assert 0.05 < wider["interval_95"][1] < 0.10
+    assert wider["result"] == "not shown"
     # Independent published implementation: statsmodels method 10, paired table [[10, 5], [2, 20]].
     a = [True] * 10 + [False] * 5 + [True] * 2 + [False] * 20
     b = [True] * 15 + [False] * 22
@@ -148,6 +180,10 @@ def test_score_review_freezes_sample_blinds_procedures_and_marks_operator(tmp_pa
     plan = score.make_plan(tokenizer, [kit_for(source, f"s{i}") for i, source in enumerate(sources)],
                            sources, build_record(tokenizer))
     assert len(plan["review_sample"]) == 30
+    other = score.make_plan(tokenizer, [kit_for(source, f"s{i}") for i, source in enumerate(sources)],
+                            sources, build_record(tokenizer), seed=1)
+    assert set(plan["review_sample"]) != {f"s{i}" for i in range(30)}
+    assert set(plan["review_sample"]) != set(other["review_sample"])
     prompt = tmp_path / "review.md"
     prompt.write_text("Assess the work and the next action.\n")
     runs = {name: [{"id": entry["id"], "output": "Read the file."} for entry in plan["entries"]]
@@ -158,6 +194,8 @@ def test_score_review_freezes_sample_blinds_procedures_and_marks_operator(tmp_pa
     assert len(bundle["items"]) == 60 and bundle["count_per_run"] == 30
     assert all(set(item) == {"id", "prompt", "output"} for item in bundle["items"])
     assert "baseline" not in json.dumps(bundle) and "epoch-1" not in json.dumps(bundle)
+    order = [mapping[item["id"]]["run"] for item in bundle["items"]]
+    assert set(order[:30]) == set(order[30:]) == {"baseline", "epoch-1"}
     for name in runs:
         assert {item["segment"] for item in mapping.values() if item["run"] == name} == set(plan["review_sample"])
     verdicts = [{"id": item["id"], "decision": "fits"} for item in bundle["items"]]
@@ -166,6 +204,44 @@ def test_score_review_freezes_sample_blinds_procedures_and_marks_operator(tmp_pa
     assert reviewed["decisions"][0]["model_decision"] == "fits"
     with pytest.raises(score.ScoreError, match="exactly once"):
         score.apply_review(bundle, mapping, verdicts[:-1])
+    with pytest.raises(score.ScoreError, match="distinct item"):
+        score.apply_review(bundle, mapping, verdicts, [{"id": verdicts[0]["id"], "decision": decision}
+                                                      for decision in ("odd", "incorrect")])
+
+
+def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokenizer):
+    """SCORE-REVIEW: invalid or incomplete multi-run imports cannot change an earlier record."""
+    source = row()
+    plan = score.make_plan(tokenizer, [kit_for(source)], [source], build_record(tokenizer))
+    prompt = tmp_path / "review.md"
+    prompt.write_text("Assess the work.\n")
+    runs = {name: [{"id": "sample", "output": "Read the file."}] for name in ("a", "b")}
+    bundle, mapping = score.review_bundle(plan, runs, prompt)
+    for name, value in (("bundle", bundle), ("mapping", mapping)):
+        (tmp_path / f"{name}.json").write_text(json.dumps(value))
+    (tmp_path / "verdicts.jsonl").write_text("".join(json.dumps({"id": item["id"], "decision": "fits"}) + "\n"
+                                                    for item in bundle["items"]))
+    record = {"reviewer_model": score.REVIEW_MODEL, "reviewer_prompt_sha256": mf.sha256_file(prompt),
+              "review_sample": ["sample"], "review_status": "pending"}
+    for name in runs:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "score.json").write_text(json.dumps(record))
+    args = ["review-import", "--bundle", str(tmp_path / "bundle.json"),
+            "--mapping", str(tmp_path / "mapping.json"), "--verdicts", str(tmp_path / "verdicts.jsonl")]
+    first, second = tmp_path / "a/score.json", tmp_path / "b/score.json"
+    original = first.read_bytes()
+    assert score.main(args + ["--score", str(first.parent)]) == 1
+    assert first.read_bytes() == original
+    second.write_text(json.dumps({**record, "reviewer_prompt_sha256": "changed"}))
+    both = args + ["--score", str(first.parent), "--score", str(second.parent)]
+    assert score.main(both) == 1
+    assert first.read_bytes() == original
+    second.write_text(json.dumps(record))
+    assert score.main(both) == 0
+    for path in (first, second):
+        updated = json.loads(path.read_text())
+        assert updated["review_status"] == "completed"
+        assert updated["review_decisions"][0]["decision"] == "fits"
 
 
 def write_scored(directory, plan_path, outcomes):

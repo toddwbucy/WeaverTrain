@@ -56,7 +56,9 @@ def locate_segments(kit, rows):
             continue
         segments = list(ste_convert.segments(row))
         for wanted in by_uuid[row["uuid"]]:
-            if any(loc == wanted["loc"] and raw == wanted["raw"] for loc, raw in segments):
+            # SCORE-LOCATE: ste_kit_sample stores split_ws(text)[1], preserving all interior text.
+            if any(loc == wanted["loc"] and ste_convert.split_ws(raw)[1] == ste_convert.split_ws(wanted["raw"])[1]
+                   for loc, raw in segments):
                 matches[wanted["id"]].append((number, row))
     located, excluded = {}, []
     for segment in kit:
@@ -293,6 +295,8 @@ def apply_review(bundle, mapping, verdicts, overrides=()):
         if item.get("decision") not in ("fits", "odd", "incorrect"):
             raise ScoreError(f"SCORE-REVIEW: invalid decision for {key}")
     decisions = {key: {**item, "operator_override": False} for key, item in decisions.items()}
+    if len({item["id"] for item in overrides}) != len(overrides):
+        raise ScoreError("SCORE-REVIEW: each operator replacement must name a distinct item")
     for item in overrides:
         if item["id"] not in decisions or item.get("decision") not in ("fits", "odd", "incorrect"):
             raise ScoreError("SCORE-REVIEW: invalid operator replacement")
@@ -514,14 +518,21 @@ def main(argv=None):
             mapping = json.loads(args.mapping.read_text())
             reviewed = apply_review(bundle, mapping, build.read_jsonl(args.verdicts),
                                     build.read_jsonl(args.overrides) if args.overrides else [])
+            names = [path.name for path in args.score]
+            if len(set(names)) != len(names) or set(names) != {item["run"] for item in reviewed["decisions"]}:
+                raise ScoreError("SCORE-REVIEW: score directories differ from the blinded runs")
+            updates = []
             for path in args.score:
                 record = json.loads((path / "score.json").read_text())
-                if record.get("reviewer_prompt_sha256") != reviewed["prompt_sha256"]:
-                    raise ScoreError("SCORE-REVIEW: prompt hash differs from the score record")
+                if (record.get("reviewer_prompt_sha256") != reviewed["prompt_sha256"]
+                        or record.get("reviewer_model") != reviewed["model"]):
+                    raise ScoreError("SCORE-REVIEW: reviewer model or prompt hash differs from the score record")
                 decisions = [item for item in reviewed["decisions"] if item["run"] == path.name]
                 if {item["segment"] for item in decisions} != set(record["review_sample"]):
                     raise ScoreError("SCORE-REVIEW: review set differs from the score record")
                 record.update(review_status="completed", review_decisions=decisions)
+                updates.append((path, record))
+            for path, record in updates:
                 (path / "score.json").write_text(json.dumps(record, indent=2) + "\n")
     except (ScoreError, mf.ManifestError, OSError, KeyError, ValueError) as exc:
         print(f"refused: {exc}", file=sys.stderr)
