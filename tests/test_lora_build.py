@@ -155,3 +155,61 @@ def test_build_render_only_keeps_two_sequences_without_train_data(tmp_path, toke
         assert sequences[name] == build.render_row(tokenizer, prompts[name], enable_thinking=False,
                                                    add_generation_prompt=True)
     assert not mf.verify_tree(mf.load_tree(dest.with_name(dest.name + ".manifest.json")), dest)
+
+
+def test_build_order_is_independent_of_input_file_order(tmp_path, tokenizer):
+    """BUILD-ORDER: independently invoked curve builds retain the same seeded prefix."""
+    paths = [inputs(tmp_path, [row(8), row(3)], "first"), inputs(tmp_path, [row(9), row(1)], "second")]
+    kit = heldout(tmp_path)
+    results = []
+    for index, ordered in enumerate((paths, list(reversed(paths)))):
+        dest = tmp_path / f"order-{index}"
+        build.build_dataset(tokenizer, ordered, kit, dest, tree_hash="model-hash",
+                            max_seq_length=50, seed=0, limit=2, enable_thinking=False)
+        results.append(build.read_jsonl(dest / "train.jsonl"))
+    assert results[0] == results[1]
+
+
+@pytest.mark.parametrize("render_only", [False, True])
+def test_build_render_refuses_thinking_true(tmp_path, tokenizer, render_only):
+    """BUILD-RENDER: direct callers must obey the explicit false setting too."""
+    options = dict(tree_hash="model-hash", max_seq_length=50, enable_thinking=True)
+    with pytest.raises(build.BuildError, match="enable_thinking=false"):
+        if render_only:
+            build.build_render_only(tokenizer, {"trajectory": row(), "loop": {"messages": row()["messages"][:2]}},
+                                    tmp_path / "render", **options)
+        else:
+            build.build_dataset(tokenizer, [inputs(tmp_path, [row()])], heldout(tmp_path), tmp_path / "build",
+                                seed=0, limit=None, **options)
+
+
+@pytest.mark.parametrize("render_only", [False, True])
+def test_build_output_cleans_failed_writes_and_preserves_existing_manifest(tmp_path, tokenizer, monkeypatch, render_only):
+    """BUILD-OUTPUT: storage errors cannot publish a partial dataset or replace old records."""
+    dest = tmp_path / "output"
+    manifest = dest.with_name(dest.name + ".manifest.json")
+    source, kit = inputs(tmp_path, [row()]), heldout(tmp_path)
+    options = dict(tree_hash="model-hash", max_seq_length=50, enable_thinking=False)
+
+    def run():
+        if render_only:
+            return build.build_render_only(tokenizer, {"trajectory": row(), "loop": {"messages": row()["messages"][:2]}},
+                                           dest, **options)
+        return build.build_dataset(tokenizer, [source], kit, dest, seed=0, limit=None, **options)
+
+    def fail_save(self, path):
+        Path(path).write_text("partial")
+        raise OSError("simulated manifest write failure")
+
+    monkeypatch.setattr(mf.TreeManifest, "save", fail_save)
+    with pytest.raises(OSError, match="simulated"):
+        run()
+    assert not dest.exists() and not manifest.exists()
+    dest.mkdir()
+    with pytest.raises(OSError, match="simulated"):
+        run()
+    assert list(dest.iterdir()) == [] and not manifest.exists()
+    manifest.write_text("existing record")
+    with pytest.raises(build.BuildError, match="manifest already exists"):
+        run()
+    assert manifest.read_text() == "existing record" and list(dest.iterdir()) == []
