@@ -44,21 +44,58 @@ from weaver_train import manifest as mf  # noqa: E402
 import ste_check  # noqa: E402
 
 MAX_SEGMENT_CHARS = 30000
+QUOTE_LINE = re.compile(r"(?P<lead>[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?)>(?P<rest>.*)", re.S)
+FENCE = re.compile(r"[ \t]*(?:```|~~~)")
+# quoted content that is not paragraph text: blank (also CRLF), ATX heading, fence, break,
+# or a lone placeholder (a code block or listing that an earlier pass already masked)
+NOT_PARAGRAPH = re.compile(r"[ \t]*(?:\r?$|#{1,6}(?:[ \t]|\r?$)|```|~~~|(?:[-*_][ \t]*){3,}\r?$"
+                           r"|\[\[C\d+\]\][ \t]*\r?$)")
+# an unquoted line that starts a new block instead of continuing a quoted paragraph
+INTERRUPTS = re.compile(r"[ \t]*(?:\r?$|#{1,6}(?:[ \t]|\r?$)|```|~~~|[-*+][ \t]|\d+[.)][ \t]|(?:[-*_][ \t]*){3,}\r?$)")
+
+
+def mask_quotations(text: str, keep) -> str:
+    """Mask each Markdown quotation as one span, nested quotes and all. An unquoted line
+    continues it only while a quoted paragraph is open (CommonMark's lazy continuation):
+    not after a quoted blank line, heading, break or code fence, and not when the line
+    starts a block itself. A list marker before ">" stays visible ("- [[C1]]"), so the
+    rewrite still sees the list; a later quoted list item is its own span."""
+    lines, out, i = text.split("\n"), [], 0
+    while i < len(lines):
+        m = QUOTE_LINE.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        lead, block, fence, para = m["lead"], [lines[i][len(m["lead"]):]], False, False
+
+        def step(rest):
+            nonlocal fence, para
+            if FENCE.match(rest):
+                fence, para = not fence, False
+            elif not fence:
+                para = not NOT_PARAGRAPH.match(rest)
+
+        step(m["rest"])
+        j = i + 1
+        while j < len(lines):
+            q = QUOTE_LINE.match(lines[j])
+            if q and not q["lead"].strip():          # another quoted line of this quotation
+                step(q["rest"])
+            elif q or not para or fence or INTERRUPTS.match(lines[j]):
+                break
+            block.append(lines[j])
+            j += 1
+        out.append(keep("\n".join(block), lead))
+        i = j
+    return "\n".join(out)
+
+
 SPAN_PATTERNS = [
     re.compile(r"```.*?```", re.S),                       # fenced code
-    # Markdown blockquote lines, run together: a quotation (of the issue, of output)
-    # is someone else's text and stays as written, nested quotes and all
-    # A line after a quoted line of text without ">" continues the quote (Markdown's
-    # lazy continuation), but not after a quoted blank line, and not when it is blank
-    # (also with CRLF) or starts an ATX heading, a list, a fence or a thematic break.
-    # A quotation inside a list item ("- > text", "1. > text") is quoted text too; the
-    # marker (group "lead") stays outside the placeholder, so the rewrite still sees the
-    # list. The pattern is a constant: no input reaches it, every repeat starts at "\n".
-    re.compile(r"(?m)^(?P<lead>[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?)(?:{t}|{b})(?:\n[ \t]*(?:{t}|{b}))*".format(
-        t=(r">[ \t]*[^\s][^\n]*"                            # a quoted line of text
-           r"(?:\n(?![ \t]*(?:\r?$|>|#{1,6}(?:[ \t]|\r?$)|```|~~~|[-*+][ \t]|\d+[.)][ \t]"
-           r"|(?:[-*_][ \t]*){3,}\r?$))[^\n]+)*"),           # and its lazy continuation lines
-        b=r">[ \t\r]*(?=\n|$)")),                           # or a quoted blank line
+    # Markdown quotations (of the issue, of output) are someone else's text and stay as
+    # written: see mask_quotations
+    "quotations",
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
     # an exception name and its message, to the end of the line: program output
@@ -169,17 +206,18 @@ def mask_listings(text: str, codes: list[str]) -> str:
 def mask(text: str) -> tuple[str, list[str]]:
     codes: list[str] = []
 
-    def sub(m):
-        lead = (m.groupdict().get("lead") or "") if m.re.groupindex else ""
-        body = m.group(0)[len(lead):]
+    def keep(body: str, lead: str = "") -> str:
         if body.startswith("[[C"):
-            return m.group(0)
+            return lead + body
         codes.append(body)
-        return f"{lead}[[C{len(codes)}]]"   # a pattern's "lead" group stays visible
+        return f"{lead}[[C{len(codes)}]]"
+
+    def sub(m):
+        return keep(m.group(0))
 
     text = mask_listings(text, codes)
     for pat in SPAN_PATTERNS:
-        text = pat.sub(sub, text)
+        text = mask_quotations(text, keep) if pat == "quotations" else pat.sub(sub, text)
     text = mask_brackets(text, codes)
     text = IDENT.sub(lambda m: sub(m) if not re.fullmatch(r"\d+(\.\d+)*", m.group(0)) else m.group(0), text)
     return text, codes

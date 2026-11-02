@@ -230,3 +230,12 @@ def test_quotation_inside_a_list_item_is_masked():
         assert conv.unmask(masked, codes) == text
     masked, _ = conv.mask("- I will fix it.")                    # a list item with no quote stays prose
     assert masked == "- I will fix it."
+
+
+def test_no_continuation_after_a_quoted_heading_or_code_block():
+    # PR #4 review: only a quoted paragraph takes lazy continuation lines
+    for text in ("> # Issue\nI will investigate the failure.",
+                 "> ```\n> code\n> ```\nI will investigate the failure."):
+        masked, codes = conv.mask(text)
+        assert masked.endswith("]]\nI will investigate the failure."), (text, masked)
+        assert conv.unmask(masked, codes) == text
