@@ -601,6 +601,15 @@ def read_grades(d: Path, key: dict) -> tuple[dict, list[str]]:
     return out, problems
 
 
+def agreement(per_seg: dict, models_: list[str]) -> tuple[dict, list, list]:
+    """Segments with a valid verdict from every model's grader, and of those the ones
+    whose verdicts differ and the ones that agree. A missing grade counts for neither."""
+    both = {s: v for s, v in per_seg.items()
+            if set(v) >= set(models_) and all(v[m].get("verdict") in VERDICTS for m in models_)}
+    dis = sorted(s for s, v in both.items() if len({v[m]["verdict"] for m in models_}) > 1)
+    return both, dis, sorted(set(both) - set(dis))
+
+
 def cmd_grade_score(a) -> int:
     import random
     keys = {p.stem[:-4]: json.loads(p.read_text()) for p in sorted((ROOT / "grading").glob("*-key.json"))}
@@ -628,9 +637,7 @@ def cmd_grade_score(a) -> int:
                          f"{(g.get('note') or '').replace('|', '/')[:120]} |")
         lines.append("")
     models_ = sorted({k["target"] for k in keys.values()})
-    both = {s: v for s, v in per_seg.items() if len(v) == len(models_)}
-    dis = sorted(s for s, v in both.items() if len({x.get("verdict") for x in v.values()}) > 1)
-    agree = sorted(set(both) - set(dis))
+    both, dis, agree = agreement(per_seg, models_)
     lines += [f"## Agreement over {len(both)} segments graded for both models", "",
               f"Segments where the two rewrites got different verdicts: {len(dis)}; the same verdict: "
               f"{len(agree)}.", ""]

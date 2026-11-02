@@ -78,3 +78,13 @@ def test_send_parts_with_nothing_to_send(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(exp, "models", lambda names: [d])
     assert exp.cmd_send_parts(SimpleNamespace(task="repair", names=["m"], size=10)) == 0
     assert "queued 0 parts" in capsys.readouterr().out
+
+
+def test_agreement_counts_only_segments_graded_for_every_model():
+    v = sorted(exp.VERDICTS)
+    per_seg = {"s1": {"a": {"verdict": v[0]}, "b": {"verdict": v[0]}},     # agree
+               "s2": {"a": {"verdict": v[0]}, "b": {"verdict": v[1]}},     # differ
+               "s3": {"a": {"grader": "g"}, "b": {"grader": "g"}},         # neither graded
+               "s4": {"a": {"verdict": v[0]}, "b": {}}}                    # one missing
+    both, dis, agree = exp.agreement(per_seg, ["a", "b"])
+    assert set(both) == {"s1", "s2"} and dis == ["s2"] and agree == ["s1"]
