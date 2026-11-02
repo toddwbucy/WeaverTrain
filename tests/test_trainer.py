@@ -293,15 +293,16 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
         return Inspected
 
     monkeypatch.setattr(trainer, "checked_trainer_class", inspected)
-    run_unsloth = trainer._run_unsloth
+    validate_tokenized = trainer.validate_tokenized
 
-    def replace_source_after_validation(*args):
-        # TRAIN-TOKENIZED, TRAIN-RECORD: loading uses captured bytes after the source is replaced.
+    def replace_source_after_validation(*args, **kwargs):
+        result = validate_tokenized(*args, **kwargs)
+        # TRAIN-TOKENIZED, TRAIN-RECORD: hashing and loading use captured bytes after source replacement.
         path.write_text("replaced dataset\n")
         path.with_name("build.json").write_text("{}\n")
-        return run_unsloth(*args)
+        return result
 
-    monkeypatch.setattr(trainer, "_run_unsloth", replace_source_after_validation)
+    monkeypatch.setattr(trainer, "validate_tokenized", replace_source_after_validation)
     out = tmp_path / "tokenized-run"
     record = trainer.train(model_dir, manifest_path, path, config_path, out)
     expected = [[value if keep else -100 for value, keep in zip(ids, mask)]]
