@@ -415,7 +415,7 @@ correct? The
 checker cannot find these problems, as the conversion batches showed.
 
 The reviewer is a Claude model, `claude-opus-5-5`, with the reviewer prompt
-`ste/review-prompt.md`. That file goes into git with this code. It holds no text from
+`config/lora-review-prompt.md`. That file goes into git with this code. It holds no text from
 the standard. The score record holds the model ID and the sha256 of the reviewer
 prompt, as SCORE-CHECK records the prompt hash of the checker. The reviewer does not
 know which model wrote a segment. The segments of all the procedures that the curve compares go
