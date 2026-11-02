@@ -343,7 +343,14 @@ skill. A tool call in the output is correct when these 3 conditions apply:
 2. It names a tool in the `tools` list of the row.
 3. Its arguments include all the required parameters of that tool.
 
-The rate is for all segments where the output has a tool call.
+The call set is the held-out segments where the original message has a tool call.
+For a `finish` message, the `finish` call is that tool call. The call set is the same
+for all runs, and the score record lists it. For each segment of the call set, the
+result is correct or incorrect. If the output has no tool call, the result is
+incorrect. If the output has more than one tool call, each tool call must be correct.
+The correct-call rate is the quantity of correct results, divided by the quantity of
+segments in the call set. Thus, 2 runs give results for the same segments, and
+RUN-MARGIN can compare them in pairs.
 
 **SCORE-REVIEW.** For each adapter and for R0, a reviewer reads 30 segments. A seed
 selects the 30 segments, and the selection does not change. The reviewer reads each
@@ -507,7 +514,9 @@ model of `tests/conftest.py`.
   and one last adapter. The directories hold adapter files only.
 - **SCORE-LOCATE, SCORE-EXTRACT, SCORE-VALIDITY:** The score record lists rows that
   are not found and rows that more than one row agrees with. The score script gets
-  the text and the `finish` message. It counts tool calls that are not correct.
+  the text and the `finish` message. It counts tool calls that are not correct. In
+  the call set, an output with no tool call is incorrect, and the call set is the same
+  for 2 runs.
 - **RECONCILE-FIELDS:** `build.json` holds each field of the clause. The score script
   rejects a data record without one of the fields. The RECONCILE step is a record of
   work on the model files, not a unit test.
