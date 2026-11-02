@@ -267,6 +267,11 @@ fit, do the same step at 34,816 tokens (376 rows). If that step does not fit, st
 tell the operator. Do not remove the `tools` list without a new decision of the
 operator.
 
+If the step at 34,816 tokens fits, R1, R2 and R3 use 34,816 as
+`train.max_seq_length`. Then do the data script again at that length, with a new
+`build.json`. Do the RECONCILE step again before R1, because `max_seq_length` is one
+of the fields of RECONCILE-FIELDS. The score script uses the same value.
+
 **RUN-ORDER.** Do the procedures in this sequence. Do not start a procedure before
 the previous procedure is complete.
 
