@@ -418,6 +418,16 @@ def read_score(directory, plan_path):
     return record, rows
 
 
+def review_run_identity(directory, record):
+    """SCORE-REVIEW: bind verdicts to the completed run and the outputs that were reviewed."""
+    if record.get("status") != "completed" or record.get("engine") != "python-hf":
+        raise ScoreError("SCORE-REVIEW: only completed python-hf scores can receive verdicts")
+    original = {key: value for key, value in record.items() if key not in ("review_status", "review_decisions")}
+    digest = hashlib.sha256(json.dumps(original, sort_keys=True).encode()).hexdigest()
+    return {"adapter_sha256": record["adapter_sha256"], "plan_sha256": record["plan_sha256"],
+            "score_sha256": digest, "segments_sha256": mf.sha256_file(directory / "segments.jsonl")}
+
+
 def compare_scores(plan_path, a_dir, b_dir, r0_first, r0_second):
     """SCORE-SPREAD, RUN-MARGIN: measure baseline decode spread separately for each rate."""
     records = [read_score(path, plan_path) for path in (a_dir, b_dir, r0_first, r0_second)]
@@ -510,20 +520,24 @@ def main(argv=None):
                 raise ScoreError("SCORE-REVIEW: prompt hash differs from the scores")
             runs = {name: rows for name, (_, rows) in records.items()}
             bundle, mapping = review_bundle(plan, runs, args.prompt, seed=args.seed)
+            identities = {path.name: review_run_identity(path, records[path.name][0]) for path in args.score}
             args.out.mkdir(parents=True)
             (args.out / "blinded.json").write_text(json.dumps(bundle) + "\n")
-            (args.out / "mapping.json").write_text(json.dumps(mapping) + "\n")
+            (args.out / "mapping.json").write_text(json.dumps({"items": mapping, "runs": identities}) + "\n")
         else:
             bundle = json.loads(args.bundle.read_text())
             mapping = json.loads(args.mapping.read_text())
-            reviewed = apply_review(bundle, mapping, build.read_jsonl(args.verdicts),
+            reviewed = apply_review(bundle, mapping["items"], build.read_jsonl(args.verdicts),
                                     build.read_jsonl(args.overrides) if args.overrides else [])
             names = [path.name for path in args.score]
-            if len(set(names)) != len(names) or set(names) != {item["run"] for item in reviewed["decisions"]}:
+            if (len(set(names)) != len(names) or set(names) != set(mapping["runs"])
+                    or set(names) != {item["run"] for item in reviewed["decisions"]}):
                 raise ScoreError("SCORE-REVIEW: score directories differ from the blinded runs")
             updates = []
             for path in args.score:
                 record = json.loads((path / "score.json").read_text())
+                if review_run_identity(path, record) != mapping["runs"][path.name]:
+                    raise ScoreError("SCORE-REVIEW: score record or outputs differ from the exported run")
                 if (record.get("reviewer_prompt_sha256") != reviewed["prompt_sha256"]
                         or record.get("reviewer_model") != reviewed["model"]):
                     raise ScoreError("SCORE-REVIEW: reviewer model or prompt hash differs from the score record")

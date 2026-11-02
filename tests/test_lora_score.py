@@ -209,39 +209,75 @@ def test_score_review_freezes_sample_blinds_procedures_and_marks_operator(tmp_pa
                                                       for decision in ("odd", "incorrect")])
 
 
-def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokenizer):
+def test_score_review_import_validates_all_runs_before_writing(tmp_path, tokenizer, capsys):
     """SCORE-REVIEW: invalid or incomplete multi-run imports cannot change an earlier record."""
     source = row()
     plan = score.make_plan(tokenizer, [kit_for(source)], [source], build_record(tokenizer))
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan))
     prompt = tmp_path / "review.md"
     prompt.write_text("Assess the work.\n")
-    runs = {name: [{"id": "sample", "output": "Read the file."}] for name in ("a", "b")}
-    bundle, mapping = score.review_bundle(plan, runs, prompt)
-    for name, value in (("bundle", bundle), ("mapping", mapping)):
-        (tmp_path / f"{name}.json").write_text(json.dumps(value))
+    first, second = tmp_path / "a/score.json", tmp_path / "b/score.json"
+    for path in (first, second):
+        write_scored(path.parent, plan_path, [True])
+        record = json.loads(path.read_text())
+        record.update(reviewer_model=score.REVIEW_MODEL, reviewer_prompt_sha256=mf.sha256_file(prompt),
+                      review_sample=["sample"], review_status="pending")
+        path.write_text(json.dumps(record))
+        segments = path.with_name("segments.jsonl")
+        rows = score.build.read_jsonl(segments)
+        rows[0]["output"] = "Read the file."
+        segments.write_text(json.dumps(rows[0]) + "\n")
+    export = tmp_path / "review"
+    assert score.main(["review-export", "--plan", str(plan_path), "--prompt", str(prompt),
+                       "--score", str(first.parent), "--score", str(second.parent), "--out", str(export)]) == 0
+    bundle = json.loads((export / "blinded.json").read_text())
+    mapping = json.loads((export / "mapping.json").read_text())
+    assert set(mapping["runs"]) == {"a", "b"}
+    assert mapping["runs"]["a"]["plan_sha256"] == mf.sha256_file(plan_path)
+    assert mapping["runs"]["a"]["adapter_sha256"] == "none"
     (tmp_path / "verdicts.jsonl").write_text("".join(json.dumps({"id": item["id"], "decision": "fits"}) + "\n"
                                                     for item in bundle["items"]))
-    record = {"reviewer_model": score.REVIEW_MODEL, "reviewer_prompt_sha256": mf.sha256_file(prompt),
-              "review_sample": ["sample"], "review_status": "pending"}
-    for name in runs:
-        (tmp_path / name).mkdir()
-        (tmp_path / name / "score.json").write_text(json.dumps(record))
-    args = ["review-import", "--bundle", str(tmp_path / "bundle.json"),
-            "--mapping", str(tmp_path / "mapping.json"), "--verdicts", str(tmp_path / "verdicts.jsonl")]
-    first, second = tmp_path / "a/score.json", tmp_path / "b/score.json"
+    args = ["review-import", "--bundle", str(export / "blinded.json"),
+            "--mapping", str(export / "mapping.json"), "--verdicts", str(tmp_path / "verdicts.jsonl")]
     original = first.read_bytes()
     assert score.main(args + ["--score", str(first.parent)]) == 1
     assert first.read_bytes() == original
-    second.write_text(json.dumps({**record, "reviewer_prompt_sha256": "changed"}))
     both = args + ["--score", str(first.parent), "--score", str(second.parent)]
+    saved = second.read_bytes()
+    record = json.loads(saved)
+    for field, value in (("reviewer_prompt_sha256", "changed"), ("adapter_sha256", "another-adapter"),
+                         ("plan_sha256", "another-plan"), ("status", "started"), ("status", "failed")):
+        second.write_text(json.dumps({**record, field: value}))
+        before = second.read_bytes()
+        assert score.main(both) == 1
+        assert "SCORE-REVIEW:" in capsys.readouterr().err
+        assert first.read_bytes() == original and second.read_bytes() == before
+    second.write_bytes(saved)
+    segments = second.with_name("segments.jsonl")
+    saved_segments = segments.read_bytes()
+    segments.write_text(segments.read_text().replace("Read the file.", "Read the next file."))
     assert score.main(both) == 1
+    assert "outputs differ" in capsys.readouterr().err
+    assert first.read_bytes() == original and second.read_bytes() == saved
+    segments.write_bytes(saved_segments)
+    substitute = tmp_path / "other/b"
+    substitute.mkdir(parents=True)
+    (substitute / "segments.jsonl").write_bytes(saved_segments)
+    (substitute / "score.json").write_text(json.dumps({**record, "wall_seconds": 2}))
+    assert score.main(args + ["--score", str(first.parent), "--score", str(substitute)]) == 1
+    assert "exported run" in capsys.readouterr().err
     assert first.read_bytes() == original
-    second.write_text(json.dumps(record))
     assert score.main(both) == 0
     for path in (first, second):
         updated = json.loads(path.read_text())
         assert updated["review_status"] == "completed"
         assert updated["review_decisions"][0]["decision"] == "fits"
+    overrides = tmp_path / "overrides.jsonl"
+    overrides.write_text(json.dumps({"id": bundle["items"][0]["id"], "decision": "odd"}) + "\n")
+    assert score.main(both + ["--overrides", str(overrides)]) == 0
+    decisions = [item for path in (first, second) for item in json.loads(path.read_text())["review_decisions"]]
+    assert sum(item["operator_override"] for item in decisions) == 1
 
 
 def write_scored(directory, plan_path, outcomes):
