@@ -2,9 +2,10 @@
 
 **Status:** DRAFT. Awaiting the operator's rulings named in section 10.
 
-**Version:** 0.2 **Date filed:** 2026-11-02 **Parent:** `docs/decisions.md`
+**Version:** 0.3 **Date filed:** 2026-11-02 **Parent:** `docs/decisions.md`
 
-**Editorial:** ASCII only, no em-dashes, absolute dates. Clause names are bold and
+**Editorial:** ASCII only, no em-dashes, no semicolons, none of the Working Rules'
+banned words, absolute dates. Clause names are bold and
 stable. A merged version of this Spec authorizes the code it names, and where code and
 this Spec disagree, the same change fixes whichever is wrong.
 
@@ -26,6 +27,10 @@ The input is the converted data of the STE batches (`reports/2026-11-01-ste-batc
 and `reports/2026-11-01-ste-batch-200-2.md`): 387 trajectories in two files, each with
 a run record that holds its sha256. A third batch may be added. The code reads any
 number of converted files and does not assume a count.
+
+One carve-out from the Nemotron-only scope: a render-only build (BUILD-RENDER-ONLY)
+may name another verified model tree, so that RECONCILE-EARLY can run against a
+smaller model. A render-only build never loads weights and never feeds training.
 
 Out of scope: the SWE benchmark (section 7), any rewriter adapter, any change to the
 STE conversion scripts, and expert adapters.
@@ -98,6 +103,15 @@ and counts (rows in, rows dropped and why, total tokens, masked tokens, and the
 masked tokens that fall in converted STE prose). It then writes a tree manifest of the
 output directory with `weaver_train.manifest`. The output goes under
 `$WEAVER_TRAIN_STATE_DIR`, never into git.
+
+**BUILD-RENDER-ONLY.** With `--render-only --model NAME`, the command writes a
+`build.json` and the RECONCILE-RENDER renderings, and no `train.jsonl`. NAME may be any
+model entry in `config/models.toml` whose tree verifies against its manifest. A
+manifest that covers only the tokenizer files is enough, since a render-only build
+reads the tokenizer and template and never loads weights. The trainer refuses a
+render-only build. Adding a model entry, such as the 4B's tokenizer files at the
+revision its GGUF was converted from, is a download and waits on the operator's go
+like any other.
 
 ## 3. Loss on the assistant turns only
 
@@ -174,10 +188,23 @@ and the curve is what tests them. (Ruling owed on changing any of them, section 
 Each run's epoch adapters are scored. The curve is the held-out pass rate and the
 validity rate against rows trained on, at epochs 1 and 2.
 
-**RUN-READ.** If the pass rate is still rising between R2 and R3, more data is worth
-getting. If it is flat, the next change is LOSS-UNWEIGHTED's open cell, not more data.
-If validity falls by more than the run-to-run spread of R0's scorer (section 6), the
-adapter is reported as costing skill.
+**RUN-MARGIN.** This margin is fixed here, before R0 runs, and is not changed after any
+score is seen. Every comparison in the curve is between two scorings of the same
+segments, so it is paired. For two scorings A and B, b counts the segments that pass
+under B and fail under A, and c counts the reverse. B is higher than A only when both
+hold: an exact two-sided sign test on b and c gives p below 0.05, and the difference
+in pass rate is larger than SCORE-SPREAD's decode spread. If either fails, the two are
+equal for this Spec's purposes ("flat"). The same rule, applied to valid tool calls,
+decides a fall in validity. On 100 segments, differences under about 10 points will
+usually read as flat. That is a limit of the held-out set, recorded with each reading,
+not a reason to loosen the margin. The two noises are separate: SCORE-SPREAD is decode
+nondeterminism between identical runs, and the sign test covers sampling error on the
+segments.
+
+**RUN-READ.** If R3 is higher than R2 under RUN-MARGIN, more data is worth getting. If
+they are flat, the next change is LOSS-UNWEIGHTED's open cell, not more data. If an
+adapter's validity is lower than R0's under RUN-MARGIN, the adapter is reported as
+costing skill.
 
 **RUN-OUTPUT.** Each run writes to a fresh directory outside the model tree, as the
 trainer already enforces. Adapters, build outputs and score files are deposited under
@@ -225,13 +252,20 @@ satisfy that tool's required parameters. The rate is over all segments with a
 generated tool call.
 
 **SCORE-REVIEW.** For each scored adapter and for R0, 30 segments in a fixed seeded
-selection are read by reviewers against their prompt: does the prose fit what the
-agent is doing, and is the next action sensible. Verdicts are fits, odd or wrong. The
-checker cannot see this, as the conversion batches showed.
+selection are read against their prompt: does the prose fit what the agent is doing,
+and is the next action sensible. Verdicts are fits, odd or wrong. The checker cannot
+see this, as the conversion batches showed. The reader is a Claude model session,
+`claude-opus-5-5`, given the review prompt `ste/review-prompt.md`. That file is
+committed with this code and holds no standard text, and its sha256 and the model id
+go into the score record, as SCORE-CHECK records the checker's prompt hash. The read is
+blind: the segments of every run being compared are shuffled together, and the reader
+is not told which model wrote which. Neither Gemini nor DeepSeek reads, because both
+wrote training or reference data. The operator may read any segment, and an operator
+verdict replaces the model's for that segment and is marked as such.
 
 **SCORE-SPREAD.** R0 runs twice. Greedy decoding on a split model can still differ
-between runs, and the difference between the two R0 scores is the spread RUN-READ
-uses.
+between runs, and the difference between the two R0 scores is the decode spread
+RUN-MARGIN uses.
 
 **SCORE-OUTPUT.** Per segment, a JSON Lines record with the prompt length, the
 generated text, the extracted prose, the checker result and the validity result. In
@@ -259,7 +293,7 @@ nothing else: no code, fixture or path couples this repository to WeaverAgent.
 **RECONCILE-STEP.** Reconciliation sits between two milestones: the loop verified end
 to end on the second machine, and the loop running with this Spec's adapter on this
 machine. It holds the three checks below. The loop does not run with the adapter until
-all three are recorded.
+all three are recorded under RECONCILE-RECORD.
 
 **RECONCILE-FIELDS.** The SPU side must match these `build.json` fields of the build
 the adapter was trained on: the model `tree_hash` (the tokenizer comes from it), the
@@ -268,13 +302,24 @@ BUILD-RENDER and BUILD-OUTPUT already record them. This clause adds no field, an
 change to any of them after reconciliation reopens it.
 
 **RECONCILE-RENDER.** Training stays in Python, and the SPU does not train, but it must
-feed the model the tokens the trainer saw. One held-out prompt is rendered two ways:
-through BUILD-RENDER with the build record's values (as SCORE-PREFIX renders it), and
-through the SPU's family entry for the model. The two token ID sequences are compared.
-If they match, the adapter sees in serving what it saw in training. If they differ, the
-SPU's rendering is fixed to match the build record, never the reverse. The GGUF
-carries the chat template in its metadata, so a match is expected, but it is measured,
-not assumed.
+feed the model the tokens the trainer saw. Two prompts are each rendered two ways,
+through BUILD-RENDER with the build record's values and through the SPU's family entry
+for the model, and each pair of token ID sequences is compared:
+
+1. **The trajectory turn.** One held-out prompt as SCORE-PREFIX builds it, with the
+   row's `tools` passed as the build record says.
+2. **The loop turn.** The turn the loop's stage 5 sends (ruling P of the #431 brief):
+   the rules prompt `e21370fcd140` as the system message and one kit segment, masked,
+   as the user message, with `tools` absent. This takes a different path through the
+   chat template, and the loop sends it however PURPOSE-EMITTER is ruled.
+
+Each prompt's message list is written once, as JSON, and both sides render that same
+list, so the comparison tests the rendering and not two ways of building the messages.
+The loop turn's list holds standard text, so it lives only in the RECONCILE-RECORD
+deposit, never in git. If a pair matches, the adapter sees in serving what it saw in
+training for that turn. If it differs, the SPU's rendering is fixed to match the build
+record, never the reverse. The GGUF carries the chat template in its metadata, so a
+match is expected, but it is measured, not assumed.
 
 **RECONCILE-ADAPTER.** The bf16 PEFT adapter is converted to a GGUF LoRA the SPU loads.
 The SPU has no LoRA load path yet, and that work is WeaverAgent's (issue 4 of the #431
@@ -288,9 +333,21 @@ record is the reference, unless a ruling changes the build and a new adapter is
 trained under it.
 
 **RECONCILE-EARLY.** The second machine can run RECONCILE-RENDER now on the
-Nemotron-3-Nano-4B GGUF, rendering with a build record made for that model's
-tokenizer. That proves the method before this machine is free. Only this machine can
-confirm it for the 30B A3B.
+Nemotron-3-Nano-4B GGUF, against a render-only build (BUILD-RENDER-ONLY) made for that
+model. Two things are needed for that. The build names the 4B's model entry, and the
+second machine holds the 4B's Hugging Face tokenizer files beside its GGUF, at the
+revision the GGUF was converted from, since the GGUF alone cannot produce a
+BUILD-RENDER rendering. That proves the method before this machine is free. Only this
+machine can confirm it for the 30B A3B.
+
+**RECONCILE-RECORD.** Each reconciliation is one deposit under `weaver-testing/` on the
+shared bulk store, named `lora-reconcile-<date>-<model>-<first 8 of the adapter
+sha256>` (`none` for the early check), with a `SHA256SUMS` and a README, as RUN-OUTPUT
+deposits are. It holds the `build.json` the adapter was trained on (or the render-only
+build), both message lists, both sides' token ID sequences for each prompt and the
+result of each comparison, the PEFT adapter's sha256 and the GGUF LoRA's sha256, and
+the RECONCILE-DRIFT table. Both repositories cite the deposit by name, so neither seat
+takes the other's word.
 
 ## 9. Enforcement
 
@@ -316,6 +373,13 @@ where a model is needed.
 - **RECONCILE-FIELDS:** `build.json` carries every field the clause names, and the
   scorer refuses a build missing one. The render check itself is a recorded act on
   real artifacts, not a unit test.
+- **BUILD-RENDER-ONLY:** a render-only build on the stand-in model's tokenizer writes
+  `build.json` and both renderings and no `train.jsonl`, and the trainer refuses it.
+- **RUN-MARGIN:** the sign test and the spread rule, on fixed pass and fail vectors,
+  give the expected "higher" and "flat" readings, including a case where the sign test
+  passes but the difference is inside the spread.
+- **SCORE-REVIEW:** the score record carries the review prompt's sha256 and the model
+  id, and the shuffled selection holds no label of which run wrote a segment.
 - `tests/test_independence.py` still passes. The two new commands are scripts and may
   import scripts, and no module under `src/` imports another except `manifest`.
 
@@ -326,9 +390,12 @@ operator's ruling. WeaverAgent's ruling J currently reads the other way, toward 
 rewriter, so the two documents disagree until this cell is ruled. The reconciliation
 note of 2026-11-02 does not settle it.
 
-**The reconciliation render check (RECONCILE-RENDER).** Settled by the token ID
-comparison, first on the 4B GGUF on the second machine (RECONCILE-EARLY), then on the
-30B A3B here.
+**The reconciliation render check (RECONCILE-RENDER).** Settled by the two token ID
+comparisons, the trajectory turn and the loop turn, first on the 4B GGUF on the second
+machine (RECONCILE-EARLY), then on the 30B A3B here.
+
+**The 4B's tokenizer files (RECONCILE-EARLY).** Settled by the operator's go to add the
+4B's model entry at the revision its GGUF was converted from.
 
 **Thinking on or off (BUILD-RENDER).** The template supports reasoning content and
 `enable_thinking`, and the data holds no reasoning content, only the `think` tool's
