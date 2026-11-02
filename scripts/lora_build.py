@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from contextlib import contextmanager
 
 
@@ -50,20 +51,31 @@ def require_empty_output(out_dir):
 @contextmanager
 def output_files(out_dir, names):
     """BUILD-OUTPUT: a failed write removes only this invocation's output files."""
-    require_empty_output(out_dir)
-    existed = out_dir.exists()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    paths = [out_dir / name for name in names]
-    paths.append(out_dir / "build.json")
-    paths.append(out_dir.with_name(out_dir.name + ".manifest.json"))
+    out_dir = out_dir.resolve()
+    out_dir.parent.mkdir(parents=True, exist_ok=True)
+    reservation = out_dir.with_name(out_dir.name + ".build.lock")
     try:
-        yield
-    except BaseException:
-        for path in paths:
-            path.unlink(missing_ok=True)
-        if not existed:
-            out_dir.rmdir()
-        raise
+        descriptor = os.open(reservation, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise BuildError("BUILD-OUTPUT: output is reserved by another build") from exc
+    os.close(descriptor)
+    try:
+        require_empty_output(out_dir)
+        existed = out_dir.exists()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        paths = [out_dir / name for name in names]
+        paths.append(out_dir / "build.json")
+        paths.append(out_dir.with_name(out_dir.name + ".manifest.json"))
+        try:
+            yield
+        except BaseException:
+            for path in paths:
+                path.unlink(missing_ok=True)
+            if not existed:
+                out_dir.rmdir()
+            raise
+    finally:
+        reservation.unlink()
 
 
 def read_jsonl(path):
@@ -247,7 +259,6 @@ def build_render_only(tokenizer, prompts, out_dir, *, tree_hash, max_seq_length,
 def main(argv=None):
     """BUILD-INPUTS, BUILD-RENDER-ONLY: verify a configured local model before tokenizer use."""
     import argparse
-    import os
     import sys
     import tomllib
     from pathlib import Path
