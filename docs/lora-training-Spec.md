@@ -347,7 +347,16 @@ skill. A tool call in the output is correct when these 3 conditions apply:
 2. It names a tool in the `tools` list of the row.
 3. Its arguments include all the required parameters of that tool.
 
+These 3 conditions examine only the JSON, the tool name and the parameters of the
+tool call. The rate does not compare
+the tool call with the original tool call of the segment. SCORE-REVIEW examines if
+the next action is correct.
+
 The call set is the held-out segments where the original message has a tool call.
+SCORE-LOCATE and SCORE-PREFIX can list a segment and give it no score. Their results
+come from the kit and the data record only, not from the model. Thus, before R0, the
+score script removes these segments from the call set and from the STE pass rate. The
+score record lists the removed segments. The same segments are removed for all runs.
 For a `finish` message, the `finish` call is that tool call. The call set is the same
 for all runs, and the score record lists it. For each segment of the call set, the
 result is correct or incorrect. If the output has no tool call, the result is
@@ -521,7 +530,8 @@ model of `tests/conftest.py`.
   are not found and rows that more than one row agrees with. The score script gets
   the text and the `finish` message. It counts tool calls that are not correct. In
   the call set, an output with no tool call is incorrect, and the call set is the same
-  for 2 runs.
+  for 2 runs. A segment that SCORE-LOCATE or SCORE-PREFIX lists is not in the call set
+  or in the STE pass rate, and the score record lists it.
 - **RECONCILE-FIELDS:** `build.json` holds each field of the clause. The score script
   rejects a data record without one of the fields. The RECONCILE step is a record of
   work on the model files, not a unit test.
