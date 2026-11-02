@@ -236,3 +236,40 @@ def test_assemble_drops_a_row_that_the_rewrites_made_too_long(world, monkeypatch
     assert failed == [{"traj": "T002", "row": 1, "uuid": "u2", "failed": [], "over_max_tokens": 2000}]
     run = json.loads((world.tmp / "var" / "run.json").read_text())
     assert run["converted"] == 1 and run["over_max_tokens"] == 1 and run["max_tokens"] == 1000
+
+
+def short_then_full_opencode(tmp_path) -> str:
+    """Round 1 comes back with only its first record; a completion session writes the rest.
+    Each session costs $1."""
+    p = tmp_path / "opencode-short"
+    p.write_text(f"""#!{sys.executable}
+import json, os, sqlite3, sys
+msg = sys.argv[-1]
+ids = [json.loads(l)["id"] for l in open("input.jsonl") if l.strip()]
+keep = ids if "records. Write the missing" in msg else ids[:1]
+with open("round1.jsonl", "w") as f:
+    for i in keep:
+        f.write(json.dumps({{"id": i, "output": "I will examine [[C1]] now."}}) + "\\n")
+con = sqlite3.connect(os.environ["OPENCODE_DB"])
+con.execute("insert into session_v2 values (?, 1.0)", (os.getcwd(),))
+con.commit()
+""")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC)
+    return str(p)
+
+
+@needs_lexicon
+def test_completion_session_waits_for_the_budget(world, monkeypatch):
+    # PR #4 review: a round left incomplete at the cap must not start another paid session
+    batch.cmd_prepare(args(part_size=2))
+    monkeypatch.setenv("OPENCODE_BIN", short_then_full_opencode(world.tmp))
+    assert batch.cmd_run(args(budget=1.0, parts="p001")) == 2
+    p1 = world.tmp / "exp" / "p001"
+    assert json.loads((p1 / "part.json").read_text())["state"].startswith("paused: budget reached")
+    assert not (p1 / "logs" / "p001-round1-finish.log").exists()
+    assert batch.spent(world.tmp / "exp") == 1.0
+    assert batch.exp.incomplete(p1, 1)                 # the incomplete round is kept
+    # resumed with more budget, the part asks for the missing records, then judges
+    batch.cmd_run(args(budget=5.0, parts="p001", repairs=0))
+    assert (p1 / "logs" / "p001-round1-finish.log").exists()
+    assert not batch.exp.incomplete(p1, 1) and (p1 / "repair-1.jsonl").exists()

@@ -217,3 +217,13 @@ def test_quotation_follows_commonmark_paragraph_rules():
     # a real heading ends it
     masked, _ = conv.mask("> quoted\n# Heading")
     assert masked == "[[C1]]\n# Heading"
+
+
+def test_quotation_inside_a_list_item_is_masked():
+    for text, code in (("- > quoted line\n  > more\n\nI will fix it.", "- > quoted line\n  > more"),
+                       ("1. > quoted\n\nI will fix it.", "1. > quoted")):
+        masked, codes = conv.mask(text)
+        assert masked == "[[C1]]\n\nI will fix it." and codes == [code], (text, masked, codes)
+        assert conv.unmask(masked, codes) == text
+    masked, _ = conv.mask("- I will fix it.")                    # a list item with no quote stays prose
+    assert masked == "- I will fix it."

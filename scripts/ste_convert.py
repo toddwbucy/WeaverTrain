@@ -51,11 +51,13 @@ SPAN_PATTERNS = [
     # A line after a quoted line of text without ">" continues the quote (Markdown's
     # lazy continuation), but not after a quoted blank line, and not when it is blank
     # (also with CRLF) or starts an ATX heading, a list, a fence or a thematic break.
+    # A quotation inside a list item ("- > text", "1. > text") is quoted text too. The
+    # pattern is a constant: no input reaches it, and every repeat is anchored on "\n".
     re.compile(r"(?m)^(?:{q})(?:\n(?:{q}))*".format(q=(
-        r"[ \t]*>[ \t]*[^\s][^\n]*"                      # a quoted line of text
+        r"[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?>[ \t]*[^\s][^\n]*"   # a quoted line of text, maybe in a list item
         r"(?:\n(?![ \t]*(?:\r?$|>|#{1,6}(?:[ \t]|\r?$)|```|~~~|[-*+][ \t]|\d+[.)][ \t]"
         r"|(?:[-*_][ \t]*){3,}\r?$))[^\n]+)*"              # and its lazy continuation lines
-        r"|[ \t]*>[ \t\r]*(?=\n|$)"))),                   # or a quoted blank line
+        r"|[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?>[ \t\r]*(?=\n|$)"))),   # or a quoted blank line
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
     # an exception name and its message, to the end of the line: program output

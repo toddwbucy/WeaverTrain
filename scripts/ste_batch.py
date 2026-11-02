@@ -344,6 +344,22 @@ def judge_round(d: Path, inputs: list[dict], judge) -> tuple[int, list[dict]]:
     return len(inputs) - len(fails), fails
 
 
+def finish_round(d: Path, a, root: Path, n: int) -> None:
+    """Ask once for the records round N is missing. The completion session is paid like
+    any other, so it waits for the same halt and budget checks; a part paused here keeps
+    its incomplete round and asks for the rest when the run resumes."""
+    short = exp.incomplete(d, n)
+    title = f"{d.name}-round{n}-finish"
+    if not short or (d / "logs" / f"{title}.log").exists():
+        return
+    if HALT.is_set():
+        raise Paused("the run was halted")
+    if (s := spent(root)) >= a.budget:
+        raise Paused(f"budget reached: ${s:.2f} of ${a.budget:.2f} spent")
+    session(d, a.model, f"round{n}.jsonl has {short[0]} of {short[1]} records. Write the missing "
+            f"records as {'PROMPT.md' if n == 1 else 'REPAIR-PROMPT.md'} says, then stop.", title, a.timeout)
+
+
 def work_part(d: Path, a, judge, root: Path) -> dict:
     """Judge the newest round if it is not judged yet; else start the session the part
     owes (round 1, or a repair round while records fail and repairs are left)."""
@@ -357,6 +373,10 @@ def work_part(d: Path, a, judge, root: Path) -> dict:
         rs = exp.rounds(d)
         last = rs[-1] if rs else 0
         if last and not (d / f"repair-{last}.jsonl").exists():
+            finish_round(d, a, root, last)       # a part paused before its completion session
+            if exp.incomplete(d, last):
+                meta["state"] = f"failed: round{last} missing or incomplete"
+                break
             guard(d, inputs, last, judge)
             ok, fails = judge_round(d, inputs, judge)
             with open(d / f"repair-{last}.jsonl", "w", encoding="utf-8") as f:
@@ -379,11 +399,9 @@ def work_part(d: Path, a, judge, root: Path) -> dict:
                f"round{n}.jsonl.")
         t0 = time.time()
         rc = session(d, a.model, msg, f"{d.name}-round{n}", a.timeout)
-        if (d / f"round{n}.jsonl").exists() and (short := exp.incomplete(d, n)):
-            session(d, a.model, f"round{n}.jsonl has {short[0]} of {short[1]} records. Write the missing "
-                    f"records as {'PROMPT.md' if n == 1 else 'REPAIR-PROMPT.md'} says, then stop.",
-                    f"{d.name}-round{n}-finish", a.timeout)
         meta["rounds"][str(n)] = {"exit": rc, "seconds": round(time.time() - t0)}
+        if (d / f"round{n}.jsonl").exists():
+            finish_round(d, a, root, n)
         if not (d / f"round{n}.jsonl").exists() or (short := exp.incomplete(d, n)):
             meta["state"] = f"failed: round{n} missing or incomplete"
             break
