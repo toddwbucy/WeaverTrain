@@ -106,7 +106,8 @@ selects the same message fields as `ste_batch.TokenCounter`. It also changes the
 text of each tool-call argument into an object, as `ste_batch.TokenCounter` does. The
 data record holds the template hash, the `tools` value and the `enable_thinking`
 value. The score script rejects a data record with values that are different from the
-values of the score script. The `enable_thinking` value is `false`, and the `tools` list
+values of the score script. It also rejects a data record with a `tree_hash` that is
+different from the model that it loads. The `enable_thinking` value is `false`, and the `tools` list
 goes to the template. (Decisions of the operator, 2026-11-02, section 10.)
 
 **BUILD-LENGTH.** If a row has more tokens than `max_seq_length` after the template,
@@ -190,6 +191,9 @@ these items:
 - A dataset without its `build.json`.
 - A dataset with a manifest that does not agree with the files.
 - A `max_seq_length` that is different from the value in the data record.
+- A data record with a `tree_hash` that is different from the `tree_hash` of the
+  model that the trainer loads. The token IDs must come from the tokenizer of that
+  model.
 
 **TRAIN-MASK-REACHES-LOSS.** With `"tokenized"`, the labels that go to the loss must
 agree with the mask. Where the mask is 0, the label is -100. Where the mask is 1, the
@@ -506,7 +510,8 @@ model of `tests/conftest.py`.
   next, the data script stops.
 - **BUILD-LENGTH, BUILD-ORDER:** The data script removes a row that is too long and
   lists it. The sets of `--limit` are in each other.
-- **TRAIN-TOKENIZED, TRAIN-EPOCHS:** The config errors occur.
+- **TRAIN-TOKENIZED, TRAIN-EPOCHS:** The config errors occur. The trainer rejects a
+  data record with a `tree_hash` that is different from the model tree.
 - **TRAIN-MASK-REACHES-LOSS:** Do one training step on the small model. Record the
   labels at the loss. The label is -100 at each token with mask 0, and only there.
   This test uses the GPU.
