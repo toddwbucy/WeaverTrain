@@ -123,12 +123,11 @@ def render_text(tokenizer, row, messages, *, enable_thinking, generation=False):
     )
 
 
-def tokenize_row(tokenizer, row, *, enable_thinking):
-    """BUILD-MASK, BUILD-PREFIX: derive assistant spans from two template applications."""
+def prefix_spans(tokenizer, row, *, enable_thinking):
+    """BUILD-PREFIX: check every assistant span before length filtering can remove a row."""
     messages = row["messages"]
     number = row["ste"]["row"]
     ids = render_row(tokenizer, row, enable_thinking=enable_thinking)
-    mask = [0] * len(ids)
     spans = []
     for index, message in enumerate(messages):
         if message["role"] != "assistant":
@@ -140,12 +139,25 @@ def tokenize_row(tokenizer, row, *, enable_thinking):
         complete = render_row(tokenizer, through, enable_thinking=enable_thinking)
         require_prefix(prefix, complete, number, index, "prompt versus assistant")
         require_prefix(complete, ids, number, index, "assistant versus full row")
-        mask[len(prefix):len(complete)] = [1] * (len(complete) - len(prefix))
         spans.append((index, len(prefix), len(complete)))
+    return ids, spans
+
+
+def tokenize_spans(tokenizer, row, ids, spans, *, enable_thinking):
+    """BUILD-MASK, BUILD-OUTPUT: reuse verified spans for labels and retained-row counts."""
+    mask = [0] * len(ids)
+    for _, start, end in spans:
+        mask[start:end] = [1] * (end - start)
     ste_tokens = count_ste_tokens(tokenizer, row, ids, mask, spans,
                                   enable_thinking=enable_thinking)
     return {"input_ids": ids, "assistant_masks": mask, "batch": row["ste"]["batch"],
-            "trajectory": row["ste"]["trajectory"], "row": number}, ste_tokens
+            "trajectory": row["ste"]["trajectory"], "row": row["ste"]["row"]}, ste_tokens
+
+
+def tokenize_row(tokenizer, row, *, enable_thinking):
+    """BUILD-MASK, BUILD-PREFIX: derive labels only from verified template prefixes."""
+    ids, spans = prefix_spans(tokenizer, row, enable_thinking=enable_thinking)
+    return tokenize_spans(tokenizer, row, ids, spans, enable_thinking=enable_thinking)
 
 
 def count_ste_tokens(tokenizer, row, ids, mask, spans, *, enable_thinking):
@@ -200,16 +212,17 @@ def build_dataset(tokenizer, paths, heldout, out_dir, *, tree_hash, max_seq_leng
     rows, inputs = load_inputs(paths, heldout)
     eligible, removed = [], []
     for row in rows:
-        ids = render_row(tokenizer, row, enable_thinking=enable_thinking)
+        ids, spans = prefix_spans(tokenizer, row, enable_thinking=enable_thinking)
         if len(ids) > max_seq_length:
             removed.append({**row["ste"], "tokens": len(ids), "cause": "max_seq_length"})
         else:
-            eligible.append(row)
+            eligible.append((row, ids, spans))
     # BUILD-ORDER: input-file order cannot change the seeded nested subsets.
-    eligible.sort(key=lambda row: row["ste"]["row"])
+    eligible.sort(key=lambda item: item[0]["ste"]["row"])
     random.Random(seed).shuffle(eligible)
-    # BUILD-PREFIX checks every retained row before the limit selects a nested subset.
-    tokenized = [tokenize_row(tokenizer, row, enable_thinking=enable_thinking) for row in eligible]
+    # BUILD-OUTPUT counts retained rows after every input has passed BUILD-PREFIX.
+    tokenized = [tokenize_spans(tokenizer, row, ids, spans, enable_thinking=enable_thinking)
+                 for row, ids, spans in eligible]
     selected = tokenized if limit is None else tokenized[:limit]
     record = {
         "inputs": inputs, "tree_hash": tree_hash, "template_hash": template_hash(tokenizer),
