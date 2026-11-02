@@ -384,8 +384,12 @@ The correct-call rate is the quantity of correct results, divided by the quantit
 segments in the call set. Thus, 2 runs give results for the same segments, and
 RUN-MARGIN can compare them in pairs.
 
-**SCORE-REVIEW.** For each adapter and for R0, a reviewer reads 30 segments. A seed
-selects the 30 segments, and the selection does not change. The reviewer reads each
+**SCORE-REVIEW.** For each adapter and for R0, a reviewer reads 30 segments. The
+sample set is the held-out segments that SCORE-LOCATE and SCORE-PREFIX do not list.
+The score script makes the sample set before R0, and the score record lists it. A seed
+selects the 30 segments from the sample set, and the selection does not change. If the
+sample set has fewer than 30 segments, the reviewer reads all of them. The score record
+gives the quantity. The reviewer reads each
 segment with its prompt and gives one decision: `fits`, `odd` or `incorrect`. The reviewer
 examines 2 items: Is the text correct for the work of the agent? Is the next action
 correct? The
@@ -564,7 +568,9 @@ model of `tests/conftest.py`.
   increase and none that decrease. That case is "not shown". One case has an interval
   in the range from -5 to +5 points. That case is "flat".
 - **SCORE-REVIEW:** The score record holds the sha256 of the reviewer prompt and the
-  model ID. The random selection does not show which run wrote a segment.
+  model ID. The random selection does not show which run wrote a segment. A segment
+  that SCORE-LOCATE or SCORE-PREFIX lists is not in the sample set. A sample set of
+  fewer than 30 segments gives a reviewer decision for all its segments.
 - `tests/test_independence.py` continues to agree with the code. The 2 new commands
   are scripts, and scripts can import scripts. A module in `src/` imports no
   different module, but it can import `manifest`.
