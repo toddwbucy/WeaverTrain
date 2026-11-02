@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 
 
 def render_messages(messages: list[dict]) -> list[dict]:
@@ -36,6 +37,33 @@ def render_row(tokenizer, row: dict, *, enable_thinking: bool,
 
 class BuildError(ValueError):
     """A BUILD clause refused the input. No partial training dataset is published."""
+
+
+def require_empty_output(out_dir):
+    """BUILD-OUTPUT: never replace an existing build or its sibling manifest."""
+    if out_dir.exists() and any(out_dir.iterdir()):
+        raise BuildError("BUILD-OUTPUT: output directory must be empty")
+    if out_dir.with_name(out_dir.name + ".manifest.json").exists():
+        raise BuildError("BUILD-OUTPUT: output manifest already exists")
+
+
+@contextmanager
+def output_files(out_dir, names):
+    """BUILD-OUTPUT: a failed write removes only this invocation's output files."""
+    require_empty_output(out_dir)
+    existed = out_dir.exists()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = [out_dir / name for name in names]
+    paths.append(out_dir / "build.json")
+    paths.append(out_dir.with_name(out_dir.name + ".manifest.json"))
+    try:
+        yield
+    except BaseException:
+        for path in paths:
+            path.unlink(missing_ok=True)
+        if not existed:
+            out_dir.rmdir()
+        raise
 
 
 def read_jsonl(path):
@@ -155,8 +183,7 @@ def build_dataset(tokenizer, paths, heldout, out_dir, *, tree_hash, max_seq_leng
         raise BuildError("BUILD-RENDER: Spec 0.3 requires enable_thinking=false")
     if max_seq_length <= 0 or limit is not None and limit <= 0:
         raise BuildError("BUILD-ORDER: length and limit must be positive")
-    if out_dir.exists() and any(out_dir.iterdir()):
-        raise BuildError("BUILD-OUTPUT: output directory must be empty")
+    require_empty_output(out_dir)
     rows, inputs = load_inputs(paths, heldout)
     eligible, removed = [], []
     for row in rows:
@@ -165,6 +192,8 @@ def build_dataset(tokenizer, paths, heldout, out_dir, *, tree_hash, max_seq_leng
             removed.append({**row["ste"], "tokens": len(ids), "cause": "max_seq_length"})
         else:
             eligible.append(row)
+    # BUILD-ORDER: input-file order cannot change the seeded nested subsets.
+    eligible.sort(key=lambda row: row["ste"]["row"])
     random.Random(seed).shuffle(eligible)
     # BUILD-PREFIX checks every retained row before the limit selects a nested subset.
     tokenized = [tokenize_row(tokenizer, row, enable_thinking=enable_thinking) for row in eligible]
@@ -179,11 +208,11 @@ def build_dataset(tokenizer, paths, heldout, out_dir, *, tree_hash, max_seq_leng
                    "assistant_tokens": sum(sum(row["assistant_masks"]) for row, _ in selected),
                    "assistant_ste_tokens": sum(count for _, count in selected)},
     }
-    out_dir.mkdir(parents=True, exist_ok=True)
-    with (out_dir / "train.jsonl").open("w", encoding="utf-8") as stream:
-        for row, _ in selected:
-            stream.write(json.dumps(row) + "\n")
-    write_build_record(out_dir, record)
+    with output_files(out_dir, ["train.jsonl"]):
+        with (out_dir / "train.jsonl").open("w", encoding="utf-8") as stream:
+            for row, _ in selected:
+                stream.write(json.dumps(row) + "\n")
+        write_build_record(out_dir, record)
     return record
 
 
@@ -200,8 +229,7 @@ def build_render_only(tokenizer, prompts, out_dir, *, tree_hash, max_seq_length,
     """BUILD-RENDER-ONLY, RECONCILE-RENDER: save the two prompts and their token IDs."""
     if enable_thinking is not False:
         raise BuildError("BUILD-RENDER: Spec 0.3 requires enable_thinking=false")
-    if out_dir.exists() and any(out_dir.iterdir()):
-        raise BuildError("BUILD-OUTPUT: output directory must be empty")
+    require_empty_output(out_dir)
     if set(prompts) != {"trajectory", "loop"} or prompts["loop"].get("tools"):
         raise BuildError("RECONCILE-RENDER: supply trajectory and loop prompts, loop without tools")
     sequences = {name: render_row(tokenizer, row, enable_thinking=enable_thinking,
@@ -209,10 +237,10 @@ def build_render_only(tokenizer, prompts, out_dir, *, tree_hash, max_seq_length,
     record = {"tree_hash": tree_hash, "template_hash": template_hash(tokenizer),
               "tools": True, "enable_thinking": enable_thinking, "max_seq_length": max_seq_length,
               "render_only": True}
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "render.json").write_text(json.dumps(sequences) + "\n", encoding="utf-8")
-    (out_dir / "prompts.json").write_text(json.dumps(prompts) + "\n", encoding="utf-8")
-    write_build_record(out_dir, record)
+    with output_files(out_dir, ["render.json", "prompts.json"]):
+        (out_dir / "render.json").write_text(json.dumps(sequences) + "\n", encoding="utf-8")
+        (out_dir / "prompts.json").write_text(json.dumps(prompts) + "\n", encoding="utf-8")
+        write_build_record(out_dir, record)
     return record
 
 
@@ -244,7 +272,10 @@ def main(argv=None):
     command.add_argument("--loop-prompt", type=Path)
     args = ap.parse_args(argv)
     try:
-        state = Path(os.environ["WEAVER_TRAIN_STATE_DIR"]).resolve()
+        state_dir = os.environ.get("WEAVER_TRAIN_STATE_DIR")
+        if not state_dir:
+            raise BuildError("BUILD-OUTPUT: WEAVER_TRAIN_STATE_DIR is not set")
+        state = Path(state_dir).resolve()
         if state not in args.out.resolve().parents:
             raise BuildError("BUILD-OUTPUT: output must be inside WEAVER_TRAIN_STATE_DIR")
         models = tomllib.loads((repo / "config/models.toml").read_text())["models"]
