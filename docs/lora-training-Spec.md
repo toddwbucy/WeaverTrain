@@ -537,15 +537,14 @@ cell shows if this adapter can also do the turn that rewrites text.
 **The `enable_thinking` value (BUILD-RENDER).** Open. Decision of the operator,
 2026-11-02: `enable_thinking` is `false` in the data script and in the score script,
 for this Spec. The template can hold `reasoning_content`. The data has no
-`reasoning_content`. The model writes its thoughts only in the tool calls of the
-`think` tool. Thus, the decision that the model thinks freely continues to apply
-with this value. The cause of this decision: an adapter that rewrites text possibly must
+`reasoning_content`. The model writes reasoning text only in the calls of the
+`think` tool. The think-scope decision continues to apply with this value. The cause of this decision: an adapter that rewrites text possibly must
 have the value `true`. An adapter that writes STE100 possibly operates more
 correctly with `false`. A new decision can try the value `true` with an adapter that rewrites
 text. Until that decision, this cell stays open.
 
 **Tools in the template (BUILD-RENDER).** Closed. Decision of the operator,
-2026-11-02: the `tools` list goes to the template. Then the model sees the tool
+2026-11-02: the `tools` list goes to the template. Then the model gets the tool
 schemas, as it does when it operates as an agent. The data record continues to hold
 the count of rows that BUILD-LENGTH removes. If the `tools` list causes the removal of
 many rows, the operator gives a new decision.

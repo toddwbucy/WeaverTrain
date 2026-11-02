@@ -29,4 +29,8 @@ nouns = [
   "held-out set", "kit", "loader", "manifest", "margin", "message", "placeholder",
   "reviewer", "run", "segment", "snapshot", "spec", "template", "tokenizer", "tool call",
   "trainer", "trajectory", "tree", "uuid", "warmup",
+  # "reasoning" is the name of the chat template's reasoning_content field and of the
+  # text in it. It names text, not an act of a mind: the Spec does not give the model
+  # thoughts (review seat, PR #5, 2026-11-02).
+  "reasoning",
 ]
