@@ -42,6 +42,9 @@ CONTRACTION = re.compile(r"(?i)\b\w+(?:n['’]t|['’](?:ll|re|ve|m|d))\b"
 # "a fixed value", "in order", "a design choice", "the progress". Words that can also
 # be a subject are left out ("This fails", "Some return None", "that fails"), and so is
 # "to" ("to fix").
+PLACEHOLDER_GAP = re.compile(r"\s*\0(?:\s*\0)*\s*")
+OBJECT_NEXT = re.compile(r"\s*(?:(?:a|an|the|this|these|those|my|our|your|its|their|his|her|all|each|every)\b)",
+                         re.I)
 NOMINAL_BEFORE = frozenset(
     "a an the my our your its their his her no "
     "in on of for with without by from at into onto about under over between per".split())
@@ -213,7 +216,8 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
     if CONTRACTION.search(prose):
         hard["contractions"] = sorted({m.group(0) for m in CONTRACTION.finditer(prose)})
 
-    words = prose
+    # placeholders stay visible here as "\0" (not a word character, not a space)
+    words = PLACEHOLDER.sub(" \0 ", output)
     for ph in lex.phrases:  # keep the head word, drop the rest of the phrase
         words = ph.sub(lambda m: m.group(1), words)
     input_caps = frozenset(t for t in WORD.findall(PLACEHOLDER.sub(" ", masked_input))
@@ -226,7 +230,13 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
     for m in WORD.finditer(words):
         raw = m.group(0)
         # the word before counts only when nothing but spaces separates the two
-        nominal = prev in NOMINAL_BEFORE and words[prev_end:m.start()].isspace()
+        gap = words[prev_end:m.start()]
+        nominal = prev in NOMINAL_BEFORE and (gap.isspace() or (
+            # through a placeholder the word is a noun ("the [[C1]] block"), unless a
+            # determiner follows it ("the [[C1]] orders the values"). Known limit: a
+            # placeholder after it ("the [[C1]] calls [[C2]]") stays a noun, because in
+            # the 2026-11-01 batches every such case was one ("the [[C1]] block [[C6]]")
+            PLACEHOLDER_GAP.fullmatch(gap) is not None and not OBJECT_NEXT.match(words, m.end())))
         tok = raw.strip("'’-")
         prev, prev_end = tok.lower(), m.end()
         low = tok.lower()

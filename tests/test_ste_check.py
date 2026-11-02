@@ -172,3 +172,17 @@ def test_repair_note_names_invented_markup_and_changed_literals():
     note = ste.repair_note({"hard": {"invented_markup": ["<h4>"], "altered_literals": ["1.[[C3]]"]}}, LEX)
     assert "<h4>" in note and "Remove it" in note
     assert "1.[[C3]]" in note and "exactly as it is in the input" in note
+
+
+def test_placeholder_after_an_article_is_a_boundary():
+    # PR #4 review: "The [[C1]] orders the values." read "orders" as a noun after "the"
+    r = ste.check("The [[C1]] orders the values.", "[[C1]]", NOUN_LEX)
+    assert "orders" in r["hard"].get("verbs", []), r
+    # known limit: a placeholder after the word is ambiguous, and it reads as a noun
+    r = ste.check("The [[C1]] orders [[C2]].", "[[C1]] [[C2]]", NOUN_LEX)
+    assert "verbs" not in r["hard"], r
+    # a noun after "the [[C1]]" with no object after it stays a noun
+    for text in ("Remove the [[C1]] block that catches it.", "It uses the [[C1]] order.",
+                 "In the [[C1]] block [[C2]], it stops."):
+        r = ste.check(text, "[[C1]] [[C2]]", NOUN_LEX)
+        assert "verbs" not in r["hard"], (text, r["hard"])
