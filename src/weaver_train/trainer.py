@@ -305,13 +305,24 @@ def check_adapter_only(adapter_dir: Path) -> None:
                            f"unexpected {sorted(extra)}")
 
 
-def validate_tokenized(dataset_path: Path, cfg: TrainConfig, model_hash: str) -> dict:
+def tokenized_object(text: str, context: str) -> dict:
+    """TRAIN-TOKENIZED: reject malformed records before reading their fields."""
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise TrainConfigError(f"TRAIN-TOKENIZED: {context} is not valid JSON") from exc
+    if not isinstance(value, dict):
+        raise TrainConfigError(f"TRAIN-TOKENIZED: {context} must contain an object")
+    return value
+
+
+def validate_tokenized(dataset_path: Path, cfg: TrainConfig, model_hash: str, vocab_size: int) -> dict:
     """TRAIN-TOKENIZED: verify the build tree, model identity, length and masks."""
     parent = dataset_path.parent
     build_path = parent / "build.json"
     if not build_path.is_file():
         raise TrainConfigError("TRAIN-TOKENIZED: build.json is required")
-    build = json.loads(build_path.read_text())
+    build = tokenized_object(build_path.read_text(), "build.json")
     if build.get("render_only"):
         raise TrainConfigError("BUILD-RENDER-ONLY: trainer rejects render-only data")
     manifest_path = parent.with_name(parent.name + ".manifest.json")
@@ -324,17 +335,17 @@ def validate_tokenized(dataset_path: Path, cfg: TrainConfig, model_hash: str) ->
         raise TrainConfigError("TRAIN-TOKENIZED: max_seq_length differs from build.json")
     rows = 0
     assistant_tokens = 0
-    for line in dataset_path.read_text().splitlines():
+    for number, line in enumerate(dataset_path.read_text().splitlines(), 1):
         if not line.strip():
             continue
-        row = json.loads(line)
+        row = tokenized_object(line, f"row {number}")
         ids, masks = row.get("input_ids"), row.get("assistant_masks")
         if not isinstance(ids, list) or not isinstance(masks, list) or len(ids) != len(masks):
             raise TrainConfigError("TRAIN-MASK-REACHES-LOSS: IDs and masks must have equal lengths")
         if not ids or len(ids) > cfg.train.max_seq_length:
             raise TrainConfigError("TRAIN-NO-PACKING: an intact row must fit max_seq_length")
-        if any(type(value) is not int or value < 0 for value in ids):
-            raise TrainConfigError("TRAIN-TOKENIZED: token IDs must be nonnegative integers")
+        if any(type(value) is not int or not 0 <= value < vocab_size for value in ids):
+            raise TrainConfigError("TRAIN-TOKENIZED: token IDs must be integers in the model vocabulary")
         if any(type(value) is not int or value not in (0, 1) for value in masks) or not any(masks[1:]):
             raise TrainConfigError("TRAIN-MASK-REACHES-LOSS: binary masks need a target after token zero")
         rows += 1
@@ -403,7 +414,8 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
     record.save(out_dir / "run.json")
     try:
         if cfg.data_format == "tokenized":
-            record.dataset.update(validate_tokenized(dataset_path, cfg, tree_hash))
+            model_config = json.loads((model_dir / "config.json").read_text())
+            record.dataset.update(validate_tokenized(dataset_path, cfg, tree_hash, model_config["vocab_size"]))
         record.dataset["sha256"] = sha256_path(dataset_path)
         _run_unsloth(model_dir, dataset_path, cfg, out_dir, metrics)
         adapter_dir = out_dir / "adapter"

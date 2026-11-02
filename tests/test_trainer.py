@@ -207,7 +207,30 @@ def test_train_tokenized_rejects_invalid_build(tmp_path, case, reason):
     elif case == "bad_manifest":
         path.write_text(path.read_text() + "\n")
     with pytest.raises((trainer.TrainConfigError, mf.ManifestError), match=reason):
-        trainer.validate_tokenized(path, cfg, "model")
+        trainer.validate_tokenized(path, cfg, "model", 64)
+
+
+@pytest.mark.parametrize("filename, contents, reason", [
+    ("build.json", "{", "build.json is not valid JSON"),
+    ("build.json", "[]", "build.json must contain an object"),
+    ("train.jsonl", "{", "row 1 is not valid JSON"),
+    ("train.jsonl", "null", "row 1 must contain an object"),
+    ("train.jsonl", '{"input_ids": [4, 64], "assistant_masks": [0, 1]}', "model vocabulary"),
+])
+def test_train_tokenized_rejects_malformed_records_before_load(
+        tiny_model, config_path, tmp_path, monkeypatch, filename, contents, reason):
+    """TRAIN-TOKENIZED: malformed records and out-of-vocabulary IDs cannot reach model loading."""
+    model_dir, manifest_path = tiny_model
+    path, _, _ = make_tokenized(tmp_path, mf.load_tree(manifest_path).tree_hash)
+    (path.parent / filename).write_text(contents + "\n")
+    mf.build_tree(path.parent, "dataset", "fixture").save(tmp_path / "built.manifest.json")
+    config_path.write_text(CONFIG.replace('format = "text"', 'format = "tokenized"'))
+    monkeypatch.setattr(trainer, "_run_unsloth", lambda *args: pytest.fail("invalid data reached model loading"))
+    out = tmp_path / "invalid-run"
+    with pytest.raises(trainer.TrainConfigError, match=reason):
+        trainer.train(model_dir, manifest_path, path, config_path, out)
+    record = mf.load_run(out / "run.json")
+    assert record.status == "failed" and reason in record.results["error"]
 
 
 @pytest.mark.gpu
@@ -253,8 +276,13 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
     assert len(record.results["peak_vram_gib"]) == torch.cuda.device_count()
 
 
-@pytest.mark.parametrize("failure", ["oom", "coverage", "cpu"])
-def test_train_stop_records_failures_without_retry(tiny_model, config_path, dataset_path, tmp_path, monkeypatch, failure):
+@pytest.mark.parametrize("failure, reason", [
+    ("oom", "test memory failure"),
+    ("coverage", "test coverage failure"),
+    ("cpu", "TRAIN-STOP: model parameters left GPUs"),
+])
+def test_train_stop_records_failures_without_retry(
+        tiny_model, config_path, dataset_path, tmp_path, monkeypatch, failure, reason):
     """TRAIN-STOP: preserve measurements on failure and never retry a failed run."""
     import torch
     calls = []
@@ -270,11 +298,13 @@ def test_train_stop_records_failures_without_retry(tiny_model, config_path, data
 
     monkeypatch.setattr(trainer, "_run_unsloth", fail)
     out = tmp_path / "failed-run"
-    with pytest.raises((RuntimeError, trainer.TargetCoverageError)):
+    expected = {"oom": torch.cuda.OutOfMemoryError, "coverage": trainer.TargetCoverageError,
+                "cpu": RuntimeError}[failure]
+    with pytest.raises(expected, match=reason):
         trainer.train(*tiny_model, dataset_path, config_path, out)
     assert calls == [1]
     record = mf.load_run(out / "run.json")
-    assert record.status == "failed" and record.results["error"]
+    assert record.status == "failed" and reason in record.results["error"]
     assert record.results["step_seconds"] == [{"step": 1, "seconds": 0.5}]
     assert not (out / "adapter").exists()
 
