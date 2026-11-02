@@ -128,6 +128,9 @@ def agent_segments(row: dict, max_chars: int) -> tuple[list[dict] | None, str]:
     return out, ""
 
 
+DEFAULT_MODEL = "nemotron-3-nano-30b-a3b"
+
+
 class TokenCounter:
     """Tokens of a whole row under the model's own chat template: the length the
     trainer sees. Reads only the tokenizer files of the model tree."""
@@ -201,6 +204,7 @@ def cmd_sample(a) -> int:
     prose = sum(s["prose"] for _, _, segs in picked for s in segs)
     meta = {"made_at": now(), "dataset": a.dataset, "seed": a.seed, "trajectories": len(picked),
             "segments": n_seg, "prose_segments": prose, "max_chars": a.max_chars, "max_tokens": a.max_tokens,
+            "model": a.model,
             "exclude": [Path(p).name for p in a.exclude], "skipped": skipped,
             "rows_considered": len(picked) + sum(skipped.values())}
     (out_dir / "sample.json").write_text(json.dumps(meta, indent=1) + "\n")
@@ -498,10 +502,12 @@ def cmd_assemble(a) -> int:
         done[t] = row
     # the rewrites can make a row longer: a row over the sample's token limit after them
     # would be cut at the trainer's sequence length, so it is not converted
-    limit = json.loads((vd / "sample.json").read_text()).get("max_tokens", 0) if (vd / "sample.json").exists() else 0
+    sampled = json.loads((vd / "sample.json").read_text()) if (vd / "sample.json").exists() else {}
+    limit = sampled.get("max_tokens", 0)
     over: dict[str, int] = {}
     if limit:
-        count = TokenCounter(a.model)
+        # the tokenizer the sample measured with, unless --model names another
+        count = TokenCounter(a.model or sampled.get("model") or DEFAULT_MODEL)
         over = {t: n for t, row in done.items() if (n := count(row)) > limit}
     with open(vd / "converted.jsonl", "w", encoding="utf-8") as fo:
         for t, row in done.items():
@@ -535,7 +541,7 @@ def main(argv=None) -> int:
     s.add_argument("--exclude", action="append", default=[])
     s.add_argument("--max-tokens", type=int, default=32768,
                    help="whole row, chat template applied, the model's tokenizer (0: no limit)")
-    s.add_argument("--model", default="nemotron-3-nano-30b-a3b")
+    s.add_argument("--model", default=DEFAULT_MODEL)
     s.add_argument("--read-factor", type=int, default=40, help="candidate rows read per trajectory wanted")
     p = sub.add_parser("prepare")
     p.add_argument("--part-size", type=int, default=100)
@@ -550,7 +556,7 @@ def main(argv=None) -> int:
     r.add_argument("--timeout", type=int, default=3600, help="seconds per session")
     sub.add_parser("status")
     s = sub.add_parser("assemble")
-    s.add_argument("--model", default="nemotron-3-nano-30b-a3b", help="tokenizer for the token limit recheck")
+    s.add_argument("--model", default=None, help="tokenizer for the token limit recheck (default: the sample's)")
     for x in sub.choices.values():
         x.add_argument("--name", required=True)
         x.add_argument("--dataset", default="nemotron-swe-v1")

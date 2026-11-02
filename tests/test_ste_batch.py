@@ -225,9 +225,12 @@ def test_assemble_drops_a_row_that_the_rewrites_made_too_long(world, monkeypatch
             "T002.001": "I will examine [[C1]] now.", "T002.002": "I repaired [[C1]] in [[C2]]."}
     monkeypatch.setenv("OPENCODE_BIN", fake_opencode(world.tmp, {"1": good}))
     assert batch.cmd_run(args()) == 0
-    (world.tmp / "var" / "sample.json").write_text(json.dumps({"max_tokens": 1000}))
-    monkeypatch.setattr(batch, "TokenCounter", lambda model: lambda r: 2000 if r["uuid"] == "u2" else 500)
-    batch.cmd_assemble(args())
+    (world.tmp / "var" / "sample.json").write_text(json.dumps({"max_tokens": 1000, "model": "sampled-model"}))
+    used = []
+    monkeypatch.setattr(batch, "TokenCounter",
+                        lambda model: used.append(model) or (lambda r: 2000 if r["uuid"] == "u2" else 500))
+    batch.cmd_assemble(args(model=None))
+    assert used == ["sampled-model"]       # the tokenizer the sample measured with
     assert [r["uuid"] for r in batch.read_jsonl(world.tmp / "var" / "converted.jsonl")] == ["u1"]
     failed = batch.read_jsonl(world.tmp / "var" / "failed.jsonl")
     assert failed == [{"traj": "T002", "row": 1, "uuid": "u2", "failed": [], "over_max_tokens": 2000}]

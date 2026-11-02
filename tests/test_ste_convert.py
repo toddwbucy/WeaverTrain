@@ -205,3 +205,15 @@ def test_quotation_ends_at_a_crlf_blank_line_and_a_thematic_break():
     assert conv.unmask(masked, codes) == "> quoted\r\n\r\nI will fix it."
     masked, codes = conv.mask("> quoted\n---\nI will fix it.")
     assert masked == "[[C1]]\n---\nI will fix it." and codes[0] == "> quoted"
+
+
+def test_quotation_follows_commonmark_paragraph_rules():
+    # a quoted blank line closes the quoted paragraph: the next line is prose
+    masked, codes = conv.mask("> quoted\n>\nI will fix it.")
+    assert masked == "[[C1]]\nI will fix it." and codes == ["> quoted\n>"]
+    # "#123" is not a heading: it continues the quotation
+    masked, codes = conv.mask("> See\n#123 is a failure.")
+    assert masked == "[[C1]]" and codes == ["> See\n#123 is a failure."]
+    # a real heading ends it
+    masked, _ = conv.mask("> quoted\n# Heading")
+    assert masked == "[[C1]]\n# Heading"

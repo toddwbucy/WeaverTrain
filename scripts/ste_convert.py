@@ -48,11 +48,14 @@ SPAN_PATTERNS = [
     re.compile(r"```.*?```", re.S),                       # fenced code
     # Markdown blockquote lines, run together: a quotation (of the issue, of output)
     # is someone else's text and stays as written, nested quotes and all
-    # A line after a quoted line without ">" continues the quote (Markdown's lazy
-    # continuation) unless it is blank (also with CRLF) or starts a heading, a list, a
-    # fence or a thematic break ("---", "***", "___").
-    re.compile(r"(?m)^[ \t]*>[^\n]*(?:\n(?:[ \t]*>[^\n]*|(?![ \t]*(?:\r?$|#|```|~~~|[-*+][ \t]|\d+[.)][ \t]"
-               r"|(?:[-*_][ \t]*){3,}\r?$))[^\n]+))*"),
+    # A line after a quoted line of text without ">" continues the quote (Markdown's
+    # lazy continuation), but not after a quoted blank line, and not when it is blank
+    # (also with CRLF) or starts an ATX heading, a list, a fence or a thematic break.
+    re.compile(r"(?m)^(?:{q})(?:\n(?:{q}))*".format(q=(
+        r"[ \t]*>[ \t]*[^\s][^\n]*"                      # a quoted line of text
+        r"(?:\n(?![ \t]*(?:\r?$|>|#{1,6}(?:[ \t]|\r?$)|```|~~~|[-*+][ \t]|\d+[.)][ \t]"
+        r"|(?:[-*_][ \t]*){3,}\r?$))[^\n]+)*"              # and its lazy continuation lines
+        r"|[ \t]*>[ \t\r]*(?=\n|$)"))),                   # or a quoted blank line
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
     # an exception name and its message, to the end of the line: program output
