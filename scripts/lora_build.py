@@ -220,10 +220,10 @@ def build_dataset(tokenizer, paths, heldout, out_dir, *, tree_hash, max_seq_leng
     # BUILD-ORDER: input-file order cannot change the seeded nested subsets.
     eligible.sort(key=lambda item: item[0]["ste"]["row"])
     random.Random(seed).shuffle(eligible)
-    # BUILD-OUTPUT counts retained rows after every input has passed BUILD-PREFIX.
-    tokenized = [tokenize_spans(tokenizer, row, ids, spans, enable_thinking=enable_thinking)
-                 for row, ids, spans in eligible]
-    selected = tokenized if limit is None else tokenized[:limit]
+    # BUILD-OUTPUT counts selected rows after every input has passed BUILD-PREFIX.
+    chosen = eligible if limit is None else eligible[:limit]
+    selected = [tokenize_spans(tokenizer, row, ids, spans, enable_thinking=enable_thinking)
+                for row, ids, spans in chosen]
     record = {
         "inputs": inputs, "tree_hash": tree_hash, "template_hash": template_hash(tokenizer),
         "tools": True, "enable_thinking": enable_thinking, "max_seq_length": max_seq_length,
