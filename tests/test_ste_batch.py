@@ -3,6 +3,7 @@ stops at the budget and on a substitution script, and assemble restores the code
 The run tests use a fake opencode and need the local lexicon (skipped without it)."""
 
 import importlib.util
+import copy
 import json
 import os
 import sqlite3
@@ -273,3 +274,111 @@ def test_completion_session_waits_for_the_budget(world, monkeypatch):
     batch.cmd_run(args(budget=5.0, parts="p001", repairs=0))
     assert (p1 / "logs" / "p001-round1-finish.log").exists()
     assert not batch.exp.incomplete(p1, 1) and (p1 / "repair-1.jsonl").exists()
+
+
+def test_sampler_count_equals_build_render():
+    """BUILD-RENDER and issue #6: tools, thinking and parsed arguments reach the template."""
+    from tokenizers import Tokenizer, models, pre_tokenizers
+    from transformers import PreTrainedTokenizerFast
+    from lora_build import render_row
+
+    tokenizer = Tokenizer(models.WordLevel({"<unk>": 0, "tools": 1, "quiet": 2,
+                                           "think": 3, "Done": 4}, unk_token="<unk>"))
+    tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
+    tok = PreTrainedTokenizerFast(tokenizer_object=tokenizer, unk_token="<unk>")
+    tok.chat_template = (
+        "{% if tools %}tools {{ tools | tojson }} {% endif %}"
+        "{% if enable_thinking %}think {% else %}quiet {% endif %}"
+        "{% for m in messages %}{{ m.role }} {{ m.content }} "
+        "{% for c in m.tool_calls | default([]) %}{{ c.function.arguments.message }}"
+        "{% endfor %}{% endfor %}"
+    )
+    source = row("u", ["Done"], "Done")
+    source["tools"] = [{"type": "function", "function": {"name": "finish"}}]
+    source["messages"][2]["unused"] = "excluded"
+    before = copy.deepcopy(source)
+    counter = batch.TokenCounter.__new__(batch.TokenCounter)
+    counter.tok, counter.enable_thinking = tok, False
+    expected_messages = copy.deepcopy(source["messages"])
+    del expected_messages[2]["unused"]
+    expected_messages[-1]["tool_calls"][0]["function"]["arguments"] = {"message": "Done"}
+    expected = tok.apply_chat_template(expected_messages, tools=source["tools"],
+                                      enable_thinking=False, tokenize=True,
+                                      add_generation_prompt=False, return_dict=False)
+    assert isinstance(expected, list) and all(isinstance(token, int) for token in expected)
+    assert render_row(tok, source, enable_thinking=False) == expected
+    assert counter(source) == len(expected)
+    assert counter(source) > len(tok.apply_chat_template(expected_messages, tokenize=True, return_dict=False))
+    assert source == before
+
+
+def test_assembly_accepts_finish_json_reserialization():
+    """Issue #6: finish arguments have value equality, other strings retain their bytes."""
+    source = row("u", ["Original."], "Done.")
+    source["messages"][-1]["tool_calls"][0]["function"]["arguments"] = (
+        '{ "message" : "Done.", "other" : "\\u00e9" }'
+    )
+    segments, _ = batch.agent_segments(source, 6000)
+    converted = copy.deepcopy(source)
+    for segment in segments:
+        batch.ste_convert.apply(converted, segment["loc"], "Revised.")
+    batch.check_assembled_row(source, converted, segments)
+    assert source != converted
+
+
+@pytest.mark.parametrize("field", ["uuid", "tool_output", "issue", "finish_extra", "call_name",
+                                   "think", "message_count", "boolean_type"])
+def test_assembly_rejects_changes_outside_targets(field):
+    """Issue #6: the check compares the full row, including unconverted tool arguments."""
+    source = row("u", ["Original."], "Done.")
+    source["flag"] = True
+    source["messages"][2]["tool_calls"] = [
+        {"function": {"name": "think", "arguments": '{ "thought": "Keep." }'}}
+    ]
+    segments, _ = batch.agent_segments(source, 6000)
+    changed = copy.deepcopy(source)
+    if field == "uuid":
+        changed["uuid"] = "different"
+    elif field == "tool_output":
+        changed["messages"][3]["content"] = "different"
+    elif field == "issue":
+        changed["messages"][1]["content"] = "different"
+    elif field == "finish_extra":
+        changed["messages"][-1]["tool_calls"][0]["function"]["arguments"] = (
+            '{"message": "Done.", "extra": 1}'
+        )
+    elif field == "call_name":
+        changed["messages"][-1]["tool_calls"][0]["function"]["name"] = "other"
+    elif field == "think":
+        changed["messages"][2]["tool_calls"][0]["function"]["arguments"] = '{"thought":"Keep."}'
+    elif field == "message_count":
+        changed["messages"].append({"role": "assistant", "content": "extra"})
+    else:
+        changed["flag"] = 1
+    with pytest.raises(ValueError, match="outside"):
+        batch.check_assembled_row(source, changed, segments)
+
+
+@needs_lexicon
+def test_assemble_records_and_refuses_corrupt_rows(world, monkeypatch):
+    """Issue #6: a mutation outside a converted field cannot enter converted.jsonl."""
+    batch.cmd_prepare(args(part_size=2))
+    good = {"T001.001": "I will examine [[C1]] now.", "T001.003": "I repaired [[C1]] in [[C2]].",
+            "T002.001": "I will examine [[C1]] now.", "T002.002": "I repaired [[C1]] in [[C2]]."}
+    monkeypatch.setenv("OPENCODE_BIN", fake_opencode(world.tmp, {"1": good}))
+    assert batch.cmd_run(args()) == 0
+    apply = batch.ste_convert.apply
+
+    def corrupt(target, loc, text):
+        apply(target, loc, text)
+        if target["uuid"] == "u1":
+            target["messages"][3]["content"] = "changed tool output"
+
+    monkeypatch.setattr(batch.ste_convert, "apply", corrupt)
+    assert batch.cmd_assemble(args()) == 2
+    assert [r["uuid"] for r in batch.read_jsonl(world.tmp / "var" / "converted.jsonl")] == ["u2"]
+    record = json.loads((world.tmp / "var" / "run.json").read_text())
+    assert record["integrity_checked"] == 2
+    assert record["integrity_failed"] == 1
+    assert record["converted"] == 1
+    assert batch.read_jsonl(world.tmp / "var" / "failed.jsonl")[0]["traj"] == "T001"

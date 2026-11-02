@@ -36,8 +36,10 @@ so this takes whole trajectories:
   An incomplete round gets one session to finish it; if still short, the part is
   marked failed and the run goes on.
 - status: per part: rounds, pass counts, cost, state.
-- assemble: a trajectory converts only if every segment passes; its rows get the
-  rewrites with the masked spans restored, everything else byte-identical. Writes
+- assemble: a trajectory converts only if every segment passes. Its rows get the
+  rewrites with the masked spans restored. In changed finish calls, other arguments
+  stay equal as JSON values, but spacing and character escapes can change.
+  Other source fields stay unchanged, and the ste field records provenance. Writes
   var/ste/batch-NAME/converted.jsonl, failed.jsonl and run.json.
 
 Read-only on the dataset and on opencode's database.
@@ -67,6 +69,7 @@ sys.path[:0] = [str(REPO / "scripts"), str(REPO / "src")]
 import ste_check  # noqa: E402
 import ste_convert  # noqa: E402
 import ste_experiment as exp  # noqa: E402
+from lora_build import render_row  # noqa: E402
 from weaver_train import manifest as mf  # noqa: E402
 
 DEFAULT_PROMPT = "prompt-e21370fcd140.json"   # the 100-segment kit's prompt
@@ -135,7 +138,7 @@ class TokenCounter:
     """Tokens of a whole row under the model's own chat template: the length the
     trainer sees. Reads only the tokenizer files of the model tree."""
 
-    def __init__(self, model: str):
+    def __init__(self, model: str, enable_thinking: bool = False):
         from transformers import AutoTokenizer
         spec = tomllib.loads((REPO / "config" / "models.toml").read_text())["models"][model]
         for var in ("WEAVER_TRAIN_MODEL_CACHE", "WEAVER_TRAIN_MODEL_STORE"):
@@ -145,17 +148,11 @@ class TokenCounter:
         else:
             raise SystemExit("no model directory; set WEAVER_TRAIN_MODEL_CACHE or WEAVER_TRAIN_MODEL_STORE")
         self.tok = AutoTokenizer.from_pretrained(d)
+        self.enable_thinking = enable_thinking
 
     def __call__(self, row: dict) -> int:
-        msgs = []
-        for m in row["messages"]:
-            m = {k: v for k, v in m.items() if k in ("role", "content", "tool_calls", "tool_call_id", "name")}
-            if m.get("tool_calls"):
-                m["tool_calls"] = [{**tc, "function": {**tc["function"], "arguments": json.loads(
-                    tc["function"]["arguments"]) if isinstance(tc["function"].get("arguments"), str)
-                    else tc["function"].get("arguments")}} for tc in m["tool_calls"]]
-            msgs.append(m)
-        return len(self.tok(self.tok.apply_chat_template(msgs, tokenize=False))["input_ids"])
+        # BUILD-RENDER and issue #6: sampling measures the same tokens as training.
+        return len(render_row(self.tok, row, enable_thinking=self.enable_thinking))
 
 
 def cmd_sample(a) -> int:
@@ -204,7 +201,7 @@ def cmd_sample(a) -> int:
     prose = sum(s["prose"] for _, _, segs in picked for s in segs)
     meta = {"made_at": now(), "dataset": a.dataset, "seed": a.seed, "trajectories": len(picked),
             "segments": n_seg, "prose_segments": prose, "max_chars": a.max_chars, "max_tokens": a.max_tokens,
-            "model": a.model,
+            "model": a.model, "enable_thinking": False, "tools": True,
             "exclude": [Path(p).name for p in a.exclude], "skipped": skipped,
             "rows_considered": len(picked) + sum(skipped.values())}
     (out_dir / "sample.json").write_text(json.dumps(meta, indent=1) + "\n")
@@ -476,6 +473,47 @@ def gemini_cost(vd: Path) -> float:
     return sum(json.loads(p.read_text()).get("cost_usd_batch", 0) for p in (vd / "gemini").glob("round*.json"))
 
 
+def check_assembled_row(source: dict, converted: dict, segments: list[dict]) -> None:
+    """Issue #6: reject changes outside converted narration and finish messages.
+
+    Restore targeted values in private copies, then compare every source field.
+    Only a changed finish call permits different JSON spacing or character escapes.
+    This runs before the provenance field is added.
+    """
+    before, after = copy.deepcopy(source), copy.deepcopy(converted)
+    try:
+        for segment in segments:
+            if not segment["prose"]:
+                continue
+            loc = segment["loc"]
+            old = before["messages"][loc["msg"]]
+            new = after["messages"][loc["msg"]]
+            if old["role"] != "assistant":
+                raise ValueError("target is not an assistant message")
+            if loc["field"] == "content":
+                if old["content"] != segment["raw"] or "content" not in new:
+                    raise ValueError("narration target differs from the source")
+                new["content"] = old["content"]
+            elif loc["field"] == "finish":
+                old_fn = old["tool_calls"][loc["call"]]["function"]
+                new_fn = new["tool_calls"][loc["call"]]["function"]
+                if old_fn["name"] != "finish":
+                    raise ValueError("target is not a finish call")
+                old_args = json.loads(old_fn["arguments"])
+                new_args = json.loads(new_fn["arguments"])
+                if old_args["message"] != segment["raw"] or "message" not in new_args:
+                    raise ValueError("finish target differs from the source")
+                new_args["message"] = old_args["message"]
+                old_fn["arguments"] = old_args
+                new_fn["arguments"] = new_args
+            else:
+                raise ValueError("target is outside narration and finish")
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError("assembled row structure differs from its source") from exc
+    if json.dumps(before, sort_keys=True) != json.dumps(after, sort_keys=True):
+        raise ValueError("a field outside the converted segments changed")
+
+
 def cmd_assemble(a) -> int:
     root, vd = exp_dir(a.name), var_dir(a.name)
     src = read_jsonl(vd / "source.jsonl")
@@ -508,6 +546,7 @@ def cmd_assemble(a) -> int:
                 rows[want[idx]] = json.loads(line)
     prompt_sha = json.loads((REPO / "var" / "ste" / prompt).read_text())["meta"]["prompt_sha256"] if prompt else None
     done: dict[str, dict] = {}
+    integrity_failed: dict[str, str] = {}
     for t, segs in good.items():
         row = copy.deepcopy(rows[t])
         assert row["uuid"] == segs[0]["uuid"], t
@@ -516,6 +555,11 @@ def cmd_assemble(a) -> int:
                 continue
             c = codes[s["id"]]
             ste_convert.apply(row, s["loc"], c["lead"] + ste_convert.unmask(out[s["id"]], c["codes"]) + c["trail"])
+        try:
+            check_assembled_row(rows[t], row, segs)
+        except ValueError as exc:
+            integrity_failed[t] = str(exc)
+            continue
         row["ste"] = {"batch": a.name, "trajectory": t, "row": segs[0]["row"], "prompt_sha256": prompt_sha}
         done[t] = row
     # the rewrites can make a row longer: a row over the sample's token limit after them
@@ -536,17 +580,21 @@ def cmd_assemble(a) -> int:
             if t in over:
                 ff.write(json.dumps({"traj": t, "row": segs[0]["row"], "uuid": segs[0]["uuid"], "failed": [],
                                      "over_max_tokens": over[t]}) + "\n")
+            elif t in integrity_failed:
+                ff.write(json.dumps({"traj": t, "row": segs[0]["row"], "uuid": segs[0]["uuid"],
+                                     "failed": [], "integrity_error": integrity_failed[t]}) + "\n")
             elif t not in good:
                 ff.write(json.dumps({"traj": t, "row": segs[0]["row"], "uuid": segs[0]["uuid"],
                                      "failed": [s["id"] for s in segs if s["prose"] and s["id"] not in passed]}) + "\n")
     record = {"assembled_at": now(), "batch": a.name, "dataset": a.dataset, "revision": spec["revision"],
-              "prompt": prompt, "prompt_sha256": prompt_sha, "trajectories": len(trajs), "converted": len(good) - len(over),
+              "prompt": prompt, "prompt_sha256": prompt_sha, "trajectories": len(trajs), "converted": len(done) - len(over),
+              "integrity_checked": len(good), "integrity_failed": len(integrity_failed),
               "over_max_tokens": len(over), "max_tokens": limit,
               "segments_passed": len(passed), "segments_to_rewrite": sum(s["prose"] for s in src),
               "cost_usd": round(spent(root) + gemini_cost(vd), 2), "converted_sha256": exp.sha256(vd / "converted.jsonl")}
     (vd / "run.json").write_text(json.dumps(record, indent=1) + "\n")
     print(json.dumps(record, indent=1))
-    return 0
+    return 2 if integrity_failed else 0
 
 
 def main(argv=None) -> int:

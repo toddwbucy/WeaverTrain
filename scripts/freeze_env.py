@@ -130,10 +130,10 @@ def main() -> int:
         if src:
             line += f"  source={src}"
         lines.append(line)
-    print("# weaver-train environment lock: what is actually installed in .venv.")
-    print("# Resolution comes from uv.lock; this file pins the result down to the build")
+    print("# weaver-train environment lock: installed builds in .venv.")
+    print("# Resolution comes from uv.lock. This file pins the result down to the build")
     print("# (build = hash of each package's installed files, less its generated bin/")
-    print("# scripts). scripts/setup-env.sh checks the venv against it on every run;")
+    print("# scripts). scripts/setup-env.sh checks the venv against it on every run.")
     print("# change it only with --update-lock.")
     print(f"# python {platform.python_version()} {sys.platform} {platform.machine()}")
     for line in sorted(set(lines)):

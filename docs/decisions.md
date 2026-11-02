@@ -5,8 +5,9 @@ date, the decision and its reasoning as stated.
 
 ## 2026-11-02: no more Gemini runs; the third STE batch is cancelled
 
-Operator ruling, given through the review seat on PR #5. No more Gemini runs and no
-further spend on Gemini. The third batch of 200 trajectories (seed 2033) is cancelled,
+Decision of the operator, given through the review seat on PR #5 and recorded in issue #6.
+Do not use Gemini again. Do not spend more on Gemini. The third batch of 200
+trajectories (seed 2033) is cancelled,
 not paused. Its round 1 ran (5,985 of 6,930 segments passing, $19.23). Round 2 was
 never submitted, because the submit hit Gemini's spend limit. Nothing from it is
 training data. The Google API key is revoked: do not ask for it or use it.
