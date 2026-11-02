@@ -76,11 +76,12 @@ and this Spec does not include it. (Decision of the operator, 2026-11-02, sectio
 without a measurement. The adapter is good when these 2 conditions apply:
 
 1. Its STE pass rate on the held-out set (section 6) is higher than the pass rate of
-   the model without an adapter.
-2. Its correct-call rate does not decrease.
+   the model without an adapter, as RUN-MARGIN measures.
+2. Its correct-call rate is flat or higher, as RUN-MARGIN measures.
 
-If the pass rate increases and the correct-call rate decreases, the result is a trade.
-Tell the operator that it is a trade, not a good result.
+If the pass rate is higher and the correct-call rate is lower, the result is a trade.
+Tell the operator that it is a trade, not a good result. If the correct-call result
+is "not shown", tell the operator. Do not tell that the adapter is good.
 
 ## 2. The training data
 
@@ -272,15 +273,28 @@ compares pairs. For 2 scores A and B:
 - `b` is the quantity of segments that the checker accepts with B and rejects with A.
 - `c` is the quantity of segments that the checker accepts with A and rejects with B.
 
-B is higher than A only when these 2 conditions apply:
+The result is "higher", "lower", "flat" or "not shown". B is
+higher than A only when these 3 conditions apply:
 
 1. An `exact two-sided sign test` on `b` and `c` gives `p` less than 0.05.
-2. The difference in pass rate is larger than the decode difference of SCORE-SPREAD.
+2. `b` is more than `c`.
+3. The difference in pass rate is larger than the decode difference of SCORE-SPREAD.
 
-If one condition does not apply, the name of the result is "flat". Use the same rule
-for the correct-call rate. On 100 segments, a difference of less than about 10 points
-usually shows as flat. This is a limit of the held-out set. Record the limit with
-each result. Do not make the margin smaller because of it.
+B is lower than A when the same conditions apply with `c` more than `b`.
+
+Use the 95% `Newcombe paired score interval` (Newcombe 1998, method 10) of the
+difference in pass rate. A and B are flat only when this interval is in the range from
+-5 to +5 points. This
+Spec sets the range of 5 points with the margin, before R0.
+
+If none of these results applies, the result is "not shown". "Not shown" is not
+"flat". It tells that the held-out set did not show a difference, and also did not
+show that there is no difference. For example, 5 segments that increase and none
+that decrease give `p` = 0.0625. That result is "not shown".
+
+Use the same rules for the correct-call rate. On 100 segments, a difference of less
+than about 10 points usually shows as "not shown". This is a limit of the held-out
+set. Record the limit with each result. Do not make the margin smaller because of it.
 
 The 2 types of noise are different. SCORE-SPREAD measures the difference between 2
 runs that are the same. The sign test measures the error that comes from a sample of
@@ -291,8 +305,13 @@ runs that are the same. The sign test measures the error that comes from a sampl
 - If R3 is higher than R2, more data can help.
 - If R3 and R2 are flat, more data does not help. Then the next change is the open cell
   of LOSS-UNWEIGHTED.
+- If the result for R3 and R2 is "not shown", the cell "Sufficient data" stays open.
+  Do not change the loss. Tell the operator. The operator selects the next step, for
+  example a larger held-out set or the third STE batch.
 - If the correct-call rate of an adapter is lower than the rate of R0, tell the
   operator. The adapter then decreases the skill of the model.
+- If the correct-call result of an adapter against R0 is "not shown", tell the
+  operator. The held-out set then does not show the effect on the skill.
 
 **RUN-OUTPUT.** Each run writes to a new directory that is not in the model tree, as
 the trainer makes sure. Put the adapters, the data records and the score files in a
@@ -539,9 +558,11 @@ model of `tests/conftest.py`.
   model has `build.json` and the 2 token sequences, and no `train.jsonl`. The trainer
   rejects it.
 - **RUN-MARGIN:** Use test vectors of accept and reject results. The sign test and the
-  difference rule give the correct "higher" and "flat" results. One case has a sign test
-  with p less than 0.05 and a difference that is smaller than the decode difference.
-  That case is flat.
+  difference rule give the correct "higher", "lower", "flat" and "not shown" results.
+  One case has a sign test with p less than 0.05 and a difference that is smaller than
+  the decode difference. That case is not "higher". One case has 5 segments that
+  increase and none that decrease. That case is "not shown". One case has an interval
+  in the range from -5 to +5 points. That case is "flat".
 - **SCORE-REVIEW:** The score record holds the sha256 of the reviewer prompt and the
   model ID. The random selection does not show which run wrote a segment.
 - `tests/test_independence.py` continues to agree with the code. The 2 new commands
@@ -593,8 +614,9 @@ rate before R2.
 **More weight on STE text (LOSS-UNWEIGHTED).** RUN-READ closes this cell. Try it only
 if R3 and R2 are flat.
 
-**Sufficient data.** RUN-READ closes this cell with R2 and R3. If there is a third STE
-batch, keep it, unless R3 is higher than R2.
+**Sufficient data.** RUN-READ closes this cell with R2 and R3, when the result is
+"higher" or "flat". If the result is "not shown", the cell stays open. If there is a
+third STE batch, keep it, unless R3 is higher than R2.
 
 **The 32K limit.** All training rows have 32K tokens or less. About one dataset
 row in 10 has this length. A held-out set of longer trajectories is necessary
