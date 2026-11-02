@@ -116,8 +116,9 @@ goes to the template. (Decisions of the operator, 2026-11-02, section 10.)
 **BUILD-LENGTH.** If a row has more tokens than `max_seq_length` after the template,
 the data script removes the full row. The data record lists the row and its length.
 The data script does not cut a row. The sample limits were 32,768 and 32,000 tokens,
-without `tools`. Thus, some rows can become too long when the `tools` list is in the
-template. The data record gives the count of these rows.
+without `tools`. The `tools` list adds 2,277 tokens to each row. With it, 154 of the
+387 rows have more than 32,768 tokens, and no row has more than 36,864 (count of
+2026-11-02). The data record gives the count of the rows that the script removes.
 
 **BUILD-MASK.** Each row gets an `assistant_masks` array with the same length as its
 `input_ids`. The value is 1 for each token that the assistant wrote. The value is 0
@@ -247,15 +248,24 @@ procedures of the curve.
 |---|---|
 | `lora.r` / `lora.alpha` / `lora.dropout` | 16 / 32 / 0.0 |
 | `lora.target_modules` | `q_proj`, `k_proj`, `v_proj`, `o_proj`, `in_proj` |
-| `train.max_seq_length` | 32768 |
+| `train.max_seq_length` | 36864 |
 | `train.learning_rate` | 1e-4, cosine schedule, 10 warmup steps |
 | `train.per_device_batch_size` / `gradient_accumulation_steps` | 1 / 8 |
 | `train.num_train_epochs` | 2 |
 | `train.seed` | 0 |
 
-With 387 rows, one epoch is about 48 steps. These values are a first
+With 387 rows, one epoch is about 48 steps. At 36,864 tokens, BUILD-LENGTH removes no
+row. These values are a first
 estimate. The curve measures them. (The operator must give a decision before a change
 to a value, section 10.)
+
+**RUN-MEMORY.** Before R1, do one LoRA step at 36,864 tokens on the 30B A3B model.
+Put the model on the 2 GPUs as for the training. Record the maximum memory of each GPU
+and the time, as for the step at 32K. Do not start R1 before this step is
+satisfactory. If the step does not
+fit, do the same step at 34,816 tokens (376 rows). If that step does not fit, stop and
+tell the operator. Do not remove the `tools` list without a new decision of the
+operator.
 
 **RUN-ORDER.** Do the procedures in this sequence. Do not start a procedure before
 the previous procedure is complete.
@@ -459,7 +469,8 @@ that the adapter came from:
 - The template hash.
 - The `tools` value.
 - The `enable_thinking` value.
-- `max_seq_length`.
+- `max_seq_length`. The SPU must supply a context of this length or more for the 30B
+  A3B model.
 
 BUILD-RENDER and BUILD-OUTPUT record these fields at this time. This clause adds no
 field. If one of these fields changes after the RECONCILE step, do the RECONCILE step
@@ -601,8 +612,10 @@ text. Until that decision, this cell stays open.
 **Tools in the template (BUILD-RENDER).** Closed. Decision of the operator,
 2026-11-02: the `tools` list goes to the template. Then the model gets the tool
 schemas, as it does when it operates as an agent. The data record continues to hold
-the count of rows that BUILD-LENGTH removes. If the `tools` list causes the removal of
-many rows, the operator gives a new decision.
+the count of rows that BUILD-LENGTH removes. Decision of the operator, 2026-11-02: at
+32,768 tokens, the `tools` list causes the removal of 154 of 387 rows. Thus,
+`max_seq_length` is 36,864, with RUN-MEMORY before R1. The `tools` decision stays
+closed.
 
 **Start without the benchmark (BENCH-DEFERRED).** Closed. Decision of the operator,
 2026-11-02: the training starts before the harness is available. Until the harness is
@@ -628,7 +641,8 @@ if R3 and R2 are flat.
 "higher" or "flat". If the result is "not shown", the cell stays open. The third STE batch
 is cancelled. More data can come only from the conversion loop.
 
-**The 32K limit.** All training rows have 32K tokens or less. About one dataset
-row in 10 has this length. A held-out set of longer trajectories is necessary
+**The length limit.** The sample selected rows of 32K tokens or less without the `tools`
+list. With the list, each row has 36,864 tokens or less. About one dataset row in 10
+has the sample length. A held-out set of longer trajectories is necessary
 to show if STE text continues on longer tasks. That set must have a larger
 `max_seq_length`. Before that, a memory test at 64K must occur.
