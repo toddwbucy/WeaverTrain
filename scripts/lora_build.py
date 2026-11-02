@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
+import fcntl
 from contextlib import contextmanager
 
 
@@ -54,12 +54,13 @@ def output_files(out_dir, names):
     out_dir = out_dir.resolve()
     out_dir.parent.mkdir(parents=True, exist_ok=True)
     reservation = out_dir.with_name(out_dir.name + ".build.lock")
+    # Keep one persistent inode, so closing or terminating its owner releases the lock.
+    descriptor = reservation.open("a")
     try:
-        descriptor = os.open(reservation, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError as exc:
-        raise BuildError("BUILD-OUTPUT: output is reserved by another build") from exc
-    os.close(descriptor)
-    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise BuildError("BUILD-OUTPUT: output is reserved by another build") from exc
         require_empty_output(out_dir)
         existed = out_dir.exists()
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -75,7 +76,7 @@ def output_files(out_dir, names):
                 out_dir.rmdir()
             raise
     finally:
-        reservation.unlink()
+        descriptor.close()
 
 
 def read_jsonl(path):
@@ -259,6 +260,7 @@ def build_render_only(tokenizer, prompts, out_dir, *, tree_hash, max_seq_length,
 def main(argv=None):
     """BUILD-INPUTS, BUILD-RENDER-ONLY: verify a configured local model before tokenizer use."""
     import argparse
+    import os
     import sys
     import tomllib
     from pathlib import Path
