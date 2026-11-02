@@ -307,11 +307,11 @@ def apply_review(bundle, mapping, verdicts, overrides=()):
             "decisions": [{**item, **mapping[key]} for key, item in decisions.items()]}
 
 
-def checked_output_path(out_dir, model_dir):
-    """SCORE-OUTPUT and section 1: keep outputs outside the read-only reference tree."""
+def checked_output_path(out_dir, model_dir, *, kind="reference model"):
+    """SCORE-OUTPUT, TRAIN-EPOCH-ADAPTERS and section 1: preserve reference and adapter trees."""
     out_dir, model_dir = out_dir.resolve(), model_dir.resolve()
     if out_dir == model_dir or model_dir in out_dir.parents or out_dir in model_dir.parents:
-        raise ScoreError("SCORE-OUTPUT: output overlaps the reference model directory")
+        raise ScoreError(f"SCORE-OUTPUT: output overlaps the {kind} directory")
     return out_dir
 
 
@@ -322,6 +322,8 @@ def score_model(plan_path, build_path, out_dir, *, model_name, prompt_path, adap
     model_manifest_path = loader.manifest_path_for(model_name)
     model_dir = loader.resolve_dir(mf.load_tree(model_manifest_path)).resolve()
     out_dir = checked_output_path(out_dir, model_dir)
+    if adapter is not None:
+        out_dir = checked_output_path(out_dir, adapter, kind="adapter")
     if out_dir.exists():
         raise ScoreError("SCORE-OUTPUT: each score needs a new output directory")
     plan = json.loads(plan_path.read_text())
@@ -526,10 +528,13 @@ def main(argv=None):
             print(json.dumps(compare_scores(args.plan, args.a, args.b, args.r0_first, args.r0_second), indent=2))
         elif args.command == "review-export":
             model_manifest = mf.load_tree(loader.manifest_path_for(args.model))
+            plan = json.loads(args.plan.read_text())
+            # RECONCILE-FIELDS: the protected reference must be the model in the frozen plan.
+            if plan.get("tree_hash") != model_manifest.tree_hash:
+                raise ScoreError("RECONCILE-FIELDS: review model tree differs from the plan")
             args.out = checked_output_path(args.out, loader.resolve_dir(model_manifest))
             if args.out.exists() or len({path.name for path in args.score}) != len(args.score):
                 raise ScoreError("SCORE-REVIEW: use a fresh directory and unique score directory names")
-            plan = json.loads(args.plan.read_text())
             records = {path.name: read_score(path, args.plan) for path in args.score}
             if any(record["reviewer_prompt_sha256"] != mf.sha256_file(args.prompt)
                    for record, _ in records.values()):

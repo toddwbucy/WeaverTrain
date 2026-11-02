@@ -405,7 +405,42 @@ def test_score_plan_output_protects_reference_before_load(
     assert mf.verify_tree(manifest, model_dir) == []
 
 
-@pytest.mark.parametrize("location", ["inside", "symlink", "outside"])
+@pytest.mark.parametrize("location", ["inside", "same", "ancestor", "symlink", "outside"])
+def test_score_output_protects_adapter_before_load(tmp_path, tokenizer, monkeypatch, score_reference, location):
+    """SCORE-OUTPUT, TRAIN-EPOCH-ADAPTERS: score files must not change a saved adapter."""
+    model_dir, model_manifest = score_reference
+    adapter = tmp_path / "run/adapter"
+    adapter.mkdir(parents=True)
+    (adapter / "adapter_model.safetensors").write_bytes(b"fixture")
+    manifest = mf.build_tree(adapter, "adapter", "fixture-adapter")
+    manifest.save(adapter.parent / "adapter.manifest.json")
+    record = tmp_path / "record.json"
+    record.write_text(json.dumps(build_record(tokenizer)))
+    alias = tmp_path / "alias"
+    alias.symlink_to(adapter, target_is_directory=True)
+    dest = {"inside": adapter / "scores", "same": adapter, "ancestor": adapter.parent,
+            "symlink": alias / "scores", "outside": tmp_path / "scores"}[location]
+
+    class ReachedModelLoad(Exception):
+        """The accepted output path reached the model loader."""
+
+    def load_model(*args, **kwargs):
+        if location != "outside":
+            pytest.fail("adapter overlap reached model loading")
+        raise ReachedModelLoad
+
+    monkeypatch.setattr(score.loader, "load", load_model)
+    if location == "outside":
+        with pytest.raises(ReachedModelLoad):
+            score.score_model(record, record, dest, model_name=NAME, prompt_path=record, adapter=adapter)
+    else:
+        with pytest.raises(score.ScoreError, match="overlaps the adapter directory"):
+            score.score_model(record, record, dest, model_name=NAME, prompt_path=record, adapter=adapter)
+    assert mf.verify_tree(manifest, adapter) == mf.verify_tree(model_manifest, model_dir) == []
+    assert not (dest / "score.json").exists() and not (dest / "segments.jsonl").exists()
+
+
+@pytest.mark.parametrize("location", ["inside", "symlink", "outside", "wrong_model_inside", "wrong_model_symlink"])
 def test_score_review_export_protects_reference_before_write(
         tmp_path, tokenizer, monkeypatch, capsys, score_reference, location):
     """SCORE-REVIEW and section 1: a blinded export cannot change the reference tree."""
@@ -426,8 +461,16 @@ def test_score_review_export_protects_reference_before_write(
     (run / "segments.jsonl").write_text(json.dumps(outputs[0]) + "\n")
     alias = tmp_path / "alias"
     alias.symlink_to(model_dir, target_is_directory=True)
+    selected_model = NAME
+    if location.startswith("wrong_model_"):
+        selected_model = "other-model"
+        other_dir = tmp_path / "other-reference"
+        other_dir.mkdir()
+        (other_dir / "weights").write_bytes(b"other fixture")
+        mf.build_tree(other_dir, "model", selected_model).save(tmp_path / f"{selected_model}.json")
+        monkeypatch.setenv("WEAVER_TRAIN_MODEL_DIR", str(other_dir))
     dest = {"inside": model_dir / "review", "symlink": alias / "review",
-            "outside": tmp_path / "review"}[location]
+            "outside": tmp_path / "review"}[location.removeprefix("wrong_model_")]
     original_bundle = score.review_bundle
     calls = []
 
@@ -438,14 +481,16 @@ def test_score_review_export_protects_reference_before_write(
         return original_bundle(*args, **kwargs)
 
     monkeypatch.setattr(score, "review_bundle", review_bundle)
-    result = score.main(["review-export", "--model", NAME, "--plan", str(plan_path),
+    result = score.main(["review-export", "--model", selected_model, "--plan", str(plan_path),
                          "--prompt", str(prompt), "--score", str(run), "--out", str(dest)])
     if location == "outside":
         assert result == 0 and calls == [1]
         assert (dest / "blinded.json").is_file() and (dest / "mapping.json").is_file()
     else:
         assert result == 1 and calls == []
-        assert "overlaps the reference model directory" in capsys.readouterr().err
+        reason = ("review model tree differs from the plan" if location.startswith("wrong_model_")
+                  else "overlaps the reference model directory")
+        assert reason in capsys.readouterr().err
         assert not dest.exists()
     assert mf.verify_tree(manifest, model_dir) == []
 
