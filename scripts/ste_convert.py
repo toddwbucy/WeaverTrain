@@ -51,13 +51,14 @@ SPAN_PATTERNS = [
     # A line after a quoted line of text without ">" continues the quote (Markdown's
     # lazy continuation), but not after a quoted blank line, and not when it is blank
     # (also with CRLF) or starts an ATX heading, a list, a fence or a thematic break.
-    # A quotation inside a list item ("- > text", "1. > text") is quoted text too. The
-    # pattern is a constant: no input reaches it, and every repeat is anchored on "\n".
-    re.compile(r"(?m)^(?:{q})(?:\n(?:{q}))*".format(q=(
-        r"[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?>[ \t]*[^\s][^\n]*"   # a quoted line of text, maybe in a list item
-        r"(?:\n(?![ \t]*(?:\r?$|>|#{1,6}(?:[ \t]|\r?$)|```|~~~|[-*+][ \t]|\d+[.)][ \t]"
-        r"|(?:[-*_][ \t]*){3,}\r?$))[^\n]+)*"              # and its lazy continuation lines
-        r"|[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?>[ \t\r]*(?=\n|$)"))),   # or a quoted blank line
+    # A quotation inside a list item ("- > text", "1. > text") is quoted text too; the
+    # marker (group "lead") stays outside the placeholder, so the rewrite still sees the
+    # list. The pattern is a constant: no input reaches it, every repeat starts at "\n".
+    re.compile(r"(?m)^(?P<lead>[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?)(?:{t}|{b})(?:\n[ \t]*(?:{t}|{b}))*".format(
+        t=(r">[ \t]*[^\s][^\n]*"                            # a quoted line of text
+           r"(?:\n(?![ \t]*(?:\r?$|>|#{1,6}(?:[ \t]|\r?$)|```|~~~|[-*+][ \t]|\d+[.)][ \t]"
+           r"|(?:[-*_][ \t]*){3,}\r?$))[^\n]+)*"),           # and its lazy continuation lines
+        b=r">[ \t\r]*(?=\n|$)")),                           # or a quoted blank line
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
     # an exception name and its message, to the end of the line: program output
@@ -169,12 +170,16 @@ def mask(text: str) -> tuple[str, list[str]]:
     codes: list[str] = []
 
     def sub(m):
-        codes.append(m.group(0))
-        return f"[[C{len(codes)}]]"
+        lead = (m.groupdict().get("lead") or "") if m.re.groupindex else ""
+        body = m.group(0)[len(lead):]
+        if body.startswith("[[C"):
+            return m.group(0)
+        codes.append(body)
+        return f"{lead}[[C{len(codes)}]]"   # a pattern's "lead" group stays visible
 
     text = mask_listings(text, codes)
     for pat in SPAN_PATTERNS:
-        text = pat.sub(lambda m: m.group(0) if m.group(0).startswith("[[C") else sub(m), text)
+        text = pat.sub(sub, text)
     text = mask_brackets(text, codes)
     text = IDENT.sub(lambda m: sub(m) if not re.fullmatch(r"\d+(\.\d+)*", m.group(0)) else m.group(0), text)
     return text, codes
