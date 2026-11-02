@@ -197,3 +197,11 @@ def test_lazy_continuation_line_stays_in_the_quotation():
     # a list or a heading after the quote is not a continuation
     masked, _ = conv.mask("> quoted\n- I will fix it.")
     assert masked == "[[C1]]\n- I will fix it."
+
+
+def test_quotation_ends_at_a_crlf_blank_line_and_a_thematic_break():
+    masked, codes = conv.mask("> quoted\r\n\r\nI will fix it.")
+    assert masked == "[[C1]]\n\r\nI will fix it." and codes == ["> quoted\r"]
+    assert conv.unmask(masked, codes) == "> quoted\r\n\r\nI will fix it."
+    masked, codes = conv.mask("> quoted\n---\nI will fix it.")
+    assert masked == "[[C1]]\n---\nI will fix it." and codes[0] == "> quoted"

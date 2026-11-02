@@ -203,6 +203,7 @@ def test_session_timeout_is_a_failed_session(tmp_path, monkeypatch):
     def slow(*a, **kw):
         raise subprocess.TimeoutExpired(a[0], kw["timeout"])
     monkeypatch.setattr(batch.subprocess, "run", slow)
+    monkeypatch.setattr(batch, "opencode_bin", lambda: "opencode")     # opencode need not be installed
     assert batch.session(tmp_path, "m", "msg", "r1", 5) == -1
     assert "timed out after 5s" in (tmp_path / "logs" / "r1.log").read_text()
 
@@ -214,3 +215,21 @@ def test_changed_literal_goes_back_to_repair(tmp_path):
     (tmp_path / "round1.jsonl").write_text(json.dumps({"id": "s1", "output": "I will examine 1. [[C1]] now."}) + "\n")
     ok, fails = batch.judge_round(tmp_path, inputs, judge)
     assert ok == 0 and "1.[[C1]]" in fails[0]["problems"]
+
+
+@needs_lexicon
+def test_assemble_drops_a_row_that_the_rewrites_made_too_long(world, monkeypatch):
+    # PR #4 review: the token limit is checked again on the rewritten row
+    batch.cmd_prepare(args(part_size=2))
+    good = {"T001.001": "I will examine [[C1]] now.", "T001.003": "I repaired [[C1]] in [[C2]].",
+            "T002.001": "I will examine [[C1]] now.", "T002.002": "I repaired [[C1]] in [[C2]]."}
+    monkeypatch.setenv("OPENCODE_BIN", fake_opencode(world.tmp, {"1": good}))
+    assert batch.cmd_run(args()) == 0
+    (world.tmp / "var" / "sample.json").write_text(json.dumps({"max_tokens": 1000}))
+    monkeypatch.setattr(batch, "TokenCounter", lambda model: lambda r: 2000 if r["uuid"] == "u2" else 500)
+    batch.cmd_assemble(args())
+    assert [r["uuid"] for r in batch.read_jsonl(world.tmp / "var" / "converted.jsonl")] == ["u1"]
+    failed = batch.read_jsonl(world.tmp / "var" / "failed.jsonl")
+    assert failed == [{"traj": "T002", "row": 1, "uuid": "u2", "failed": [], "over_max_tokens": 2000}]
+    run = json.loads((world.tmp / "var" / "run.json").read_text())
+    assert run["converted"] == 1 and run["over_max_tokens"] == 1 and run["max_tokens"] == 1000

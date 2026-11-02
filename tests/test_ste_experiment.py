@@ -59,11 +59,13 @@ def test_substitution_scripts_and_near_copies(tmp_path):
 
 def test_malformed_grade_records_are_problems_not_crashes(tmp_path):
     (tmp_path / "grades.jsonl").write_text(
-        '{"gid": "g1", "verdict": "Faithful"}\n["not", "an", "object"]\n{"verdict": "minor"}\n')
+        '{"gid": "g1", "verdict": "Faithful"}\n["not", "an", "object"]\n{"verdict": "minor"}\n'
+        '{"gid": ["g2"], "verdict": "minor"}\n')
     out, problems = exp.read_grades(tmp_path, {"g1": {}, "g2": {}})
     assert set(out) == {"g1"} and out["g1"]["verdict"] == "faithful"
     assert any("TypeError" in p for p in problems) and any("KeyError" in p for p in problems)
     assert any(p.startswith("INCOMPLETE") for p in problems)
+    assert "line 4: gid must be a string" in problems
 
 
 def test_send_parts_with_nothing_to_send(tmp_path, monkeypatch, capsys):

@@ -485,24 +485,39 @@ def cmd_assemble(a) -> int:
             if idx in want:
                 rows[want[idx]] = json.loads(line)
     prompt_sha = json.loads((REPO / "var" / "ste" / prompt).read_text())["meta"]["prompt_sha256"] if prompt else None
+    done: dict[str, dict] = {}
+    for t, segs in good.items():
+        row = copy.deepcopy(rows[t])
+        assert row["uuid"] == segs[0]["uuid"], t
+        for s in sorted(segs, key=lambda s: -s["loc"]["msg"]):
+            if not s["prose"]:
+                continue
+            c = codes[s["id"]]
+            ste_convert.apply(row, s["loc"], c["lead"] + ste_convert.unmask(out[s["id"]], c["codes"]) + c["trail"])
+        row["ste"] = {"batch": a.name, "trajectory": t, "row": segs[0]["row"], "prompt_sha256": prompt_sha}
+        done[t] = row
+    # the rewrites can make a row longer: a row over the sample's token limit after them
+    # would be cut at the trainer's sequence length, so it is not converted
+    limit = json.loads((vd / "sample.json").read_text()).get("max_tokens", 0) if (vd / "sample.json").exists() else 0
+    over: dict[str, int] = {}
+    if limit:
+        count = TokenCounter(a.model)
+        over = {t: n for t, row in done.items() if (n := count(row)) > limit}
     with open(vd / "converted.jsonl", "w", encoding="utf-8") as fo:
-        for t, segs in good.items():
-            row = copy.deepcopy(rows[t])
-            assert row["uuid"] == segs[0]["uuid"], t
-            for s in sorted(segs, key=lambda s: -s["loc"]["msg"]):
-                if not s["prose"]:
-                    continue
-                c = codes[s["id"]]
-                ste_convert.apply(row, s["loc"], c["lead"] + ste_convert.unmask(out[s["id"]], c["codes"]) + c["trail"])
-            row["ste"] = {"batch": a.name, "trajectory": t, "row": segs[0]["row"], "prompt_sha256": prompt_sha}
-            fo.write(json.dumps(row) + "\n")
+        for t, row in done.items():
+            if t not in over:
+                fo.write(json.dumps(row) + "\n")
     with open(vd / "failed.jsonl", "w", encoding="utf-8") as ff:
         for t, segs in trajs.items():
-            if t not in good:
+            if t in over:
+                ff.write(json.dumps({"traj": t, "row": segs[0]["row"], "uuid": segs[0]["uuid"], "failed": [],
+                                     "over_max_tokens": over[t]}) + "\n")
+            elif t not in good:
                 ff.write(json.dumps({"traj": t, "row": segs[0]["row"], "uuid": segs[0]["uuid"],
                                      "failed": [s["id"] for s in segs if s["prose"] and s["id"] not in passed]}) + "\n")
     record = {"assembled_at": now(), "batch": a.name, "dataset": a.dataset, "revision": spec["revision"],
-              "prompt": prompt, "prompt_sha256": prompt_sha, "trajectories": len(trajs), "converted": len(good),
+              "prompt": prompt, "prompt_sha256": prompt_sha, "trajectories": len(trajs), "converted": len(good) - len(over),
+              "over_max_tokens": len(over), "max_tokens": limit,
               "segments_passed": len(passed), "segments_to_rewrite": sum(s["prose"] for s in src),
               "cost_usd": round(spent(root) + gemini_cost(vd), 2), "converted_sha256": exp.sha256(vd / "converted.jsonl")}
     (vd / "run.json").write_text(json.dumps(record, indent=1) + "\n")
@@ -534,7 +549,8 @@ def main(argv=None) -> int:
     r.add_argument("--jobs", type=int, default=1, help="parts worked at once (each its own session)")
     r.add_argument("--timeout", type=int, default=3600, help="seconds per session")
     sub.add_parser("status")
-    sub.add_parser("assemble")
+    s = sub.add_parser("assemble")
+    s.add_argument("--model", default="nemotron-3-nano-30b-a3b", help="tokenizer for the token limit recheck")
     for x in sub.choices.values():
         x.add_argument("--name", required=True)
         x.add_argument("--dataset", default="nemotron-swe-v1")

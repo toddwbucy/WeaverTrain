@@ -49,8 +49,10 @@ SPAN_PATTERNS = [
     # Markdown blockquote lines, run together: a quotation (of the issue, of output)
     # is someone else's text and stays as written, nested quotes and all
     # A line after a quoted line without ">" continues the quote (Markdown's lazy
-    # continuation) unless it is blank or starts a heading, a list or a fence.
-    re.compile(r"(?m)^[ \t]*>[^\n]*(?:\n(?:[ \t]*>[^\n]*|(?![ \t]*(?:$|#|```|~~~|[-*+][ \t]|\d+[.)][ \t]))[^\n]+))*"),
+    # continuation) unless it is blank (also with CRLF) or starts a heading, a list, a
+    # fence or a thematic break ("---", "***", "___").
+    re.compile(r"(?m)^[ \t]*>[^\n]*(?:\n(?:[ \t]*>[^\n]*|(?![ \t]*(?:\r?$|#|```|~~~|[-*+][ \t]|\d+[.)][ \t]"
+               r"|(?:[-*_][ \t]*){3,}\r?$))[^\n]+))*"),
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
     # an exception name and its message, to the end of the line: program output

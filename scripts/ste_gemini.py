@@ -169,7 +169,7 @@ def unit_request(recs: list[dict], prompt: dict, a, cache: str | None) -> dict:
 def unit_outputs(resp: dict, recs: list[dict], group: int) -> tuple[dict[str, str], list[str]]:
     """Rewrites by id from one response, and what went wrong."""
     text, why = text_of(resp)
-    if why not in ("STOP", ""):
+    if why != "STOP":
         # a cut-off answer (MAX_TOKENS) or a blocked one is not a rewrite: its ids are
         # asked for again as missing, as ste_convert.Converter.segment rejects truncation
         return {}, [f"{recs[0]['id']}..: finish {why}, not used"]
@@ -265,6 +265,9 @@ def cmd_live(a) -> int:
                     j = r.json()
                 except ValueError as e:
                     problems.append(f"{unit[0]['id']}..: unreadable response ({e})")
+                    return
+                if not isinstance(j, dict) or not isinstance(j.get("usageMetadata") or {}, dict):
+                    problems.append(f"{unit[0]['id']}..: response is not a GenerateContentResponse object")
                     return
                 add_usage(usage, j)
                 got, bad = unit_outputs(j, unit, a.group)

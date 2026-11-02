@@ -589,6 +589,9 @@ def read_grades(d: Path, key: dict) -> tuple[dict, list[str]]:
         except (json.JSONDecodeError, KeyError, AttributeError, TypeError) as e:
             problems.append(f"line {n}: {type(e).__name__} {e}")
             continue
+        if not isinstance(gid, str):
+            problems.append(f"line {n}: gid must be a string")
+            continue
         if v not in VERDICTS:
             problems.append(f"line {n}: verdict {v!r}")
         out[gid] = {**g, "verdict": v}

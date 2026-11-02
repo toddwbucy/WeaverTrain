@@ -73,3 +73,11 @@ def test_cut_off_answer_is_not_a_rewrite():
     resp = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [{"text": "I will look at"}]}}]}
     out, problems = gem.unit_outputs(resp, recs, 1)
     assert out == {} and problems == ["t1..: finish MAX_TOKENS, not used"]
+
+
+def test_text_without_a_finish_reason_is_not_a_rewrite():
+    # an empty finishReason means the generation did not stop
+    recs = [{"id": "t1", "text": "Let me look."}]
+    resp = {"candidates": [{"content": {"parts": [{"text": "I will look."}]}}]}
+    out, problems = gem.unit_outputs(resp, recs, 1)
+    assert out == {} and problems == ["t1..: finish , not used"]
