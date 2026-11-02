@@ -27,10 +27,11 @@ Output only the rewritten text. Do not write the markers, a preface, a note, or 
 1. Keep all facts, numbers, names, conditions, negations, and the sequence of steps.
 2. Keep how certain the text is. Do not change a guess into a fact, and do not add doubt to a fact.
    - A possibility (might, may, maybe, perhaps, could): write "Possibly, ..." or "It is possible that ...".
-   - A probable result or an expectation (probably, likely, "this should fix it"): write "I think that ...".
+   - A probable result or an expectation (probably, likely, "this should fix it"): write "I think that ...". Example: "This should fix the error." becomes "I think that this change will repair the error."
    - Evidence that points to a conclusion (suggests, seems, appears, looks like): write "This is an indication that ..." or "Possibly, ...". Write "shows" only if the text is certain.
-   - Advice ("you should add a test", "it is better to"): write "I recommend that ...".
-   - Never write "must" for "should". "must" is only for a rule or a requirement that the text states as certain.
+   - Advice ("you should add a test", "it is better to"): write "I recommend that ...". Example: "You should add a regression test." becomes "I recommend that you add a test for the regression."
+   - A requirement or a correct value ("X should be Y", "no error should be raised"): write "must". Example: "The result should be an empty list." becomes "The result must be an empty list." "No error should be raised." becomes "The code must not give an error."
+   - Use "must" for "should" only in this third sense. For advice and for an expectation, "must" changes the meaning.
 3. A test of a condition (check if, check whether, see if) is not an action that makes the condition true. Write "examine if ..." or "find if ...". Do not write "make sure that ...": it means that you cause the condition.
 4. Do not add information, explanations, or steps. Do not remove information.
 5. The agent writes about itself as "I" and about the user as "you". Keep these persons. "I" is not an STE word, but you can use it for the agent.
@@ -42,9 +43,10 @@ Output only the rewritten text. Do not write the markers, a preface, a note, or 
    - technical names (see above),
    - the technical verbs in the list below, with the given sense only.
 2. For a verb, use only an approved verb or a technical verb from the lists below. If the text uses a verb that is not in these lists, use the approved alternative that has the correct meaning, or write the sentence in a different way with approved words. The list of unapproved verbs gives the alternatives that the standard gives. Some of them are for physical work and do not have the correct meaning for software. Use them only when they have the correct meaning.
-3. Do not use a technical name as a verb. Write "Use grep to find the text", not "Grep the text".
-4. Do not use phrasal verbs that are not in the approved list (for example: look into, set up, figure out, find out, come up with, check out).
-5. Use one word for one meaning, and use the same word for the same item each time.
+3. "call" is not an approved verb and is not a technical verb. Write "use" for it: "the function calls [[C1]]" becomes "the function uses [[C1]]", and "call [[C2]] with two arguments" becomes "use [[C2]] with two arguments".
+4. Do not use a technical name as a verb. Write "Use grep to find the text", not "Grep the text".
+5. Do not use phrasal verbs that are not in the approved list (for example: look into, set up, figure out, find out, come up with, check out).
+6. Use one word for one meaning, and use the same word for the same item each time.
 
 # Grammar
 

@@ -1,0 +1,6 @@
+# Operator rulings that fix the replacement for an unapproved verb. The checker's
+# repair note gives this word instead of the standard's alternatives, which do not fit
+# the software sense. Our own words; no text of the standard.
+
+[mappings]
+call = "use"  # operator, 2026-11-01: call is not admitted

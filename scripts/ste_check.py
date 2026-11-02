@@ -38,6 +38,16 @@ PLACEHOLDER = re.compile(r"\[\[C\d+\]\]")
 WORD = re.compile(r"[A-Za-z][A-Za-z'’-]*")
 CONTRACTION = re.compile(r"(?i)\b\w+(?:n['’]t|['’](?:ll|re|ve|m|d))\b"
                          r"|\b(?:let|it|that|there|here|what|who|where|how|he|she)['’]s\b")
+# A word right after one of these is a noun or an adjective there, not a verb:
+# "a fixed value", "in order", "a design choice", "the progress". Words that can also
+# be a subject are left out ("This fails", "Some return None", "that fails"), and so is
+# "to" ("to fix").
+PLACEHOLDER_GAP = re.compile(r"\s*\0(?:\s*\0)*\s*")
+OBJECT_NEXT = re.compile(r"\s*(?:(?:a|an|the|this|these|those|my|our|your|its|their|his|her|all|each|every)\b)",
+                         re.I)
+NOMINAL_BEFORE = frozenset(
+    "a an the my our your its their his her no "
+    "in on of for with without by from at into onto about under over between per".split())
 NON_VERB_ING = {"string", "thing", "nothing", "something", "anything", "everything", "during",
                 "spring", "ring", "king", "sibling", "ceiling", "morning", "evening", "bring"}
 
@@ -53,6 +63,7 @@ class Lexicon:
     verb_bases: set[str] = field(default_factory=set)  # approved + technical verb base forms
     phrases: list[re.Pattern] = field(default_factory=list)  # multi-word technical verbs
     caps_names: set[str] = field(default_factory=set)  # technical names written in capitals
+    fixed: dict[str, str] = field(default_factory=dict)  # operator's fixed replacement per verb
 
     @classmethod
     def load(cls, verbs_json: Path | None = None) -> "Lexicon":
@@ -61,10 +72,12 @@ class Lexicon:
         nouns = tomllib.loads((REPO / "ste" / "technical-nouns.toml").read_text())["nouns"]
         nouns = set(nouns) | set(d.get("technical_noun_examples", []))
         caps = tomllib.loads((REPO / "ste" / "technical-names.toml").read_text())
-        return cls.build(d["approved_words"], d["unapproved_words"],
-                         {u["word"]: u["alternatives"] for u in d["unapproved_verbs"]},
-                         list(tech), nouns, [v["key"] for v in d["verbs"]],
-                         caps_names=[w for ws in caps.values() for w in ws])
+        lex = cls.build(d["approved_words"], d["unapproved_words"],
+                        {u["word"]: u["alternatives"] for u in d["unapproved_verbs"]},
+                        list(tech), nouns, [v["key"] for v in d["verbs"]],
+                        caps_names=[w for ws in caps.values() for w in ws])
+        lex.fixed = tomllib.loads((REPO / "ste" / "fixed-mappings.toml").read_text())["mappings"]
+        return lex
 
     @classmethod
     def build(cls, approved_pos, unapproved, unapproved_verbs, technical_verbs, technical_nouns,
@@ -203,7 +216,8 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
     if CONTRACTION.search(prose):
         hard["contractions"] = sorted({m.group(0) for m in CONTRACTION.finditer(prose)})
 
-    words = prose
+    # placeholders stay visible here as "\0" (not a word character, not a space)
+    words = PLACEHOLDER.sub(" \0 ", output)
     for ph in lex.phrases:  # keep the head word, drop the rest of the phrase
         words = ph.sub(lambda m: m.group(1), words)
     input_caps = frozenset(t for t in WORD.findall(PLACEHOLDER.sub(" ", masked_input))
@@ -212,8 +226,19 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
     caps_style = any(t not in lex.caps_names and (lex.is_dictionary_word(t.lower()) or len(t) >= 5)
                      for t in input_caps)
     verbs, ing, unapproved_words, unknown, caps = set(), set(), set(), set(), set()
-    for raw in WORD.findall(words):
+    prev, prev_end = "", 0
+    for m in WORD.finditer(words):
+        raw = m.group(0)
+        # the word before counts only when nothing but spaces separates the two
+        gap = words[prev_end:m.start()]
+        nominal = prev in NOMINAL_BEFORE and (gap.isspace() or (
+            # through a placeholder the word is a noun ("the [[C1]] block"), unless a
+            # determiner follows it ("the [[C1]] orders the values"). Known limit: a
+            # placeholder after it ("the [[C1]] calls [[C2]]") stays a noun, because in
+            # the 2026-11-01 batches every such case was one ("the [[C1]] block [[C6]]")
+            PLACEHOLDER_GAP.fullmatch(gap) is not None and not OBJECT_NEXT.match(words, m.end())))
         tok = raw.strip("'’-")
+        prev, prev_end = tok.lower(), m.end()
         low = tok.lower()
         if not low or low == "i" or looks_technical(tok, names, lex, input_caps):
             continue
@@ -226,6 +251,12 @@ def check(output: str, masked_input: str, lex: Lexicon, limit_instruction: int =
         verb_lemma = next((c for c in cands if c in lex.unapproved_verbs), None)
         inflected = verb_lemma is not None and verb_lemma != low
         noun_ok = verb_lemma is not None and (verb_lemma in lex.approved or verb_lemma in lex.technical_nouns)
+        if verb_lemma and not tech_noun and nominal and not low.endswith("ing"):
+            # a noun or an adjective here: judge it as one, not as a verb
+            pos = set(lex.unapproved.get(low, [])) | set(lex.unapproved.get(verb_lemma, []))
+            if pos & {"n", "adj"}:
+                unapproved_words.add(low)
+            continue
         if verb_lemma and not tech_noun and (inflected and low.endswith(("ed", "ing")) or not noun_ok):
             verbs.add(low)
             continue
@@ -276,6 +307,9 @@ def repair_note(result: dict, lex: Lexicon) -> str:
                          + ", ".join(p["extra_or_repeated"]))
     for v in h.get("verbs", []):
         lemma = next((c for c in lemmas(v) if c in lex.unapproved_verbs), v)
+        if lemma in lex.fixed:
+            lines.append(f'"{v}" is not an approved verb. Write "{lex.fixed[lemma]}" for it (a fixed rule).')
+            continue
         alts = ", ".join(lex.unapproved_verbs.get(lemma) or []) or "none; write the sentence in a different way"
         lines.append(f'"{v}" is not an approved verb. Alternatives the standard gives: {alts}.')
     for w in h.get("ing", []):
@@ -290,4 +324,10 @@ def repair_note(result: dict, lex: Lexicon) -> str:
     for s in h.get("length", []):
         lines.append(f'This sentence has {s["words"]} words; the maximum is {s["limit"]}. '
                      f'Divide it: "{s["sentence"]}"')
+    if h.get("invented_markup"):
+        lines.append("Your rewrite has markup that is not in the text: "
+                     + ", ".join(h["invented_markup"]) + ". Remove it.")
+    if h.get("altered_literals"):
+        lines.append("Your rewrite changed text that is joined to code or a name. Keep this text "
+                     "exactly as it is in the input: " + ", ".join(h["altered_literals"]) + ".")
     return "\n".join(f"- {x}" for x in lines)

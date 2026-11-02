@@ -17,6 +17,13 @@ def test_glued_tokens_are_literals_and_edges_are_not():
     assert exp.glued_literals(text) == ["145.[[C8]]", "[[C4]]([[C5]]"]
 
 
+def test_placeholders_joined_by_a_slash_are_not_a_literal():
+    # "[[C8]]/[[C9]] parameters" may become "[[C8]] and [[C9]]": every placeholder stays,
+    # and the placeholder check counts each one
+    text = "Keep [[C8]]/[[C9]] and v1/[[C3]] as they are."
+    assert exp.glued_literals(text) == ["v1/[[C3]]"]
+
+
 def test_altered_literals():
     text = "If [[C1]]=[[C2]] then 1.[[C3]] stays."
     assert exp.altered_literals("If [[C1]]=[[C2]], 1.[[C3]] stays.", text) == []
@@ -31,4 +38,53 @@ def test_incomplete_round_is_reported(tmp_path):
     assert exp.incomplete(tmp_path, 2) == (1, 2)
     (tmp_path / "round2.jsonl").write_text('{"id": "s1", "output": "x"}\n{"id": "s2", "output": "y"}\n')
     assert exp.incomplete(tmp_path, 2) is None
-    assert exp.incomplete(tmp_path, 1) is None
+    (tmp_path / "input.jsonl").write_text('{"id": "s1"}\n{"id": "s2"}\n{"id": "s3"}\n')
+    (tmp_path / "round1.jsonl").write_text('{"id": "s1", "output": "x"}\n{"id": "s3", "output": "z"}\n')
+    assert exp.incomplete(tmp_path, 1) == (2, 3)
+
+
+def test_substitution_scripts_and_near_copies(tmp_path):
+    (tmp_path / "make.py").write_text("import json\nprint(json.dumps({'id': 'k1'}))\n")
+    assert exp.substitution_scripts(tmp_path) == []
+    (tmp_path / "fix.py").write_text("import re\ns = re.sub(r'\\bfix\\b', 'change', s)\n")
+    assert exp.substitution_scripts(tmp_path) == ["fix.py"]
+    inputs = [{"id": "a", "text": "Let me fix the parser now."}, {"id": "b", "text": "Let me fix it."}]
+    assert exp.near_copies({"a": "Let me fix the parser now!", "b": "I will repair it."}, inputs) == ["a"]
+    # with a judge, an input that already passes may come back unchanged: not a copy
+    passes = lambda out, text: {"ok": text.startswith("Let me fix the parser")}
+    assert exp.near_copies({"a": "Let me fix the parser now!"}, inputs, judge=passes) == []
+    fails = lambda out, text: {"ok": False}
+    assert exp.near_copies({"a": "Let me fix the parser now!"}, inputs, judge=fails) == ["a"]
+
+
+def test_malformed_grade_records_are_problems_not_crashes(tmp_path):
+    (tmp_path / "grades.jsonl").write_text(
+        '{"gid": "g1", "verdict": "Faithful"}\n["not", "an", "object"]\n{"verdict": "minor"}\n'
+        '{"gid": ["g2"], "verdict": "minor"}\n')
+    out, problems = exp.read_grades(tmp_path, {"g1": {}, "g2": {}})
+    assert set(out) == {"g1"} and out["g1"]["verdict"] == "faithful"
+    assert any("TypeError" in p for p in problems) and any("KeyError" in p for p in problems)
+    assert any(p.startswith("INCOMPLETE") for p in problems)
+    assert "line 4: gid must be a string" in problems
+
+
+def test_send_parts_with_nothing_to_send(tmp_path, monkeypatch, capsys):
+    # every rewrite passed: repair-1.jsonl is empty, and send-parts says so without a crash
+    from types import SimpleNamespace
+    d = tmp_path / "m"
+    (d / "messages").mkdir(parents=True)
+    (d / "round1.jsonl").write_text("")
+    (d / "repair-1.jsonl").write_text("")
+    monkeypatch.setattr(exp, "models", lambda names: [d])
+    assert exp.cmd_send_parts(SimpleNamespace(task="repair", names=["m"], size=10)) == 0
+    assert "queued 0 parts" in capsys.readouterr().out
+
+
+def test_agreement_counts_only_segments_graded_for_every_model():
+    v = sorted(exp.VERDICTS)
+    per_seg = {"s1": {"a": {"verdict": v[0]}, "b": {"verdict": v[0]}},     # agree
+               "s2": {"a": {"verdict": v[0]}, "b": {"verdict": v[1]}},     # differ
+               "s3": {"a": {"grader": "g"}, "b": {"grader": "g"}},         # neither graded
+               "s4": {"a": {"verdict": v[0]}, "b": {}}}                    # one missing
+    both, dis, agree = exp.agreement(per_seg, ["a", "b"])
+    assert set(both) == {"s1", "s2"} and dis == ["s2"] and agree == ["s1"]

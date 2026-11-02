@@ -4,8 +4,8 @@
         [--prompt var/ste/prompt-<sha12>.json] [--repairs 2] [--concurrency 32]
 
 Per example, the prose segments are: the issue text inside <issue_description> in the
-first user message, every assistant message's text, and the `thought` of each `think`
-tool call. The system prompt, the rest of the user template, tool calls' other arguments
+first user message, every assistant message's text, the `thought` of each `think`
+tool call, and the `message` of the `finish` call (the agent's final report). The system prompt, the rest of the user template, tool calls' other arguments
 and tool output stay byte-identical.
 
 Per segment: code-like spans (fenced blocks, inline code, quoted strings, URLs, paths,
@@ -44,8 +44,58 @@ from weaver_train import manifest as mf  # noqa: E402
 import ste_check  # noqa: E402
 
 MAX_SEGMENT_CHARS = 30000
+QUOTE_LINE = re.compile(r"(?P<lead>[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?)>(?P<rest>.*)", re.S)
+FENCE = re.compile(r"[ \t]*(?:```|~~~)")
+# quoted content that is not paragraph text: blank (also CRLF), ATX heading, fence, break,
+# or a lone placeholder (a code block or listing that an earlier pass already masked)
+NOT_PARAGRAPH = re.compile(r"[ \t]*(?:\r?$|#{1,6}(?:[ \t]|\r?$)|```|~~~|(?:[-*_][ \t]*){3,}\r?$"
+                           r"|\[\[C\d+\]\][ \t]*\r?$)")
+# an unquoted line that starts a new block instead of continuing a quoted paragraph
+INTERRUPTS = re.compile(r"[ \t]*(?:\r?$|#{1,6}(?:[ \t]|\r?$)|```|~~~|[-*+][ \t]|\d+[.)][ \t]|(?:[-*_][ \t]*){3,}\r?$)")
+
+
+def mask_quotations(text: str, keep) -> str:
+    """Mask each Markdown quotation as one span, nested quotes and all. An unquoted line
+    continues it only while a quoted paragraph is open (CommonMark's lazy continuation):
+    not after a quoted blank line, heading, break or code fence, and not when the line
+    starts a block itself. A list marker before ">" stays visible ("- [[C1]]"), so the
+    rewrite still sees the list; a later quoted list item is its own span."""
+    lines, out, i = text.split("\n"), [], 0
+    while i < len(lines):
+        m = QUOTE_LINE.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        lead, block, fence, para = m["lead"], [lines[i][len(m["lead"]):]], False, False
+
+        def step(rest):
+            nonlocal fence, para
+            if FENCE.match(rest):
+                fence, para = not fence, False
+            elif not fence:
+                para = not NOT_PARAGRAPH.match(rest)
+
+        step(m["rest"])
+        j = i + 1
+        while j < len(lines):
+            q = QUOTE_LINE.match(lines[j])
+            if q and not q["lead"].strip():          # another quoted line of this quotation
+                step(q["rest"])
+            elif q or not para or fence or INTERRUPTS.match(lines[j]):
+                break
+            block.append(lines[j])
+            j += 1
+        out.append(keep("\n".join(block), lead))
+        i = j
+    return "\n".join(out)
+
+
 SPAN_PATTERNS = [
     re.compile(r"```.*?```", re.S),                       # fenced code
+    # Markdown quotations (of the issue, of output) are someone else's text and stay as
+    # written: see mask_quotations
+    "quotations",
     re.compile(r"`[^`\n]+`"),                             # inline code
     re.compile(r"https?://\S+"),                          # URLs
     # an exception name and its message, to the end of the line: program output
@@ -61,6 +111,7 @@ SPAN_PATTERNS = [
     re.compile(r"(?<![\w/])(?:\.{0,2}/)?(?:[\w.-]+/)+[\w.-]*"),  # paths with a slash
     re.compile(r"\b[\w-]+\.(?:py|pyx|pyi|txt|md|rst|toml|json|ya?ml|cfg|ini|sh|c|h|cpp|rs|js|ts|csv)\b"),
 ]
+MARKUP = re.compile(r"</?[A-Za-z][\w-]*(?:\s[^<>\n]*)?/?>")
 IDENT = re.compile(r"\b(?:[A-Za-z_]\w*\.)+[A-Za-z_]\w*\b|\b\w*_\w*\b")  # dotted or snake_case
 
 
@@ -155,13 +206,18 @@ def mask_listings(text: str, codes: list[str]) -> str:
 def mask(text: str) -> tuple[str, list[str]]:
     codes: list[str] = []
 
+    def keep(body: str, lead: str = "") -> str:
+        if body.startswith("[[C"):
+            return lead + body
+        codes.append(body)
+        return f"{lead}[[C{len(codes)}]]"
+
     def sub(m):
-        codes.append(m.group(0))
-        return f"[[C{len(codes)}]]"
+        return keep(m.group(0))
 
     text = mask_listings(text, codes)
     for pat in SPAN_PATTERNS:
-        text = pat.sub(lambda m: m.group(0) if m.group(0).startswith("[[C") else sub(m), text)
+        text = mask_quotations(text, keep) if pat == "quotations" else pat.sub(sub, text)
     text = mask_brackets(text, codes)
     text = IDENT.sub(lambda m: sub(m) if not re.fullmatch(r"\d+(\.\d+)*", m.group(0)) else m.group(0), text)
     return text, codes
@@ -192,6 +248,10 @@ def segments(row: dict):
                 args = json.loads(tc["function"]["arguments"])
                 if (args.get("thought") or "").strip():
                     yield {"msg": i, "field": "think", "call": k}, args["thought"]
+            elif tc["function"]["name"] == "finish":  # the agent's final report to the user
+                args = json.loads(tc["function"]["arguments"])
+                if (args.get("message") or "").strip():
+                    yield {"msg": i, "field": "finish", "call": k}, args["message"]
 
 
 def apply(row: dict, loc: dict, new: str) -> None:
@@ -204,7 +264,7 @@ def apply(row: dict, loc: dict, new: str) -> None:
     else:
         tc = msg["tool_calls"][loc["call"]]
         args = json.loads(tc["function"]["arguments"])
-        args["thought"] = new
+        args["thought" if loc["field"] == "think" else "message"] = new
         tc["function"]["arguments"] = json.dumps(args)
 
 
@@ -250,6 +310,11 @@ class Converter:
         res["word_ratio"] = round(ratio, 2)
         if n_in >= 8 and not 0.5 <= ratio <= 2.5:
             res["hard"]["word_ratio"] = [round(ratio, 2)]
+        # HTML tags in the text are masked, so a tag in a rewrite was invented (the
+        # 2026-11-01 batch: one answer group ended every rewrite with "<h4>")
+        invented = sorted(set(MARKUP.findall(out)) - set(MARKUP.findall(masked)))
+        if invented:
+            res["hard"]["invented_markup"] = invented
         res["ok"] = not res["hard"]
 
     async def segment(self, client, uuid: str, loc: dict, text: str) -> dict:

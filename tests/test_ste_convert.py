@@ -150,3 +150,92 @@ def test_kit_segments_mask_their_literals_when_the_source_is_present():
     for sid, words in banned.items():
         p = prose(rows[sid])
         assert not [w for w in words if w in p], (sid, p[-400:])
+
+
+def test_finish_message_is_a_segment_and_apply_writes_it_back():
+    import json
+    row = {"messages": [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "<issue_description>\nBug.\n</issue_description>"},
+        {"role": "assistant", "content": "Done.", "tool_calls": [
+            {"function": {"name": "finish", "arguments": json.dumps({"message": "I fixed it."})}}]}]}
+    segs = list(conv.segments(row))
+    assert ({"msg": 2, "field": "finish", "call": 0}, "I fixed it.") in segs
+    conv.apply(row, {"msg": 2, "field": "finish", "call": 0}, "I repaired it.")
+    assert json.loads(row["messages"][2]["tool_calls"][0]["function"]["arguments"]) == {"message": "I repaired it."}
+
+
+def test_blockquote_lines_are_masked_whole():
+    # a quotation from the issue is the user's text: it stays exactly as written, even
+    # with a nested quoted word inside it
+    text = ('The issue says:\n\n> "there\'s an inconsistency where "pandas" is capitalized."\n'
+            '> second line\n\nI will fix it.')
+    masked, codes = conv.mask(text)
+    assert masked == "The issue says:\n\n[[C1]]\n\nI will fix it."
+    assert codes[0].startswith("> \"there's") and codes[0].endswith("> second line")
+    assert conv.unmask(masked, codes) == text
+
+
+def test_markup_in_a_rewrite_that_is_not_in_the_text_fails():
+    from types import SimpleNamespace
+    fake = SimpleNamespace(example_lines=set())
+    res = {"hard": {}}
+    conv.Converter.guard(fake, res, "I will find the errors that are related to tuples<h4>",
+                         "Let me search for tuple-related errors:")
+    assert res["hard"]["invented_markup"] == ["<h4>"] and not res["ok"]
+    res = {"hard": {}}
+    conv.Converter.guard(fake, res, "Use [[C1]] here.", "Use [[C1]] here.")
+    assert "invented_markup" not in res["hard"]
+
+
+def test_lazy_continuation_line_stays_in_the_quotation():
+    # Markdown continues a quote on the next line without ">": that line is quoted text too
+    text = "The issue says:\n> First line\nsecond line\n\nI will fix it."
+    masked, codes = conv.mask(text)
+    assert masked == "The issue says:\n[[C1]]\n\nI will fix it."
+    assert codes[0] == "> First line\nsecond line"
+    # a list or a heading after the quote is not a continuation
+    masked, _ = conv.mask("> quoted\n- I will fix it.")
+    assert masked == "[[C1]]\n- I will fix it."
+
+
+def test_quotation_ends_at_a_crlf_blank_line_and_a_thematic_break():
+    masked, codes = conv.mask("> quoted\r\n\r\nI will fix it.")
+    assert masked == "[[C1]]\n\r\nI will fix it." and codes == ["> quoted\r"]
+    assert conv.unmask(masked, codes) == "> quoted\r\n\r\nI will fix it."
+    masked, codes = conv.mask("> quoted\n---\nI will fix it.")
+    assert masked == "[[C1]]\n---\nI will fix it." and codes[0] == "> quoted"
+
+
+def test_quotation_follows_commonmark_paragraph_rules():
+    # a quoted blank line closes the quoted paragraph: the next line is prose
+    masked, codes = conv.mask("> quoted\n>\nI will fix it.")
+    assert masked == "[[C1]]\nI will fix it." and codes == ["> quoted\n>"]
+    # "#123" is not a heading: it continues the quotation
+    masked, codes = conv.mask("> See\n#123 is a failure.")
+    assert masked == "[[C1]]" and codes == ["> See\n#123 is a failure."]
+    # a real heading ends it
+    masked, _ = conv.mask("> quoted\n# Heading")
+    assert masked == "[[C1]]\n# Heading"
+
+
+def test_quotation_inside_a_list_item_is_masked():
+    # the quotation is masked; the list marker stays visible, so the rewrite sees the list
+    for text, masked_want, code in (
+            ("- > quoted line\n  > more\n\nI will fix it.", "- [[C1]]\n\nI will fix it.", "> quoted line\n  > more"),
+            ("1. > quoted\n\nI will fix it.", "1. [[C1]]\n\nI will fix it.", "> quoted"),
+            ("- > quoted\n\n  I will use it.", "- [[C1]]\n\n  I will use it.", "> quoted")):
+        masked, codes = conv.mask(text)
+        assert masked == masked_want and codes == [code], (text, masked, codes)
+        assert conv.unmask(masked, codes) == text
+    masked, _ = conv.mask("- I will fix it.")                    # a list item with no quote stays prose
+    assert masked == "- I will fix it."
+
+
+def test_no_continuation_after_a_quoted_heading_or_code_block():
+    # PR #4 review: only a quoted paragraph takes lazy continuation lines
+    for text in ("> # Issue\nI will investigate the failure.",
+                 "> ```\n> code\n> ```\nI will investigate the failure."):
+        masked, codes = conv.mask(text)
+        assert masked.endswith("]]\nI will investigate the failure."), (text, masked)
+        assert conv.unmask(masked, codes) == text

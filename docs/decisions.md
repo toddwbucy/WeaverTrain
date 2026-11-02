@@ -3,6 +3,58 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-02: no more Gemini runs; the third STE batch is cancelled
+
+Operator ruling, given through the review seat on PR #5. No more Gemini runs and no
+further spend on Gemini. The third batch of 200 trajectories (seed 2033) is cancelled,
+not paused. Its round 1 ran (5,985 of 6,930 segments passing, $19.23). Round 2 was
+never submitted, because the submit hit Gemini's spend limit. Nothing from it is
+training data. The Google API key is revoked: do not ask for it or use it.
+
+- The 387 converted trajectories of the first two batches (196 + 191, $48.83) are the
+  data for the first adapter (`docs/lora-training-Spec.md`).
+- The next time the conversion loop runs, the operator's own model with the LoRA
+  adapter replaces Gemini in stage 5.
+- `scripts/ste_gemini.py` stays in the repository as the record of how the two batches
+  were made. It is not to be run again.
+
+## 2026-11-01: training data rewritten by Gemini, whole trajectories (first batch run)
+
+The operator asked for a plan to convert whole trajectories with Gemini 4 Argon, in
+place of the model rewriting its own data. Reason as stated in the discussion: a
+rewriter LoRA would mean training a model to make the data to train the model. The
+direct path answers first whether STE output helps the loop work.
+
+- Base Nemotron cannot do the rewrite (10/60 on the comparison kit). On the
+  100-segment kit, Gemini 4 Argon passed 99/100 after one repair, with 79 faithful,
+  20 minor, 0 wrong and 1 data altered in meaning review, for $2.05.
+- The unit is a whole trajectory: every narration and final segment converted, the
+  issue text and tool output unchanged. Only rows of at most 32,768 tokens are used
+  (the trainer's verified length); about 1 row in 10 qualifies.
+- First batch: 200 trajectories (6,931 segments). On the operator's instruction it ran
+  through the Gemini Batch API (half price) instead of opencode sessions, after a live
+  check on the 100-segment kit (100/100 after one repair). Result: 196 of 200
+  converted, $24.64 (`reports/2026-11-01-ste-batch-200.md`).
+- This keeps the "rewritten to STE100 by the model itself" step of the 2026-10-31
+  pipeline ruling open, for later or never; it is not replaced until ratified.
+
+## 2026-11-01: "call" is not admitted; "should" has three senses
+
+- **call** is not admitted as a technical verb. The mapping is fixed: call -> use
+  ("the function calls [[C1]]" -> "the function uses [[C1]]"). It is in the rewriter
+  rules, the thesaurus and `ste/fixed-mappings.toml`, and the checker's repair note
+  gives "use" instead of the standard's alternatives.
+- **should** has three senses:
+  - advice -> "I recommend that" ("You should add a regression test." -> "I recommend
+    that you add a test for the regression.");
+  - expectation -> "I think that" ("This should fix the error." -> "I think that this
+    change will repair the error.");
+  - a requirement or a correct value ("X should be Y", "no error should be raised") ->
+    "must" ("No error should be raised." -> "The code must not give an error.").
+- **Still owed:** the four hedge forms ("possibly", "I think that", "this is an
+  indication that", "examine if" / "find if") and the "I" exception stay candidates.
+  They are used in the 500-segment run and listed as owed (`ste/usage-notes.md`).
+
 ## 2026-11-01: STE scope: narration and agent output only (candidate, pending ratification)
 
 Only the agent's narration and output are converted to STE100. Issue text and

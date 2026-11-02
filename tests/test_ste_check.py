@@ -108,3 +108,81 @@ def test_capitals_are_technical_names_only_when_listed_or_not_words():
     assert chk("The RESULT shows the error.") == {"capitals": ["RESULT"]}
     assert "capitals" in chk("I SHOULD do it.") and "verbs" in chk("I SHOULD do it.")
     assert chk("The result and the error.") == {}                  # the conjunction stays prose
+
+
+# Round 3 flags (2026-11-01): nouns and adjectives that the checker read as verbs.
+NOUN_LEX = ste.Lexicon.build(
+    approved_pos={w: ["x"] for w in (
+        "the a an i will is are it this that when if not do does make makes made find examine "
+        "error value choice code use set to and then result".split())},
+    unapproved={"fix": ["v"], "order": ["n", "v"], "design": ["v"], "progress": ["n", "v"],
+                "fail": ["v"], "block": ["v"]},
+    unapproved_verbs={"fix": ["REPAIR (v)"], "order": ["TELL (v)"], "design": ["HAVE (v)"],
+                      "progress": ["CONTINUE (v)"], "fail": [], "block": []},
+    technical_verbs=[], technical_nouns=[], approved_verbs=["do", "make", "find", "examine", "use", "set"],
+)
+
+
+def test_adjective_and_noun_uses_are_not_verbs():
+    for text in ("Use a fixed value.", "This is a design choice.", "Examine the block."):
+        r = ste.check(text, "x", NOUN_LEX)
+        assert "verbs" not in r["hard"], (text, r["hard"])
+    # known limit: a noun after a modifier ("the if block") still reads as a verb,
+    # because one word between would also pass "the code fixes the error"
+    assert "block" in ste.check("Examine the if block.", "x", NOUN_LEX)["hard"]["verbs"]
+
+
+def test_unapproved_noun_is_reported_as_a_word_not_as_a_verb():
+    r = ste.check("Do the steps in order.", "x", NOUN_LEX)
+    assert "verbs" not in r["hard"] and r["soft"].get("unapproved_words") == ["order"], r
+    r = ste.check("I will examine the progress.", "x", NOUN_LEX)
+    assert "verbs" not in r["hard"] and "progress" in r["soft"]["unapproved_words"], r
+
+
+def test_verb_uses_still_fail():
+    for text, word in (("I will fix the error.", "fix"), ("This fails.", "fails"),
+                       ("Then order the values.", "order"), ("The code fixed the error.", "fixed"),
+                       ("I will design a test, then fix it.", "design")):
+        r = ste.check(text, "x", NOUN_LEX)
+        assert word in r["hard"].get("verbs", []), (text, r["hard"])
+
+
+def test_punctuation_between_breaks_the_context():
+    r = ste.check("Use the code. Fix the error.", "x", NOUN_LEX)
+    assert "fix" in r["hard"].get("verbs", []), r
+
+
+def test_fixed_mapping_replaces_the_standards_alternatives():
+    lex = ste.Lexicon.build(approved_pos={"the": ["x"]}, unapproved={"call": ["v"]},
+                            unapproved_verbs={"call": ["TELL (v)"]}, technical_verbs=[],
+                            technical_nouns=[], approved_verbs=[])
+    lex.fixed = {"call": "use"}
+    r = ste.check("I call the parser.", "x", lex)
+    note = ste.repair_note(r, lex)
+    assert 'Write "use" for it' in note and "TELL" not in note, note
+
+
+def test_inflected_noun_takes_the_part_of_speech_of_its_lemma():
+    # PR #4 review: "orders" after "the" was skipped with no finding; "order" was reported
+    r = ste.check("Do the orders.", "x", NOUN_LEX)
+    assert "verbs" not in r["hard"] and r["soft"].get("unapproved_words") == ["orders"], r
+
+
+def test_repair_note_names_invented_markup_and_changed_literals():
+    note = ste.repair_note({"hard": {"invented_markup": ["<h4>"], "altered_literals": ["1.[[C3]]"]}}, LEX)
+    assert "<h4>" in note and "Remove it" in note
+    assert "1.[[C3]]" in note and "exactly as it is in the input" in note
+
+
+def test_placeholder_after_an_article_is_a_boundary():
+    # PR #4 review: "The [[C1]] orders the values." read "orders" as a noun after "the"
+    r = ste.check("The [[C1]] orders the values.", "[[C1]]", NOUN_LEX)
+    assert "orders" in r["hard"].get("verbs", []), r
+    # known limit: a placeholder after the word is ambiguous, and it reads as a noun
+    r = ste.check("The [[C1]] orders [[C2]].", "[[C1]] [[C2]]", NOUN_LEX)
+    assert "verbs" not in r["hard"], r
+    # a noun after "the [[C1]]" with no object after it stays a noun
+    for text in ("Remove the [[C1]] block that catches it.", "It uses the [[C1]] order.",
+                 "In the [[C1]] block [[C2]], it stops."):
+        r = ste.check(text, "[[C1]] [[C2]]", NOUN_LEX)
+        assert "verbs" not in r["hard"], (text, r["hard"])
