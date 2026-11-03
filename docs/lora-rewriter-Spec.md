@@ -1,6 +1,6 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** DRAFT. The operator must give approval for the procedure sizes before R1.
+**Status:** Procedure sizes approved on 2026-11-03. The seed record is still required.
 
 **Version:** 0.1 **Date:** 2026-11-03 **Parent:** `docs/decisions.md`
 
@@ -148,8 +148,8 @@ Use UTF-8, `ensure_ascii=True`, `separators=(",", ":")` and no final LF.
 
 The largest set whose bin counts fit the accepted pool has 3,383 pairs.
 Its bin counts are 1,252, 1,015 and 1,116.
-The proposed R1 set has 200 pairs, with counts 74, 60 and 66.
-Every proposed R1 pair is in the larger set.
+The approved R1 set has 200 pairs, with counts 74, 60 and 66.
+Every R1 pair is in the larger set.
 If a check decreases the pool, calculate the counts again and report the change.
 Do not fill a bin with pairs from another bin or with repeated pairs.
 The operator must give approval for changed procedure counts before a procedure.
@@ -215,7 +215,7 @@ Set `assistant_masks` to 1 only for the tokens that the second sequence adds.
 Stop if the prefix check is not satisfactory.
 All tokens in the first sequence have a mask value of 0.
 
-**RENDER-LENGTH.** Keep `max_seq_length=49152` for this proposal.
+**RENDER-LENGTH.** Keep `max_seq_length=49152` for this series.
 Do not cut a pair or its prompt.
 Stop and report if a selected pair has more tokens than this limit.
 The operator must give a decision on any length change before a new data record.
@@ -253,7 +253,7 @@ All tokens with mask 1 have their input token ID as the label.
 Each target token has the same weight.
 Do not add weights for long text or for a particular rule.
 
-**REWRITE-CONFIG.** The proposed procedure values follow Spec 0.3 RUN-CONFIG.
+**REWRITE-CONFIG.** The procedure values follow Spec 0.3 RUN-CONFIG.
 Use LoRA rank 16, alpha 32 and dropout 0.0.
 Targets are `q_proj`, `k_proj`, `v_proj`, `o_proj` and Mamba `in_proj`.
 Do not attach adapters to MoE experts.
@@ -269,21 +269,21 @@ Save and score the adapter from each epoch.
 
 **REWRITE-ORDER.** Open a different run-log issue for the rewriter series.
 Record the merged Spec, code, frozen inputs and procedure values before R0.
-The operator must give approval for the procedure sizes before their dependent
-procedure.
+The operator gave approval for the sizes in section 10 on 2026-11-03.
+Changed sizes must have approval before their dependent procedure.
 The decision on repair data follows the complete R0 report, as section 10 tells.
 Do not use the emitter's R0 or R1 as a rewriter baseline.
 
 1. R0 uses the untrained 30B model on the frozen 100-segment rewrite kit, twice.
-2. R1 uses the proposed 200 pairs for two epochs, then stops.
-3. R2 proposes the 3,383-pair set for two epochs, only on the operator's instruction.
+2. R1 uses 200 pairs for two epochs, then stops.
+3. R2 uses 3,383 pairs for two epochs, only on the operator's instruction.
 
 Complete R0 and its review of the sense before R1.
 The operator then gives a decision on the open cell for repair data.
 Report R1 wall time, maximum memory on each GPU, the complete loss curve and both epoch
 scores.
 The executor stops after that report and does not start R2.
-There is no R3 in this proposal.
+There is no R3 in this series.
 
 **REWRITE-MEMORY.** Keep the satisfactory 49,152-token RUN-MEMORY record as the current
 reference.
@@ -294,24 +294,23 @@ before R1.
 Stop on failure and report it. Do not select another kernel or precision.
 No model is loaded for the cost analysis below.
 
-**REWRITE-COST.** The analysis of 2026-11-03 used the pinned tokenizer and the old
-ten-message Python layout.
-It did not read a seeded loop capture.
-These counts apply only to the superseded layout.
-They are not the costs of the folded-layout proposals.
-The folded-layout costs are not available until the folded file is supplied.
+**REWRITE-COST.** The [analysis of 2026-11-03][cost] used the pinned tokenizer and
+the approved folded file.
+It did not read a seed record or load model weights.
+These counts replace the costs of the earlier ten-message layout.
 
-- All accepted pairs: 13,369 pairs and 194,550,487 tokens for one epoch.
-- R1 subset in that analysis: 200 pairs and 2,938,941 tokens for one epoch.
-- R2 subset in that analysis: 3,383 pairs and 49,731,042 tokens for one epoch.
+- All accepted pairs: 13,369 pairs and 194,537,118 tokens for one epoch.
+- R1: 200 pairs and 2,938,741 tokens for one epoch.
+- R2: 3,383 pairs and 49,727,659 tokens for one epoch.
 
-That layout gives R1 25,637 loss tokens per epoch and R2 443,682 loss tokens per epoch.
+The full pool has 722,550 loss tokens per epoch.
+R1 has 25,637 loss tokens per epoch. R2 has 443,682 loss tokens per epoch.
 These counts include the target, end-of-turn token and final LF.
-For that layout, R1 sequence lengths range from 14,467 through 15,412 tokens.
-R2 sequence lengths range from 14,457 through 16,036 tokens.
+The full pool has sequence lengths from 14,455 through 16,035 tokens.
+R1 sequence lengths range from 14,466 through 15,411 tokens.
+R2 sequence lengths range from 14,456 through 16,035 tokens.
 These totals do not count pad tokens or the different repair conversations.
-Measure the folded prompt and each selected set again when its pinned file is available.
-Record all tokens, loss tokens and sequence lengths before procedure-size approval.
+The [review seat][cost-review] measured the R1 costs again and got the same result.
 Record new totals if the selected pairs or training policy change.
 Do not turn these token counts into a measured wall time.
 
@@ -495,13 +494,13 @@ Do not use a shorter prompt for cost.
 
 **Pair function and balance.** Closed by the same decision.
 Use original input with placeholders to final accepted target and the 37/30/33 mix.
-PAIR-BALANCE proposes seed 0 and the exact integer counts.
+PAIR-BALANCE gives seed 0 and the exact integer counts.
 
-**Procedure sizes.** Open for operator approval.
-R1 proposes 200 pairs and two epochs.
-R2 proposes 3,383 pairs and two epochs.
-The folded-layout costs must be measured before the operator gives approval for these
-sizes.
+**Procedure sizes.** Approved by the [operator decision of 2026-11-03][approvals].
+R1 uses 200 pairs and two epochs. R2 uses 3,383 pairs and two epochs.
+Both use seed 0 and the costs in section 5.
+The size approval does not start R2.
+The operator must give the instruction for R2 after the R1 report.
 
 **Repair training in R1.** Open until the new R0 report.
 The operator gives a decision about whether R1 also trains on repair conversations.
@@ -511,20 +510,30 @@ A decision to use them must have a Spec change for masks, counts and costs befor
 implementation.
 
 **Loop capture and conversion.** Open for the joint work with WeaverAgent.
-The workflow gives the fold and repair text before the operator reviews the folded
-file and seed.
-The saved capture follows that review. No organ amendment is required for this layout.
+The operator reviewed the folded file on 2026-11-03.
+The seed record work is in [WeaverAgent issue 449][seed-record].
+The reader PR must change RENDER-SEED for the comparison in the
+[operator decision][approvals].
+The record reader and the `build` command wait for that work.
+No organ amendment is required for this layout.
 RENDER-SEED and REWRITE-RECONCILE close this cell with records.
 
 ## 11. Pinned identities and analysis
 
 The SHA256 values below identify the current inputs.
-The folded file has not been supplied as of 2026-11-03.
-Its `folded_prompt` value has not been supplied.
-Add its exact SHA256 and workflow reference before a training data record or R0.
+The operator [approved the folded file][prompt-review] on 2026-11-03.
+Its source is [WeaverAgent PR 448][workflow] at
+`80bc9bf30a277f86b7e1ebc565102c874ee64919`.
+The file is `docs/crates/weaver-harness/Loops/ste-conversion-prompt.txt`.
+It has 47,214 UTF-8 bytes, with the final LF.
+The `folded_prompt` value is a data pin. It adds no code dependency.
+Do not commit the file in this repository.
 Do not use a stand-in fold or a source provenance hash for that value.
+Different file bytes must have a new operator review.
 
 ```text
+folded_prompt
+0fe2ee35a59f6b1e30734af4d7a72e32bd6dbc0e728abc98e32e2c609dad07ed
 approved_verbs
 c622bc230bc0c29512ef16990f527bf32a5ffaffbe955f73751251a7e5ab4693
 converted_200
@@ -553,20 +562,21 @@ meaning_review_prompt
 c18b9dea736f81fea6225d1e096e54a1d6d8840805085fb542c62b4a32f9e112
 ```
 
-The analysis used reference commit `d4aa1b5156b4caa6464aa040542940a1c0d793c8`.
+The [pair audit][audit] used reference commit
+`d4aa1b5156b4caa6464aa040542940a1c0d793c8`.
 It found 13,369 accepted pairs with no UUID overlap with either kit.
 Their counts in the source bins are 10,401, 1,852 and 1,116.
-The [issue audit][audit] gives the checks and the unbalanced costs.
-The new subset analysis stays outside `scripts/`.
-Its token costs use the superseded ten-message layout.
+The [folded-cost analysis][cost] used pairs from
+`0ba99aa53237e40afde34cd26eda10365bff59a5`.
+Its script and result stay outside `scripts/`.
 The pair counts and ordered-ID hashes stay the same with the folded layout.
-Its hashes are below.
+The hashes below identify the folded-cost analysis and the selected pair sequences.
 
 ```text
 analysis_script
-74ca8ec5c90cdc4429e1e0ec733ef7b14f8e06239fb67cd0e926f2bff3b10c99
+c17ad9b14392601471b8d1d9292e82d6f8fb83b0f7cc6533879aa455e333f5f2
 analysis_result
-8a64b025d68587ecbc86e3b5e2e02bd8ba9d2bbed7284fab41f1c6bd9995a455
+40fc851c99de2cbbb39fe62655e8935a736b2806b304a7ce44270cea7296db20
 r1_ordered_ids
 9c8afa63abc7d4aa9652a4dfcb04f66fadfe97c81dc29a37f094f8782c2371d2
 r2_ordered_ids
@@ -577,3 +587,9 @@ r2_ordered_ids
 [answers]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6608618052
 [folded]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6610000291
 [audit]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6607188590
+[cost]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6611515962
+[cost-review]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6611554176
+[approvals]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6614461171
+[prompt-review]: https://github.com/toddwbucy/WeaverAgent/pull/448#issuecomment-6614454936
+[workflow]: https://github.com/toddwbucy/WeaverAgent/pull/448
+[seed-record]: https://github.com/toddwbucy/WeaverAgent/issues/449
