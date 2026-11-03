@@ -3,6 +3,15 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-03 UTC: authorize R1 after the storage hold
+
+The operator directed R1 to start despite the reported storage condition.
+The ruling is recorded on [run-log issue 7](https://github.com/toddwbucy/WeaverTrain/issues/7#issuecomment-6594815748).
+The operator will handle drive maintenance and has a hot spare ready.
+This clears the specific storage hold recorded before R1.
+The existing failure stops and frozen training values still apply.
+R1 remains 100 rows and 2 epochs. R2 and R3 remain with the operator.
+
 ## 2026-11-02: increase context to retain more held-out segments
 
 The operator ruling is recorded in [run-log issue 7](https://github.com/toddwbucy/WeaverTrain/issues/7#issuecomment-6590725001).
