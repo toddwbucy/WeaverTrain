@@ -1,7 +1,8 @@
-"""Spec 0.1 PAIR clauses: retain verified pairs and their original repair records.
+"""Spec 0.1 PAIR and RENDER clauses: collect pairs and render final-target masks.
 
-The pairs command reads local evidence only. It does not render training rows,
-load a model, rewrite text, or contact a service.
+The pairs command reads local evidence only. Rendering functions have no output
+command until the RENDER-SEED record interface and folded prompt pin are agreed.
+No function here loads a model, rewrites text, or contacts a service.
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ BATCHES = ("200", "200-2")
 PROMPT = "prompt-e21370fcd140.json"
 WEIGHTS = [37, 30, 33]
 PROVENANCE = ("grouped_instruction", "single_text_bundle", "system_text")
+# RENDER-LENGTH: the approved context has no per-invocation override.
+MAX_SEQ_LENGTH = 49152
 
 
 class PairError(ValueError):
@@ -440,6 +443,62 @@ def write_pairs(out_dir, repo=REPO):
     with manifest_path.open("x", encoding="utf-8") as stream:
         stream.write(manifest.to_json())
     return record, manifest
+
+
+class RenderError(ValueError):
+    """RENDER-SEED, RENDER-MASK, RENDER-LENGTH: refuse a different render."""
+
+
+def seed_system(folded: bytes, saved: bytes, expected_sha256: str) -> str:
+    """RENDER-SEED: compare already extracted saved bytes to the pinned data bytes.
+
+    This byte check is not a loop record reader or evidence of a real seed. The
+    future build entry point must obtain saved bytes through the agreed record.
+    """
+    if not isinstance(folded, bytes) or not isinstance(saved, bytes):
+        raise RenderError("RENDER-SEED: folded and saved system bytes are required")
+    if digest(folded) != expected_sha256:
+        raise RenderError("RENDER-SEED: folded prompt sha256 differs")
+    if saved != folded:
+        raise RenderError("RENDER-SEED: saved system bytes differ from folded prompt")
+    try:
+        return saved.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RenderError("RENDER-SEED: system bytes are not UTF-8") from exc
+
+
+def initial_messages(system: str, masked_input: str) -> list[dict]:
+    """RENDER-LAYOUT: preserve the folded system and the exact one-user wrapper."""
+    return [{"role": "system", "content": system},
+            {"role": "user", "content": "<<<TEXT\n" + masked_input + "\nTEXT>>>"}]
+
+
+def render_pair(tokenizer, pair: dict, system: str) -> dict:
+    """RENDER-LAYOUT, RENDER-MASK, RENDER-LENGTH: render one checked pair in memory.
+
+    The caller supplies verified folded system text. This function neither checks
+    seed provenance nor writes a training data record. Examples stay in the system.
+    """
+    messages = initial_messages(system, pair["input"])
+    message_bytes = json.dumps(messages, ensure_ascii=True,
+                               separators=(",", ":")).encode("utf-8")
+    options = {"enable_thinking": False, "tokenize": True, "return_dict": False}
+    prefix = tokenizer.apply_chat_template(messages, add_generation_prompt=True,
+                                            **options)
+    complete = messages + [{"role": "assistant", "content": pair["target"]}]
+    ids = tokenizer.apply_chat_template(complete, add_generation_prompt=False,
+                                         **options)
+    identity = f"{pair['batch']}/{pair['id']}"
+    if ids[:len(prefix)] != prefix or len(ids) <= len(prefix):
+        raise RenderError(f"RENDER-MASK: final target prefix differs or is empty: {identity}")
+    if len(ids) > MAX_SEQ_LENGTH:
+        raise RenderError(f"RENDER-LENGTH: {identity} has {len(ids)} tokens, "
+                          f"limit {MAX_SEQ_LENGTH}")
+    # RENDER-OUTPUT: keep pair identity and complete initial-list identity per row.
+    fields = ("batch", "id", "trajectory", "uuid", "row", "kind", "loc", "target_round")
+    return {**{key: pair[key] for key in fields}, "input_ids": ids,
+            "assistant_masks": [0] * len(prefix) + [1] * (len(ids) - len(prefix)),
+            "initial_messages_sha256": digest(message_bytes)}
 
 
 def main(argv=None):
