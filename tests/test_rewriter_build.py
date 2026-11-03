@@ -377,6 +377,32 @@ def test_pair_inputs_detect_changes_after_read(world):
         evidence.verify()
 
 
+def test_pair_inputs_collect_rejects_a_change_after_loading(world, monkeypatch):
+    """PAIR-INPUTS: collection must invoke its final input check before output."""
+    original = build.retain_pair
+    path = world.repo / "experiments/ste-batch-200/p001/part.json"
+
+    def change_loaded_file(*args):
+        """PAIR-INPUTS: simulate a concurrent update after the part was checked."""
+        result = original(*args)
+        path.write_text('{"changed_after_read": true}')
+        return result
+
+    monkeypatch.setattr(build, "retain_pair", change_loaded_file)
+    with pytest.raises(build.PairError, match="file changed during collection"):
+        build.collect(world.repo)
+
+
+def test_pair_inputs_second_read_rejects_different_bytes(world):
+    """PAIR-INPUTS: a second read cannot replace the first file identity."""
+    evidence = build.Evidence(world.repo)
+    relative = "var/ste/approved-verbs.json"
+    evidence.read(relative)
+    (world.repo / relative).write_text('{"changed": true}')
+    with pytest.raises(build.PairError, match="file changed during collection"):
+        evidence.read(relative)
+
+
 def test_pair_output_manifest_must_also_stay_outside_git(world, monkeypatch):
     """PAIR-OUTPUT: an ignored directory does not imply its sibling is ignored."""
     out = world.repo / "ignored-directory"
