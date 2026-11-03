@@ -248,29 +248,32 @@ procedures of the curve.
 |---|---|
 | `lora.r` / `lora.alpha` / `lora.dropout` | 16 / 32 / 0.0 |
 | `lora.target_modules` | `q_proj`, `k_proj`, `v_proj`, `o_proj`, `in_proj` |
-| `train.max_seq_length` | 36864 |
+| `train.max_seq_length` | 49152 |
 | `train.learning_rate` | 1e-4, cosine schedule, 10 warmup steps |
 | `train.per_device_batch_size` / `gradient_accumulation_steps` | 1 / 8 |
 | `train.num_train_epochs` | 2 |
 | `train.seed` | 0 |
 
-With 387 rows, one epoch is about 48 steps. At 36,864 tokens, BUILD-LENGTH removes no
-row. These values are a first
-estimate. The curve measures them. (The operator must give a decision before a change
-to a value, section 10.)
+With 387 rows and 8 rows per step, one epoch has 49 steps.
+The 100-row procedure has 13 steps per epoch. At 49,152 tokens, BUILD-LENGTH removes
+no row. These values are a first estimate. The curve measures them.
+The operator must give a decision before a change to a value, as section 10 tells.
 
-**RUN-MEMORY.** Before R1, do one LoRA step at 36,864 tokens on the 30B A3B model.
-Put the model on the 2 GPUs as for the training. Record the maximum memory of each GPU
-and the time, as for the step at 32K. Do not start R1 before this step is
-satisfactory. If the step does not
-fit, do the same step at 34,816 tokens (376 rows). If that step does not fit, stop and
-tell the operator. Do not remove the `tools` list without a new decision of the
-operator.
+**RUN-MEMORY.** Before R1, do one LoRA step at 49,152 tokens on the 30B A3B model.
+Put the model on the 2 GPUs as for the training.
+Record the maximum memory of each GPU and the step time.
+Do not start R1 before this step is satisfactory.
+If the step does not fit, do the same step at 43,008 tokens.
+If neither step fits, keep 36,864 tokens. Then stop and tell the operator.
+Do not remove the `tools` list without a new decision of the operator.
 
-If the step at 34,816 tokens fits, R1, R2 and R3 use 34,816 as
-`train.max_seq_length`. Then do the data script again at that length, with a new
-`build.json`. Do the RECONCILE step again before R1, because `max_seq_length` is one
-of the fields of RECONCILE-FIELDS. The score script uses the same value.
+Use the length that fits as `train.max_seq_length` for R0, R1, R2 and R3.
+After a length change, do the data script again before R0.
+Then make the score plan. The training rows do not change.
+Record the new `max_seq_length` on the run-log issue.
+The SPU must supply this context length or more, as RECONCILE-FIELDS tells.
+If a RECONCILE record is available, do that step again.
+The joint RECONCILE step follows RECONCILE-STEP when the loop is available.
 
 **RUN-ORDER.** Do the procedures in this sequence. Do not start a procedure before
 the previous procedure is complete.
@@ -415,7 +418,7 @@ correct? The
 checker cannot find these problems, as the conversion batches showed.
 
 The reviewer is a Claude model, `claude-opus-5-5`, with the reviewer prompt
-`ste/review-prompt.md`. That file goes into git with this code. It holds no text from
+`config/lora-review-prompt.md`. That file goes into git with this code. It holds no text from
 the standard. The score record holds the model ID and the sha256 of the reviewer
 prompt, as SCORE-CHECK records the prompt hash of the checker. The reviewer does not
 know which model wrote a segment. The segments of all the procedures that the curve compares go
@@ -493,8 +496,11 @@ Then compare the 2 token ID sequences of each prompt. These are the 2 prompts:
 1. **The trajectory turn.** One held-out prompt, as SCORE-PREFIX makes it. The `tools`
    list of the row goes in, as the data record tells.
 2. **The loop turn.** The turn that step 5 of the loop sends (decision P of the #431
-   brief). The system message is the rules prompt `e21370fcd140`. The user message is
-   one kit segment, with placeholders for the code. There is no `tools` list. This
+   brief). Read the system message from the save point made after the agent's first system prompt was stored.
+   Use the exact bytes from that save point.
+   Do not read the system message from the rules file.
+   Record its sha256 next to the template hash.
+   The user message is one kit segment, with placeholders for the code. There is no `tools` list. This
    turn goes through a different path of the chat template. The loop sends this turn
    for all decisions about PURPOSE-EMITTER.
 
@@ -540,6 +546,7 @@ a `SHA256SUMS` file and a README, as in RUN-OUTPUT. It holds these items:
 
 - The `build.json` of the adapter, or the render-only data record.
 - The 2 message lists.
+- The sha256 of the system message from the loop's save point, next to the template hash.
 - The token ID sequences of the 2 sides for each prompt, and the result when the
   2 sides compare them.
 - The sha256 of the PEFT adapter and the sha256 of the GGUF LoRA.
@@ -619,8 +626,9 @@ text. Until that decision, this cell stays open.
 schemas, as it does when it operates as an agent. The data record continues to hold
 the count of rows that BUILD-LENGTH removes. Decision of the operator, 2026-11-02: at
 32,768 tokens, the `tools` list causes the removal of 154 of 387 rows. Thus,
-`max_seq_length` is 36,864, with RUN-MEMORY before R1. The `tools` decision stays
-closed.
+36,864 tokens hold all 387 rows. The operator increased `max_seq_length` to 49,152
+on 2026-11-02, after a satisfactory RUN-MEMORY step. This length removes fewer held-out segments.
+The training rows do not change. The `tools` decision stays closed.
 
 **Start without the benchmark (BENCH-DEFERRED).** Closed. Decision of the operator,
 2026-11-02: the training starts before the harness is available. Until the harness is
