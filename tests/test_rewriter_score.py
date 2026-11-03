@@ -2,6 +2,7 @@
 
 import copy
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -57,6 +58,8 @@ def world(tmp_path, monkeypatch):
     (repo / "var/ste" / score.build.PROMPT).write_text(json.dumps(prompt), encoding="utf-8")
     world = SimpleNamespace(repo=repo, pins=pins, rows=rows, folded=folded)
     save_pins(world)
+    monkeypatch.setattr(score.ste_check, "REPO", repo)
+    monkeypatch.setattr(score.ste_score, "REPO", repo)
     lex = score.ste_check.Lexicon.build(
         {"use": ["v"], "the": ["art"], "model": ["n"], "and": ["conj"]},
         {}, {}, [], [], ["use"])
@@ -181,13 +184,17 @@ def test_rewrite_check_missing_truncated_and_empty_stay_failures(world, tmp_path
     out = tmp_path / "checks"
     summary, checks = score.check_outputs(kit, outputs, out, repo=world.repo)
     assert summary["passed"] == 96 and summary["denominator"] == 100
-    assert summary["rate"] == 0.96 and summary["failure_rules"] == {"missing": 4}
+    assert summary["rate"] == 0.96
+    assert summary["failure_rules"] == {"missing": 3, "placeholders": 1}
+    scorer_rows = [json.loads(line) for line in (out / "output.jsonl").read_bytes().splitlines()]
+    assert {"id": kit["rows"][2]["id"], "output": ""} in scorer_rows
     assert summary["by_kind"] == {"narration": {"total": 90, "passed": 86},
                                    "final": {"total": 10, "passed": 10}}
     assert summary["by_bin"]["0"] == {"total": 37, "passed": 33}
     assert checks[0]["output"] == "Use [[C1]]." and checks[0]["raw"] == original[0]
     assert checks[1]["raw"]["finish_reason"] == "length"
-    assert all(checks[i]["check"]["hard"] == {"missing": [True]} for i in range(1, 5))
+    assert all(checks[i]["check"]["hard"] == {"missing": [True]} for i in (1, 3, 4))
+    assert "placeholders" in checks[2]["check"]["hard"]
     assert outputs == original
     assert calls == [[str(out / "output.jsonl"), "--input", str(out / "input.jsonl"),
                       "--prompt", str(out / score.build.PROMPT), "--md", str(out / "score.md")]]
@@ -203,6 +210,7 @@ def test_rewrite_check_missing_truncated_and_empty_stay_failures(world, tmp_path
     (lambda rows: rows[0].update(output=123), "not text"),
     (lambda rows: rows[0].update(token_ids=[True]), "invalid raw tokens"),
     (lambda rows: rows[0].update(wall_seconds=float("nan")), "invalid wall time"),
+    (lambda rows: rows[0].update(wall_seconds=float("inf")), "invalid wall time"),
 ])
 def test_rewrite_check_rejects_bad_outputs_before_lexicon(world, tmp_path, monkeypatch, change, message):
     """REWRITE-CHECK: no duplicate, unknown or malformed output can reach the scorer."""
@@ -240,6 +248,24 @@ def test_rewrite_check_dictionary_failure_precedes_lexicon(world, tmp_path, monk
     assert not (tmp_path / "bad").exists()
 
 
+@pytest.mark.parametrize("module", ["ste_check", "ste_score"])
+def test_rewrite_check_rejects_other_scorer_root_before_lexicon(
+        world, tmp_path, monkeypatch, module):
+    """REWRITE-CHECK: both scorer passes must read the verified repository."""
+    kit = score.load_kit(world.repo)
+    monkeypatch.setattr(getattr(score, module), "REPO", tmp_path / "other-root")
+
+    def forbidden(cls):
+        """REWRITE-CHECK: root validation must precede any lexicon read."""
+        pytest.fail("lexicon loaded from an unverified root")
+
+    monkeypatch.setattr(score.ste_check.Lexicon, "load", classmethod(forbidden))
+    out = tmp_path / "root-mismatch"
+    with pytest.raises(score.ScoreError, match="repository differs"):
+        score.check_outputs(kit, outputs_for(kit), out, repo=world.repo)
+    assert not out.exists()
+
+
 @pytest.mark.parametrize("change", [
     lambda prompt: prompt.update(system="Different rules."),
     lambda prompt: prompt["meta"].update(prompt_sha256="wrong"),
@@ -261,6 +287,103 @@ def test_rewrite_check_prompt_failure_precedes_lexicon(world, tmp_path, monkeypa
     monkeypatch.setattr(score.ste_check.Lexicon, "load", classmethod(forbidden))
     with pytest.raises(score.ScoreError, match="REWRITE-CHECK"):
         score.check_outputs(kit, [], tmp_path / "bad", repo=world.repo)
+
+
+def test_rewrite_check_system_pin_fails_independently(world, tmp_path, monkeypatch):
+    """REWRITE-CHECK: the system pin must pass even when the bundle pin passes."""
+    kit = score.load_kit(world.repo)
+    world.pins["system_text"] = "0" * 64
+    save_pins(world)
+
+    def forbidden(cls):
+        """REWRITE-CHECK: validate all prompt identities before lexicon loading."""
+        pytest.fail("lexicon loaded after a system pin failure")
+
+    monkeypatch.setattr(score.ste_check.Lexicon, "load", classmethod(forbidden))
+    with pytest.raises(score.ScoreError, match="source system sha256 differs"):
+        score.check_outputs(kit, [], tmp_path / "bad-system", repo=world.repo)
+
+
+def test_rewrite_record_refuses_output_inside_git(world):
+    """REWRITE-RECORD: artifacts cannot be written to a nonignored repository path."""
+    subprocess.run(["git", "init", "--quiet", str(world.repo)], check=True)
+    kit = score.load_kit(world.repo)
+    out = world.repo / "results"
+    with pytest.raises(score.ScoreError, match="outputs must stay outside git"):
+        score.check_outputs(kit, outputs_for(kit), out, repo=world.repo)
+    assert not out.exists()
+
+
+def test_rewrite_record_accepts_ignored_output_inside_repo(world):
+    """REWRITE-RECORD: an ignored artifact and sibling manifest stay outside git."""
+    subprocess.run(["git", "init", "--quiet", str(world.repo)], check=True)
+    (world.repo / ".gitignore").write_text(
+        "results/\nresults.manifest.json\n", encoding="utf-8")
+    kit = score.load_kit(world.repo)
+    out = world.repo / "results"
+    summary, _ = score.check_outputs(kit, outputs_for(kit), out, repo=world.repo)
+    assert summary["passed"] == 100
+    manifest = score.mf.load_tree(world.repo / "results.manifest.json")
+    assert score.mf.verify_tree(manifest, out) == []
+
+
+def test_rewrite_kit_refuses_text_changed_after_load(world, tmp_path, monkeypatch):
+    """REWRITE-KIT: changed in-memory inputs cannot reach either checker pass."""
+    kit = score.load_kit(world.repo)
+    kit["rows"][0]["text"] = "Use [[C1]] with care."
+
+    def forbidden(cls):
+        """REWRITE-KIT: the frozen input hash must pass before lexicon loading."""
+        pytest.fail("lexicon loaded for a changed input")
+
+    monkeypatch.setattr(score.ste_check.Lexicon, "load", classmethod(forbidden))
+    out = tmp_path / "changed-input"
+    with pytest.raises(score.ScoreError, match="masked inputs changed"):
+        score.check_outputs(kit, outputs_for(kit), out, repo=world.repo)
+    failure = json.loads((out / "failure.json").read_bytes())
+    assert failure["completed_ids"] == []
+    assert not (out / "checks-summary.json").exists()
+
+
+def test_rewrite_check_enforces_instruction_limit_in_both_passes(world, tmp_path):
+    """REWRITE-CHECK: a 22-word instruction must fail both checker passes."""
+    world.rows[0]["raw"] = "Use " + "the model " * 10 + "the."
+    save_rows(world.repo / "var/ste/kit-100/source.jsonl", world.rows)
+    save_pins(world)
+    kit = score.load_kit(world.repo)
+    out = tmp_path / "long-instruction"
+    summary, checks = score.check_outputs(kit, outputs_for(kit), out, repo=world.repo)
+    assert summary["passed"] == 99
+    length = checks[0]["check"]["hard"]["length"][0]
+    assert (length["words"], length["limit"]) == (22, 20)
+    report = (out / "score.md").read_text(encoding="utf-8")
+    assert "99/100 pass." in report and "## t000 narration: FAIL length" in report
+
+
+@pytest.mark.parametrize("headline", ["99/100 pass.", "100/99 pass.", "Missing headline."])
+def test_rewrite_check_refuses_reference_headline_divergence(
+        world, tmp_path, monkeypatch, headline):
+    """REWRITE-CHECK: a different frozen-scorer total cannot publish a summary."""
+    kit = score.load_kit(world.repo)
+    main = score.ste_score.main
+
+    def divergent(argv):
+        """REWRITE-CHECK: simulate a different reference count after scoring."""
+        status = main(argv)
+        report = Path(argv[argv.index("--md") + 1])
+        lines = report.read_text(encoding="utf-8").splitlines()
+        lines[2] = headline
+        report.write_text("\n".join(lines), encoding="utf-8")
+        return status
+
+    monkeypatch.setattr(score.ste_score, "main", divergent)
+    out = tmp_path / "divergence"
+    with pytest.raises(score.ScoreError, match="REWRITE-CHECK"):
+        score.check_outputs(kit, outputs_for(kit), out, repo=world.repo)
+    failure = json.loads((out / "failure.json").read_bytes())
+    assert failure["completed_ids"] == [row["id"] for row in kit["rows"]]
+    assert not (out / "checks-summary.json").exists()
+    assert not out.with_name("divergence.manifest.json").exists()
 
 
 def test_rewrite_check_all_missing_keeps_denominator_and_manifest(world, tmp_path):

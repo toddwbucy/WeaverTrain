@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import subprocess
 import sys
 import tomllib
@@ -129,7 +130,7 @@ def prepare_outputs(kit, outputs):
     for row in kit["rows"]:
         raw = indexed.get(row["id"])
         text = raw["output"].strip() if raw and raw["output"] is not None else None
-        included = bool(text) and raw["finish_reason"] == "stop"
+        included = text is not None and raw["finish_reason"] == "stop"
         retained.append({"id": row["id"], "raw": raw, "output": text,
                          "scorer_included": included})
         if included:
@@ -139,6 +140,8 @@ def prepare_outputs(kit, outputs):
 
 def checker_inputs(repo):
     """REWRITE-CHECK: pin the dictionary and original checker bundle before use."""
+    require(repo.resolve() == ste_check.REPO.resolve() == ste_score.REPO.resolve(),
+            "REWRITE-CHECK: repository differs from the frozen scorer root")
     evidence = build.Evidence(repo)
     pins = tomllib.loads(evidence.read("config/rewriter-inputs.toml").decode())
     evidence.read("var/ste/approved-verbs.json", pins["approved_verbs"])
@@ -167,7 +170,8 @@ def check_outputs(kit, outputs, out_dir, *, repo=REPO):
     manifest_path = out.with_name(out.name + ".manifest.json")
     for path in (out, manifest_path):
         if path.is_relative_to(repo.resolve()):
-            ignored = subprocess.run(["git", "check-ignore", "--quiet", str(path)], cwd=repo)
+            name = str(path) + "/" if path == out else str(path)
+            ignored = subprocess.run(["git", "check-ignore", "--quiet", name], cwd=repo)
             require(ignored.returncode == 0, "REWRITE-RECORD: outputs must stay outside git")
     require(not out.exists() and not manifest_path.exists(),
             "REWRITE-RECORD: output directory or manifest already exists")
@@ -207,8 +211,15 @@ def check_outputs(kit, outputs, out_dir, *, repo=REPO):
                                  "--prompt", str(out / build.PROMPT), "--md", str(out / "score.md")])
         require(status == 0, "REWRITE-CHECK: reference scorer failed")
         evidence.verify()
+        # REWRITE-CHECK: the frozen scorer supplies the authoritative rate.
+        lines = (out / "score.md").read_text(encoding="utf-8").splitlines()
+        headline = re.fullmatch(r"(\d+)/(\d+) pass\..*", lines[2]) if len(lines) > 2 else None
+        require(headline is not None, "REWRITE-CHECK: reference headline is missing")
+        passed, total = map(int, headline.groups())
+        require(total == 100 and passed == sum(row["check"]["ok"] for row in checks),
+                "REWRITE-CHECK: per-ID results differ from the reference scorer")
         summary = {"schema": "weaver-train/rewriter-check/v1", "denominator": 100,
-                   "passed": sum(row["check"]["ok"] for row in checks),
+                   "passed": passed,
                    "scorer_outputs": len(scorer_rows), "checker_inputs": evidence.files,
                    "kit_inputs": kit["inputs"], "input_sha256": kit["input_sha256"],
                    "literal_failure_segments": sum(bool(r["literal_failures"]) for r in checks)}
