@@ -6,6 +6,8 @@
 
 **Language:** STE100. Use `ste/` at `ab63a918b569e5b8673dc2e78e66575ee9df1bd7`.
 Add no words to that tree. Use `scripts/ste_check.py` with limits of 20 and 25 words.
+Check `var/ste/approved-verbs.json` against its section 11 hash before the STE check.
+Stop if the file is absent or its hash is different.
 Clause names, file paths, keys and code spans are technical names.
 
 ## 0. Scope and authority
@@ -15,6 +17,7 @@ It uses the approved verbs and keeps the sense and data inside the placeholders.
 It does not use tools. The later emitter adapter is a different task.
 This follows the operator decisions of 2026-11-03 on [issue 17][ruling] and
 [the reply about the prompt, pairs and balance][answers].
+The [later layout decision][folded] gives the folded prompt authority.
 
 `docs/lora-training-Spec.md`, version 0.3, stays the Spec of the emitter series.
 Its data, adapters, reports and scores stay unchanged.
@@ -85,6 +88,9 @@ Read round outputs in numeric sequence from 1 through 4.
 For each ID, select the last stored output that assembly used.
 Do not select an earlier output to get past a check that is not satisfactory.
 The selected output must satisfy the batch checker, converter checks and literal check.
+Before `Judge` reads the lexicon, check `var/ste/approved-verbs.json` against section
+11.
+Stop if the file is absent or its hash is different.
 Use `ste_experiment.Judge` and `altered_literals` with the pinned prompt.
 Put back its code spans with the source map and its outer whitespace.
 The result must equal the segment from the conversion exactly.
@@ -111,7 +117,7 @@ Keep references to all earlier outputs for those targets.
 Whether R1 also uses these conversations stays open under section 10.
 No repair conversation enters training without that decision and its Spec change.
 
-**PAIR-PROVENANCE.** Record three prompt identities in different fields.
+**PAIR-PROVENANCE.** Record three source prompt identities in different fields.
 The grouped instruction made the batch targets.
 The single-text bundle holds the system text and four examples.
 The system text has its own hash.
@@ -159,31 +165,37 @@ These files stay outside git.
 ## 3. The prompt and token labels
 
 **RENDER-LAYOUT.** The `build` command reads a verified pair directory.
-Use the exact layout of `scripts/ste_kit_run.py` at
-`9881da6cfbc92b08b31264883aea63b73aa7b694`.
+Use the folded prompt from RENDER-SEED.
 Each training sequence has these messages in sequence:
 
-1. One system message with the full rules.
-2. Four example pairs, each with one user message and one assistant message.
-3. One user message with the original input with placeholders.
-4. One assistant message with the selected target.
+1. One system message with the full rules and all four examples inside its text.
+2. One user message with the original input with placeholders.
+3. One assistant message with the selected target.
 
 The user content is `"<<<TEXT\n" + masked_input + "\nTEXT>>>"`.
-Keep the LF bytes and the sequence of examples exactly.
+Keep the folded file's bytes exactly. Keep all examples inside the system message.
+Keep the user wrapper's LF bytes exactly.
 Supply no `tools` argument to the template.
 Set `enable_thinking=false`.
 Use the model's `apply_chat_template` without a new template or a shorter prompt.
 The operator accepted the cost of the full prompt.
 
-**RENDER-SEED.** Before you make a training data record, get the loop's seeded save
-point.
-Read its exact system bytes and examples in sequence through the agreed loop record.
-Do not replace the saved system bytes with a rules file.
-They must equal the pinned Python prompt.
-Record the system hash, bundle hash and complete initial message-list hash in different
-fields.
-For the bundle hash, use `json.dumps([system_text, examples]).encode()` as the reference
-does.
+**RENDER-SEED.** Use the folded prompt file named by WeaverAgent's workflow PR as a
+data input.
+That workflow gives the exact fold, example sequence and markers.
+The operator must review the folded file before the seed.
+Record its SHA256 as `folded_prompt` in section 11 before a training data record or R0.
+Import no code from WeaverAgent.
+
+Before you make a training data record, get the loop's seeded save point.
+Read its exact system bytes through the agreed loop record.
+They must equal the pinned folded file's bytes.
+Do not replace the saved system bytes with the file alone.
+The folded prompt is the render identity.
+Keep its hash and the three source hashes of PAIR-PROVENANCE in different fields.
+Also record the complete initial message-list hash in a different field.
+For the source bundle hash, use `json.dumps([system_text, examples]).encode()` as the
+reference does.
 For message-list hashes, use UTF-8 JSON with `ensure_ascii=True`.
 Set `separators=(",", ":")` and use no final LF.
 Each message has `role` then `content`, with no other field.
@@ -191,15 +203,17 @@ If saved bytes or layout are different, stop and request an operator decision.
 The absence of a save point does not stop pair checks or this Spec review.
 Do not make a training data record or start the new R0 without that save point.
 
-**RENDER-MASK.** Give loss only to the final target and its end-of-turn token.
-System, example, input and template-header tokens have a mask value of 0.
-All four example assistant messages have a mask value of 0.
-Apply the template to the first ten messages with `add_generation_prompt=True`.
+**RENDER-MASK.** Give loss to the final target, its end-of-turn token and the LF after
+that token.
+The template adds that LF.
+System tokens, with all examples, and input and template-header tokens have a mask
+value of 0.
+Apply the template to the first two messages with `add_generation_prompt=True`.
 Apply it again with the final target and no generation prompt.
 The first token sequence must be an exact prefix of the second.
 Set `assistant_masks` to 1 only for the tokens that the second sequence adds.
 Stop if the prefix check is not satisfactory.
-Do not use a mask that selects every assistant message.
+All tokens in the first sequence have a mask value of 0.
 
 **RENDER-LENGTH.** Keep `max_seq_length=49152` for this proposal.
 Do not cut a pair or its prompt.
@@ -280,20 +294,24 @@ before R1.
 Stop on failure and report it. Do not select another kernel or precision.
 No model is loaded for the cost analysis below.
 
-**REWRITE-COST.** The analysis of 2026-11-03 used the pinned tokenizer and full Python
-layout.
+**REWRITE-COST.** The analysis of 2026-11-03 used the pinned tokenizer and the old
+ten-message Python layout.
 It did not read a seeded loop capture.
-The counts are proposal costs until RENDER-SEED and the final data record agree.
+These counts apply only to the superseded layout.
+They are not the costs of the folded-layout proposals.
+The folded-layout costs are not available until the folded file is supplied.
 
 - All accepted pairs: 13,369 pairs and 194,550,487 tokens for one epoch.
-- Proposed R1: 200 pairs and 2,938,941 tokens for one epoch.
-- Proposed R2: 3,383 pairs and 49,731,042 tokens for one epoch.
+- R1 subset in that analysis: 200 pairs and 2,938,941 tokens for one epoch.
+- R2 subset in that analysis: 3,383 pairs and 49,731,042 tokens for one epoch.
 
-R1 has 25,637 final-target tokens per epoch.
-R2 has 443,682 final-target tokens per epoch.
-The R1 sequence lengths range from 14,467 through 15,412 tokens.
-The R2 sequence lengths range from 14,457 through 16,036 tokens.
+That layout gives R1 25,637 loss tokens per epoch and R2 443,682 loss tokens per epoch.
+These counts include the target, end-of-turn token and final LF.
+For that layout, R1 sequence lengths range from 14,467 through 15,412 tokens.
+R2 sequence lengths range from 14,457 through 16,036 tokens.
 These totals do not count pad tokens or the different repair conversations.
+Measure the folded prompt and each selected set again when its pinned file is available.
+Record all tokens, loss tokens and sequence lengths before procedure-size approval.
 Record new totals if the selected pairs or training policy change.
 Do not turn these token counts into a measured wall time.
 
@@ -320,7 +338,13 @@ Record the first output only. Do not repair it or select a later output.
 Keep the raw tokens, text, finish reason and wall time.
 
 **REWRITE-CHECK.** Score the first outputs with the frozen `scripts/ste_score.py`.
+Check `var/ste/approved-verbs.json` against section 11 before the scorer reads the
+lexicon.
+Stop if the file is absent or its hash is different.
 Supply both `--input` and `--prompt` explicitly on every use and rescore.
+Use `prompt-e21370fcd140.json` for `--prompt`.
+This bundle supplies the checker limits and example checks.
+RENDER-SEED supplies the system bytes for generation.
 Use the model text after the same removal of outer whitespace as `ste_kit_run.py`.
 Do not change the text or its case to increase a score.
 An absent output or an output stopped by the token limit is a failure.
@@ -390,8 +414,8 @@ Do not commit machine paths, host names, source text or prompt text from the sta
 ## 8. The joint token check
 
 **REWRITE-RECONCILE.** The loop on a second machine must use RENDER-LAYOUT exactly.
-Its message roles and repair history must have authority from WeaverAgent's merged
-documents.
+Its initial messages and each repair request must have authority from WeaverAgent's
+merged workflow.
 This Spec gives that repository no new authority.
 Keep the current RECONCILE-FIELDS names and meanings from Spec 0.3.
 The rewriter data record supplies the values for this adapter.
@@ -399,7 +423,8 @@ The rewriter data record supplies the values for this adapter.
 Use one held-out input with placeholders to write one complete initial message list.
 Both sides use those same message-list bytes.
 Compare the full token ID sequences from Python and the SPU.
-Record the system hash, bundle hash and message-list hash in different fields.
+Record the folded prompt hash, three source prompt hashes and message-list hash in
+different fields.
 Apply Spec 0.3 RECONCILE-ADAPTER, RECONCILE-DRIFT and RECONCILE-RECORD.
 Do not operate the loop with this adapter before the joint checks are satisfactory.
 If a field or prompt identity changes, do the affected checks again and post the change.
@@ -415,29 +440,38 @@ Each new test cites its clause. GPU tests use the small model of `tests/conftest
 - **PAIR-TARGET:** Check the source map, round of the target, equality after code spans
   are put back, checker checks and literal identity.
   A last output that is not satisfactory must not select an earlier accepted output.
+  A missing or changed approved-verbs file must stop the procedure before `Judge` reads
+  it.
 - **PAIR-REPAIRS, PAIR-PROVENANCE:** Keep repair history in a different file and record
-  all three prompt identities without interchange.
+  all three source prompt identities without interchange.
 - **PAIR-BALANCE:** Check exact quotas, equal-fraction sequence, seed repeatability, no
   replacement and the nested R1/R2 selections.
   The present pool gives 3,383 pairs. A reduced pool cannot fill an incomplete bin from
 another bin.
-- **RENDER-LAYOUT, RENDER-SEED:** Check all roles, sequence of examples, LF bytes, tool
-  absence and the three distinct prompt hashes.
+- **RENDER-LAYOUT, RENDER-SEED:** Check the folded system message, user wrapper,
+  LF bytes, tool absence and absence of separate example messages.
+  Check the folded prompt hash and its three source prompt hashes without interchange.
   Missing or different saved bytes stop the training data record.
 - **RENDER-MASK:** Compare the final-target token span with the mask.
-  The eight example messages and the final assistant header must have loss 0.
+  Only the target, end-of-turn token and template's final LF have a mask value of 1.
+  The system, with all examples, the user input and the final assistant header have
+  a mask value of 0.
   A broken prefix check must stop the data record.
 - **RENDER-LENGTH, RENDER-OUTPUT:** Reject a pair beyond the limit and a changed
   manifest.
   Check all five field names and the different prompt identities.
-- **REWRITE-TRAIN:** On the GPU, record the labels at the loss for a pair with example
-  messages.
-  Only the final target and turn end have labels other than -100.
+- **REWRITE-TRAIN:** On the GPU, record the labels at the loss for a pair with the
+  folded system prompt.
+  Only the target, end-of-turn token and template's final LF have labels other than
+  -100.
+  All examples are system text and have label -100.
   Examine epoch adapters and the current stop rules with the small model.
 - **REWRITE-KIT, REWRITE-DECODE:** Both base and adapter paths use the same 100 inputs
   and fit checks.
 - **REWRITE-CHECK:** Missing and truncated outputs stay failures out of 100.
   Reject duplicate and unknown IDs. Compare results with the unchanged scorer.
+  A missing or changed approved-verbs file must stop the procedure before the scorer
+  reads it.
 - **REWRITE-SPREAD:** Check paired comparisons against the first R0 procedure and the
   recorded decode difference.
 - **REWRITE-REVIEW:** Check the prompt hash, blind sequence, code spans put back,
@@ -455,7 +489,8 @@ Use the pinned STE checker on this document and record its result in the PR.
 ## 10. Decisions and open cells
 
 **Full prompt and layout.** Closed by the operator on 2026-11-03.
-Use the full production prompt and the Python layout under RENDER-LAYOUT.
+Use the full production prompt and the folded layout under RENDER-LAYOUT.
+The later decision replaces only the earlier layout decision.
 Do not use a shorter prompt for cost.
 
 **Pair function and balance.** Closed by the same decision.
@@ -465,7 +500,8 @@ PAIR-BALANCE proposes seed 0 and the exact integer counts.
 **Procedure sizes.** Open for operator approval.
 R1 proposes 200 pairs and two epochs.
 R2 proposes 3,383 pairs and two epochs.
-The cost analysis supports these proposals but does not give approval to do them.
+The folded-layout costs must be measured before the operator gives approval for these
+sizes.
 
 **Repair training in R1.** Open until the new R0 report.
 The operator gives a decision about whether R1 also trains on repair conversations.
@@ -475,14 +511,22 @@ A decision to use them must have a Spec change for masks, counts and costs befor
 implementation.
 
 **Loop capture and conversion.** Open for the joint work with WeaverAgent.
-The seed and message-layout amendments come before the saved capture.
+The workflow gives the fold and repair text before the operator reviews the folded
+file and seed.
+The saved capture follows that review. No organ amendment is required for this layout.
 RENDER-SEED and REWRITE-RECONCILE close this cell with records.
 
 ## 11. Pinned identities and analysis
 
 The SHA256 values below identify the current inputs.
+The folded file has not been supplied as of 2026-11-03.
+Its `folded_prompt` value has not been supplied.
+Add its exact SHA256 and workflow reference before a training data record or R0.
+Do not use a stand-in fold or a source provenance hash for that value.
 
 ```text
+approved_verbs
+c622bc230bc0c29512ef16990f527bf32a5ffaffbe955f73751251a7e5ab4693
 converted_200
 63afa6fe3aa1f44cb98355e6717b073921c2ee1ce1451a93acf0aae20e349ad9
 converted_200_2
@@ -514,6 +558,8 @@ It found 13,369 accepted pairs with no UUID overlap with either kit.
 Their counts in the source bins are 10,401, 1,852 and 1,116.
 The [issue audit][audit] gives the checks and the unbalanced costs.
 The new subset analysis stays outside `scripts/`.
+Its token costs use the superseded ten-message layout.
+The pair counts and ordered-ID hashes stay the same with the folded layout.
 Its hashes are below.
 
 ```text
@@ -529,4 +575,5 @@ r2_ordered_ids
 
 [ruling]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6605286044
 [answers]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6608618052
+[folded]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6610000291
 [audit]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6607188590
