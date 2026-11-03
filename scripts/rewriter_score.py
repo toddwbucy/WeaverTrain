@@ -182,6 +182,8 @@ def check_outputs(kit, outputs, out_dir, *, repo=REPO):
         input_bytes = jsonl_bytes(inputs)
         require(build.digest(input_bytes) == kit["input_sha256"],
                 "REWRITE-KIT: masked inputs changed before scoring")
+        require(all(row.get("bin") == bin_of(len(row["text"])) for row in kit["rows"]),
+                "REWRITE-KIT: source length bins changed before scoring")
         (out / "input.jsonl").write_bytes(input_bytes)
         (out / "output.jsonl").write_bytes(jsonl_bytes(scorer_rows))
         (out / "raw.jsonl").write_bytes(jsonl_bytes(retained))

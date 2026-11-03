@@ -345,6 +345,27 @@ def test_rewrite_kit_refuses_text_changed_after_load(world, tmp_path, monkeypatc
     assert not (out / "checks-summary.json").exists()
 
 
+def test_rewrite_kit_refuses_changed_bins_with_unchanged_counts(world, tmp_path, monkeypatch):
+    """REWRITE-KIT, REWRITE-SPREAD: bind each result to its source length bin."""
+    kit = score.load_kit(world.repo)
+    first, second = kit["rows"][0], kit["rows"][40]
+    first["bin"], second["bin"] = second["bin"], first["bin"]
+    assert [sum(row["bin"] == n for row in kit["rows"]) for n in range(3)] == [37, 30, 33]
+
+    def forbidden(cls):
+        """REWRITE-KIT: reject swapped bins before any checker pass."""
+        pytest.fail("lexicon loaded for changed source bins")
+
+    monkeypatch.setattr(score.ste_check.Lexicon, "load", classmethod(forbidden))
+    out = tmp_path / "changed-bins"
+    with pytest.raises(score.ScoreError, match="source length bins changed"):
+        score.check_outputs(kit, outputs_for(kit), out, repo=world.repo)
+    failure = json.loads((out / "failure.json").read_bytes())
+    assert failure["completed_ids"] == []
+    assert not (out / "checks-summary.json").exists()
+    assert not out.with_name("changed-bins.manifest.json").exists()
+
+
 def test_rewrite_check_enforces_instruction_limit_in_both_passes(world, tmp_path):
     """REWRITE-CHECK: a 22-word instruction must fail both checker passes."""
     world.rows[0]["raw"] = "Use " + "the model " * 10 + "the."
