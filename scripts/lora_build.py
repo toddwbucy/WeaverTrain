@@ -290,7 +290,8 @@ def main(argv=None):
     command.add_argument("--model", default="nemotron-3-nano-30b-a3b")
     command.add_argument("--out", type=Path, required=True)
     command.add_argument("--enable-thinking", required=True, choices=["false"])
-    command.add_argument("--max-seq-length", type=int, default=36864)
+    # RUN-CONFIG: use the context that passed RUN-MEMORY on 2026-11-02.
+    command.add_argument("--max-seq-length", type=int, default=49152)
     command.add_argument("--seed", type=int, default=0)
     command.add_argument("--limit", type=int)
     command.add_argument("--render-only", action="store_true")
