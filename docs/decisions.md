@@ -3,6 +3,60 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-03: the first adapter rewrites text with the full loop prompt
+
+The operator's [ruling on issue 17][rewriter-ruling],
+[answers for the new Spec][rewriter-answers] and
+[later folded-layout ruling][rewriter-folded]
+make the first adapter a rewriter. It converts English text into STE100 with approved
+verbs. The loop makes a corpus for a later emitter fine-tune. This supersedes the
+2026-11-01 reason against a rewriter and the 2026-11-02 choice of an emitter first.
+The loop offers zero tools. Its registered-name list does not elect a tool.
+
+The 387 converted trajectories, emitter Spec 0.3, code, R0/R1 records and deposits
+stay unchanged. The new series uses narration and final-report pairs from the same
+two accepted batches. No new Gemini text is allowed. Original masked inputs pair
+with their final accepted targets, and each pair records its target round.
+Only checker-passed targets qualify. They have not had meaning review.
+Both held-out kits exclude all pairs with their trajectory UUIDs.
+
+Use the full production prompt with all four examples inside one system message,
+one user message with the wrapped masked input, then the target.
+There are no separate example turns. The folded prompt has its own sha256.
+The WeaverAgent workflow defines the fold, markers and exact repair user text.
+The operator reviews the folded file before the seed.
+WeaverTrain pins that file as data, with no code dependency on WeaverAgent.
+Loss applies only to the final target span.
+All examples are system text and get no loss.
+The operator accepts the prompt cost. Do not shorten it for cost.
+Read the system bytes from the seeded save point and check the complete message list.
+Record the grouped target-generation instruction, single-text bundle and system hashes
+as provenance, separately from the folded render identity.
+A different saved prompt requires an operator decision.
+Measure the folded prompt costs when the file is supplied. The old layout costs are
+superseded for procedure sizing.
+
+Balance source lengths to the kit mix: 37 below 200 characters, 30 from 200 through
+499, and 33 at 500 or more. The new Spec gives exact counts and the selection seed.
+The executor proposes R1 and R2 sizes from measured token costs for operator approval.
+Keep all repair conversations separately. Whether R1 also trains on them remains
+open until the new R0 report, and the operator can move that work to R2.
+
+The order is a new Spec draft PR, new pair code after its merge, then rewriter R0
+twice and R1, followed by a stop and report. R2 waits for the operator.
+Use the frozen 100-segment rewrite kit and `ste_score.py` for first-attempt scores.
+Use the approved rewrite meaning-review prompt from issue 15. Review text is for
+evaluation only. The emitter and rewriter series are separate records.
+
+The freeze lifts for new files and this decision entry only. Until issue 15's run
+completes, keep its five reference scripts, `ste/`, kit and prompt unchanged.
+`docs/lora-rewriter-Spec.md` is the new draft. It does not authorize code before merge.
+The matching workflow changes remain in WeaverAgent. No organ amendment is required.
+
+[rewriter-ruling]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6605286044
+[rewriter-answers]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6608618052
+[rewriter-folded]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6610000291
+
 ## 2026-11-03 UTC: authorize R1 after the storage hold
 
 The operator directed R1 to start despite the reported storage condition.
