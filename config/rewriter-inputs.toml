@@ -1,0 +1,14 @@
+# PAIR-INPUTS, PAIR-HELDOUT, PAIR-PROVENANCE: Spec 0.1 section 11.
+# PAIR-TARGET: verify the local dictionary before the checker reads it.
+approved_verbs = "c622bc230bc0c29512ef16990f527bf32a5ffaffbe955f73751251a7e5ab4693"
+converted_200 = "63afa6fe3aa1f44cb98355e6717b073921c2ee1ce1451a93acf0aae20e349ad9"
+converted_200_2 = "9bd8bac719156498c4f2ac7916b0afae85aa0ac909ad9cece95b5fe48fbe23a5"
+source_200 = "de201c0f342be8a12ff376b81b87d1e8078e8bb8dc874a56b3fc1a6d4f9c890e"
+codes_200 = "a8e943555ec6e3f8a871287379915de4aaa3eb75131545b7e5ffa825cdab7b35"
+source_200_2 = "4214931200cefdd05977c0d0cbfcb69376f205d4da07c423fe955d6fd4b7f5b4"
+codes_200_2 = "98b2c2b1e62f8fb7b43c78853ccc6ffcdd83bb781457ee663bcdf6e4b69960ba"
+kit_100_source = "d2f4937aeef40a7b178faf19ba1790e578d2b397e965f7289d929d1c6c9c4dcd"
+kit_500_source = "1e80e935c0008e0ca44dd9af633f3f0c29678f1799d0cb62d816102ca4ff489c"
+grouped_instruction = "ab4d2d8a87a434f976a19ea7b470e14f1fb37125f61b4188521ff0cd0fb26d2f"
+single_text_bundle = "e21370fcd140a4bb5e7a0d2dd415c58d8ecead9333a9e730adb66ab96e7a851c"
+system_text = "0a42709ebe47ef8f17d728921b8bd802e0bf1466fced8d020b0b3c6dec6aa701"
