@@ -1,5 +1,7 @@
 # PAIR-INPUTS, PAIR-HELDOUT, PAIR-PROVENANCE: Spec 0.1 section 11.
 # PAIR-TARGET: verify the local dictionary before the checker reads it.
+# RENDER-SEED: operator-approved folded file, a data pin only.
+folded_prompt = "0fe2ee35a59f6b1e30734af4d7a72e32bd6dbc0e728abc98e32e2c609dad07ed"
 approved_verbs = "c622bc230bc0c29512ef16990f527bf32a5ffaffbe955f73751251a7e5ab4693"
 converted_200 = "63afa6fe3aa1f44cb98355e6717b073921c2ee1ce1451a93acf0aae20e349ad9"
 converted_200_2 = "9bd8bac719156498c4f2ac7916b0afae85aa0ac909ad9cece95b5fe48fbe23a5"
