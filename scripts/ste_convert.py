@@ -5,8 +5,10 @@
 
 Per example, the prose segments are: the issue text inside <issue_description> in the
 first user message, every assistant message's text, the `thought` of each `think`
-tool call, and the `message` of the `finish` call (the agent's final report). The system prompt, the rest of the user template, tool calls' other arguments
-and tool output stay byte-identical.
+tool call, and the `message` of the `finish` call (the agent's final report).
+The system prompt, the rest of the user template and tool output stay byte-identical.
+Changed tool arguments are parsed and serialized again. Their other arguments stay
+equal as JSON values, but spacing and character escapes can change.
 
 Per segment: code-like spans (fenced blocks, inline code, quoted strings, URLs, paths,
 calls and literals with brackets, dotted and snake_case names) become [[Cn]]
@@ -255,6 +257,7 @@ def segments(row: dict):
 
 
 def apply(row: dict, loc: dict, new: str) -> None:
+    """Replace a segment. Other arguments of a changed tool stay equal as JSON values."""
     msg = row["messages"][loc["msg"]]
     if loc["field"] == "issue":
         a, b = loc["span"]

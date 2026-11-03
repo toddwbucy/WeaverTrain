@@ -16,9 +16,12 @@ ratified. The entry is in `docs/decisions.md`.
 ## What gets converted
 
 - **Unit: one whole trajectory.** Every agent narration message and the final report
-  (`finish`) are converted. The issue text, tool calls, tool output and code stay
-  byte-identical. Code inside narration is masked as `[[Cn]]` placeholders and
-  restored afterwards. Quoted text (Markdown blockquotes) is now masked whole.
+  (`finish`) get new text. The issue text, other tool requests, tool output and code
+  stay byte-identical. In `finish`, the `message` argument has new text. Other
+  arguments stay equal as JSON values, but the spaces and the escape sequences for
+  characters can change.
+  Code inside narration uses `[[Cn]]` placeholders. The code then goes back.
+  One placeholder also holds a full Markdown blockquote.
 - **Source:** `nvidia/Nemotron-SWE-v1` (0 contamination hits), seed 2031. Trajectories
   used in the rewriter tests are excluded.
 - **Length limit: 32,768 tokens per trajectory**, measured with Nemotron's own chat

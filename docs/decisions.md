@@ -3,10 +3,47 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-02: increase context to retain more held-out segments
+
+The operator ruling is recorded in [run-log issue 7](https://github.com/toddwbucy/WeaverTrain/issues/7#issuecomment-6590725001).
+Run tokenizer-only plans at 43,008 and 49,152 tokens, then measure one LoRA step at
+49,152. Try 43,008 only if 49,152 does not fit. If neither fits, retain 36,864 and
+report the failure. All 387 training rows already fit at 36,864.
+
+- At 43,008, 69 segments qualify: 67 narration and 2 finish. There are 31 prefix exclusions.
+- At 49,152, 80 segments qualify: 75 narration and 5 finish. There are 20 prefix exclusions.
+- The 49,152-token step passed. Peak allocated memory was 36.55 GiB and 38.80 GiB on the 2 GPUs.
+  Step time was 43.5 seconds. Full command wall time was 100.3584 seconds.
+- Use 49,152 for the new R1 build, score plan and RECONCILE-FIELDS value.
+  The training rows stay byte-identical. The SPU must serve at least this context length.
+- Update RUN-CONFIG, RUN-MEMORY and the steps figure in a separate Spec PR.
+  R0 waits for the context records. R1 still stops after 100 rows and 2 epochs.
+
+The measurements are in `lora-context-probe-2026-11-02-3a7db9e` and
+`lora-memory-2026-11-02-49152-3a7db9e` on the shared bulk store.
+Their hashes are recorded on issue 7. The old 36,864-token records are preserved.
+
+## 2026-11-02: approve the review prompt and use saved state for RECONCILE
+
+The [operator ruling](https://github.com/toddwbucy/WeaverTrain/issues/7#issuecomment-6590790386)
+approves `config/lora-review-prompt.md` and the SCORE-REVIEW path correction on PR 11.
+The text proposed in comment 6587935968 is the starting prompt. The `ste/` tree stays unchanged.
+Review verdicts remain evaluation records and never enter training data.
+
+For RECONCILE-RENDER, read the loop's exact system-message bytes from the seeded save point.
+Do not read them from the rules-prompt file on disk. Record their sha256 beside the template hash.
+This follows the agent's state-loading rule in WeaverAgent issue 437, C5.
+It adds evidence to RECONCILE-RECORD, not a sixth field to RECONCILE-FIELDS.
+The joint check waits for the WeaverAgent loop.
+
+The operator also confirmed that stopping the forgotten agent-test server was authorized.
+For a later process that the executor did not start, stop it only on the operator's word.
+
 ## 2026-11-02: no more Gemini runs; the third STE batch is cancelled
 
-Operator ruling, given through the review seat on PR #5. No more Gemini runs and no
-further spend on Gemini. The third batch of 200 trajectories (seed 2033) is cancelled,
+Decision of the operator, given through the review seat on PR #5 and recorded in issue #6.
+Do not use Gemini again. Do not spend more on Gemini. The third batch of 200
+trajectories (seed 2033) is cancelled,
 not paused. Its round 1 ran (5,985 of 6,930 segments passing, $19.23). Round 2 was
 never submitted, because the submit hit Gemini's spend limit. Nothing from it is
 training data. The Google API key is revoked: do not ask for it or use it.

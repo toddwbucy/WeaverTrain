@@ -18,7 +18,7 @@ CONFIG = textwrap.dedent("""
     max_seq_length = 64
     learning_rate = 1e-3
     max_steps = 2
-    per_device_batch_size = 2
+    per_device_batch_size = 1
     gradient_accumulation_steps = 1
     warmup_steps = 0
     lr_scheduler = "constant"
@@ -27,6 +27,7 @@ CONFIG = textwrap.dedent("""
     device_map = "auto"
 
     [data]
+    format = "text"
     text_field = "text"
 """)
 
@@ -64,6 +65,24 @@ def test_config_parses(config_path):
 def test_config_rejects_incomplete_or_wrong(edit, msg):
     with pytest.raises(trainer.TrainConfigError, match=msg):
         trainer.parse_config(__import__("tomllib").loads(edit(CONFIG)))
+
+
+@pytest.mark.parametrize("field, value, reason", [
+    ("learning_rate", "true", "wrong type"),
+    ("learning_rate", "false", "wrong type"),
+    ("learning_rate", "nan", "must be finite"),
+    ("learning_rate", "+inf", "must be finite"),
+    ("learning_rate", "-inf", "must be finite"),
+    ("dropout", "true", "wrong type"),
+    ("dropout", "false", "wrong type"),
+])
+def test_train_stop_rejects_invalid_numeric_config(field, value, reason):
+    """TRAIN-STOP: invalid numeric settings fail before a training procedure can start."""
+    import tomllib
+    original = "1e-3" if field == "learning_rate" else "0.0"
+    text = CONFIG.replace(f"{field} = {original}", f"{field} = {value}")
+    with pytest.raises(trainer.TrainConfigError, match=reason):
+        trainer.parse_config(tomllib.loads(text))
 
 
 def test_refuses_out_dir_inside_reference(tiny_model, dataset_path, config_path):
@@ -158,3 +177,200 @@ def test_refuses_mamba_out_proj(tiny_model, dataset_path, config_path, tmp_path)
     rec = mf.load_run(out / "run.json")
     assert rec.status == "failed" and "out_proj" in rec.results["error"]
     assert not (out / "adapter").exists()
+
+
+@pytest.mark.parametrize("change, error", [
+    (lambda s: s.replace('format = "text"\n', ''), 'format is required'),
+    (lambda s: s.replace('format = "text"', 'format = "other"'), 'data.format'),
+    (lambda s: s.replace('max_steps = 2', ''), 'exactly one'),
+    (lambda s: s.replace('max_steps = 2', 'max_steps = 2\nnum_train_epochs = 2'), 'exactly one'),
+    (lambda s: s.replace('per_device_batch_size = 1', 'per_device_batch_size = 2'), 'TRAIN-NO-PACKING'),
+])
+def test_train_tokenized_and_epochs_config_errors(change, error):
+    """TRAIN-TOKENIZED, TRAIN-EPOCHS, TRAIN-NO-PACKING: refuse ambiguous settings."""
+    import tomllib
+    with pytest.raises(trainer.TrainConfigError, match=error):
+        trainer.parse_config(tomllib.loads(change(CONFIG)))
+
+
+def make_tokenized(tmp_path, model_hash, *, render_only=False, length=64):
+    """TRAIN-TOKENIZED: tiny synthetic IDs for kernel tests, never adapter training data."""
+    dest = tmp_path / "built"
+    dest.mkdir()
+    values = [4, 5, 6, 7, 8, 9, 10, 11]
+    mask = [0, 0, 1, 1, 0, 0, 1, 1]
+    rows = [{"input_ids": values, "assistant_masks": mask, "row": i} for i in range(2)]
+    (dest / "train.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    (dest / "build.json").write_text(json.dumps({"tree_hash": model_hash, "max_seq_length": length,
+                                               "render_only": render_only}))
+    mf.build_tree(dest, "dataset", "fixture").save(tmp_path / "built.manifest.json")
+    return dest / "train.jsonl", values, mask
+
+
+@pytest.mark.parametrize("case, reason", [
+    ("missing_record", "build.json is required"),
+    ("bad_manifest", "does not match manifest"),
+    ("wrong_model", "tree_hash differs"),
+    ("wrong_length", "max_seq_length differs"),
+    ("render_only", "BUILD-RENDER-ONLY"),
+])
+def test_train_tokenized_rejects_invalid_build(tmp_path, case, reason):
+    """TRAIN-TOKENIZED and BUILD-RENDER-ONLY: reject before model loading."""
+    import tomllib
+    cfg = trainer.parse_config(tomllib.loads(CONFIG.replace('format = "text"', 'format = "tokenized"')))
+    path, _, _ = make_tokenized(tmp_path, "other" if case == "wrong_model" else "model",
+                                render_only=case == "render_only", length=32 if case == "wrong_length" else 64)
+    if case == "missing_record":
+        path.with_name("build.json").unlink()
+    elif case == "bad_manifest":
+        path.write_text(path.read_text() + "\n")
+    with pytest.raises((trainer.TrainConfigError, mf.ManifestError), match=reason):
+        trainer.validate_tokenized(path, cfg, "model", 64)
+
+
+@pytest.mark.parametrize("name", ["train.jsonl", "build.json"])
+def test_train_tokenized_captured_bytes_must_match_manifest(tmp_path, monkeypatch, name):
+    """TRAIN-TOKENIZED: a valid on-disk tree cannot attest to a different captured payload."""
+    import tomllib
+    cfg = trainer.parse_config(tomllib.loads(CONFIG.replace('format = "text"', 'format = "tokenized"')))
+    path, _, _ = make_tokenized(tmp_path, "model")
+    target = path.parent / name
+    read_bytes = type(path).read_bytes
+    captured = target.read_bytes() + b"\n"
+    monkeypatch.setattr(type(path), "read_bytes", lambda item: captured if item == target else read_bytes(item))
+    with pytest.raises(trainer.TrainConfigError, match=f"captured {name} does not match manifest"):
+        trainer.validate_tokenized(path, cfg, "model", 64)
+
+
+@pytest.mark.parametrize("filename, contents, reason", [
+    ("build.json", "{", "build.json is not valid JSON"),
+    ("build.json", "[]", "build.json must contain an object"),
+    ("train.jsonl", "{", "row 1 is not valid JSON"),
+    ("train.jsonl", "null", "row 1 must contain an object"),
+    ("train.jsonl", '{"input_ids": [4, 64], "assistant_masks": [0, 1]}', "model vocabulary"),
+])
+def test_train_tokenized_rejects_malformed_records_before_load(
+        tiny_model, config_path, tmp_path, monkeypatch, filename, contents, reason):
+    """TRAIN-TOKENIZED: malformed records and out-of-vocabulary IDs cannot reach model loading."""
+    model_dir, manifest_path = tiny_model
+    path, _, _ = make_tokenized(tmp_path, mf.load_tree(manifest_path).tree_hash)
+    (path.parent / filename).write_text(contents + "\n")
+    mf.build_tree(path.parent, "dataset", "fixture").save(tmp_path / "built.manifest.json")
+    config_path.write_text(CONFIG.replace('format = "text"', 'format = "tokenized"'))
+    monkeypatch.setattr(trainer, "_run_unsloth", lambda *args: pytest.fail("invalid data reached model loading"))
+    out = tmp_path / "invalid-run"
+    with pytest.raises(trainer.TrainConfigError, match=reason):
+        trainer.train(model_dir, manifest_path, path, config_path, out)
+    record = mf.load_run(out / "run.json")
+    assert record.status == "failed" and reason in record.results["error"]
+
+
+@pytest.mark.gpu
+def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp_path, monkeypatch):
+    """Section 9: inspect labels at the real GPU loss and verify two epoch adapters."""
+    import torch
+    model_dir, manifest_path = tiny_model
+    path, ids, mask = make_tokenized(tmp_path, mf.load_tree(manifest_path).tree_hash)
+    build_digest = mf.sha256_file(path.with_name("build.json"))
+    data_digest = mf.sha256_file(path)
+    config_path.write_text(CONFIG.replace('format = "text"', 'format = "tokenized"')
+                          .replace('max_steps = 2', 'num_train_epochs = 2'))
+    checked_class = trainer.checked_trainer_class
+    observed = []
+
+    def inspected(base):
+        class Inspected(checked_class(base)):
+            def compute_loss(self, model, inputs, *args, **kwargs):
+                # TRAIN-MASK-REACHES-LOSS: observe the base model after trainer and PEFT processing.
+                def at_forward(module, positional, keywords):
+                    observed.append((keywords["input_ids"].detach().cpu().tolist(),
+                                     keywords["labels"].detach().cpu().tolist()))
+                handle = model.get_base_model().register_forward_pre_hook(at_forward, with_kwargs=True)
+                try:
+                    return super().compute_loss(model, inputs, *args, **kwargs)
+                finally:
+                    handle.remove()
+        return Inspected
+
+    monkeypatch.setattr(trainer, "checked_trainer_class", inspected)
+    validate_tokenized = trainer.validate_tokenized
+
+    def replace_source_after_validation(*args, **kwargs):
+        result = validate_tokenized(*args, **kwargs)
+        # TRAIN-TOKENIZED, TRAIN-RECORD: hashing and loading use captured bytes after source replacement.
+        path.write_text("replaced dataset\n")
+        path.with_name("build.json").write_text("{}\n")
+        return result
+
+    monkeypatch.setattr(trainer, "validate_tokenized", replace_source_after_validation)
+    out = tmp_path / "tokenized-run"
+    record = trainer.train(model_dir, manifest_path, path, config_path, out)
+    expected = [[value if keep else -100 for value, keep in zip(ids, mask)]]
+    assert len(observed) == 4
+    assert all(seen_ids == [ids] and labels == expected for seen_ids, labels in observed)
+    for name in ("adapter-epoch-1", "adapter-epoch-2", "adapter"):
+        trainer.check_adapter_only(out / name)
+    assert record.dataset["build_sha256"] == build_digest
+    assert record.dataset["sha256"] == data_digest
+    assert record.dataset["sha256"] != mf.sha256_file(path)
+    assert record.dataset["rows"] == 2 and record.dataset["assistant_tokens"] == 8
+    assert record.results["epochs"] == 2 and record.results["global_step"] == 4
+    assert len(record.results["step_seconds"]) == 4
+    assert all(step["seconds"] > 0 for step in record.results["step_seconds"])
+    assert record.results["wall_seconds"] > sum(step["seconds"] for step in record.results["step_seconds"])
+    assert record.results["loss_history"] and record.results["last_loss"] >= 0
+    assert len(record.results["peak_vram_gib"]) == torch.cuda.device_count()
+
+
+@pytest.mark.parametrize("failure, reason", [
+    ("oom", "test memory failure"),
+    ("coverage", "test coverage failure"),
+    ("cpu", "TRAIN-STOP: model parameters left GPUs"),
+])
+def test_train_stop_records_failures_without_retry(
+        tiny_model, config_path, dataset_path, tmp_path, monkeypatch, failure, reason):
+    """TRAIN-STOP: preserve measurements on failure and never retry a failed run."""
+    import torch
+    calls = []
+
+    def fail(*args):
+        calls.append(1)
+        args[-1]["step_seconds"] = [{"step": 1, "seconds": 0.5}]
+        if failure == "oom":
+            raise torch.cuda.OutOfMemoryError("test memory failure")
+        if failure == "coverage":
+            raise trainer.TargetCoverageError("test coverage failure")
+        raise RuntimeError("TRAIN-STOP: model parameters left GPUs")
+
+    monkeypatch.setattr(trainer, "_run_unsloth", fail)
+    out = tmp_path / "failed-run"
+    expected = {"oom": torch.cuda.OutOfMemoryError, "coverage": trainer.TargetCoverageError,
+                "cpu": RuntimeError}[failure]
+    with pytest.raises(expected, match=reason):
+        trainer.train(*tiny_model, dataset_path, config_path, out)
+    assert calls == [1]
+    record = mf.load_run(out / "run.json")
+    assert record.status == "failed" and reason in record.results["error"]
+    assert record.results["step_seconds"] == [{"step": 1, "seconds": 0.5}]
+    assert not (out / "adapter").exists()
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_train_stop_checks_loss_before_backward(value, monkeypatch):
+    """TRAIN-STOP: a non-finite microbatch cannot reach backward or an optimizer step."""
+    import torch
+    monkeypatch.setattr(trainer, "require_gpu_layers", lambda model: None)
+
+    class Base:
+        def compute_loss(self, model, inputs):
+            return torch.tensor(value)
+
+    with pytest.raises(RuntimeError, match="non-finite loss"):
+        trainer.checked_trainer_class(Base)().compute_loss(None, {})
+
+
+def test_train_stop_refuses_cpu_parameters():
+    """TRAIN-STOP: a CPU layer is refused before training."""
+    import torch
+    with pytest.raises(RuntimeError, match="left GPUs"):
+        trainer.require_gpu_layers(torch.nn.Linear(2, 2))

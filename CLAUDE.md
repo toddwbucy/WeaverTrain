@@ -19,8 +19,11 @@ loop work. Granite was dropped on 2026-10-31; why, and every other ruling, is in
 
 **Training data is chosen by an evaluation the operator has laid out**
 (`docs/decisions.md`): candidates come from NVIDIA's own sets
-(`docs/nemotron-provenance.md`), are filtered against the benchmark snapshots, rewritten
-to STE100 by the model itself and checked. Download only what `config/datasets.toml`
+(`docs/nemotron-provenance.md`) and are filtered against the benchmark snapshots.
+The first 2 STE100 batches use text from Gemini 4 Argon. The checker examines that text.
+Do not use Gemini again. The next conversion uses the operator's model with the LoRA
+adapter in stage 5 of the WeaverAgent conversion loop (`docs/decisions.md`).
+Download only what `config/datasets.toml`
 lists, and add an entry only on the operator's go. Do not request gated access.
 
 ## Commands
