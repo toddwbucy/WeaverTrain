@@ -316,10 +316,13 @@ def test_rewrite_run_requires_frozen_checkout_before_load(
 
 
 @pytest.mark.parametrize("procedure", ["r0", "r1"])
-@pytest.mark.parametrize("change", ["revision", "dirty", "non-git"])
+@pytest.mark.parametrize("change", ["revision", "tracked", "untracked", "non-git"])
 def test_rewrite_run_rechecks_checkout_before_completion(
         command, trained, monkeypatch, capsys, procedure, change):
     """REWRITE-RECORD: changed code cannot seal completed synthetic outputs."""
+    if change == "tracked":
+        (command.repo / "notes.md").write_text("Fixture documentation.\n")
+        commit_fixture(command.repo)
     assert make_plan(command) == 0
     planned = json.loads((command.plan / "plan.json").read_text())["commit"]
     decode = score.decode_outputs
