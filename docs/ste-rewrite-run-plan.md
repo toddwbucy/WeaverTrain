@@ -116,6 +116,14 @@ Missing output in a nonvoid procedure is a failure for the pinned scorer.
 
 ## Fit and records
 
+The [empty-output decision][empty-output] applies before the frozen scorer reads outputs.
+Remove outer whitespace as `ste_kit_run.py` does.
+An empty output, or one with only whitespace, is an absent output.
+The writer does not put its ID in scorer input and keeps its raw record.
+The frozen scorer then counts it as missing in the denominator of 100.
+Report the count of empty outputs for each procedure.
+Keep the frozen scorer unchanged.
+
 Before procedure A, the plan records fit for the complete prompt and examples.
 It also covers the longest segment, reply budget and bounded repair and offer contexts.
 The record names the GPU, GPU capability, driver, CUDA version and precision.
@@ -192,6 +200,8 @@ It also names the WeaverTrain commit that holds the kit, plan and scorer.
 This document claims no completed R0 procedure or production result.
 
 [run-log]: https://github.com/toddwbucy/WeaverTrain/issues/15
+[empty-output]:
+  https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6633945372
 [proposal]:
   https://github.com/toddwbucy/WeaverAgent/issues/437#issuecomment-6595108630
 [ruling]:
