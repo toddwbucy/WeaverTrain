@@ -195,6 +195,19 @@ Use [LORA-1 through LORA-7][spu-spec] for the Rust SPU fixture test.
 Compare new base-only, scale-0 and scale-1 residencies on all 16 inputs.
 Do each case twice from a fresh residency with identical tokens and decode settings.
 Use one fixture process per residency, for six SPU processes in total.
+Use the same prompt bytes, template and input token IDs in all six SPU cases.
+Use the same base GGUF and backend binary.
+Keep the devices and effective model parameters equal.
+Start each input from a new context before prefix decode.
+Use greedy decode with the same 128-token cap and stop conditions in every case.
+Set `temperature=0`, `top_k=1`, `top_p=1`, `repetition_penalty=1` and
+`repetition_window=0`.
+Set the declared `seed=0` in every case. Use no random choice.
+Keep each input's seed derivation inputs equal across all six cases.
+Record the derived seeds and check their equality before decode.
+Only adapter presence, scale and attachment can change between cases.
+Record and compare the actual configuration of each case before decode.
+Stop if any other configuration value changes.
 At the pinned backend, scale 0 keeps the adapter loaded and unattached.
 This control measures load cost and residency without adapter application.
 The two procedures for each case must have equal output token sequences.
