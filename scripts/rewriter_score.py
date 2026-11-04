@@ -270,6 +270,14 @@ def rewrite_outcomes(source_ids, checks):
     return [indexed[key] for key in source_ids]
 
 
+def _spread_outcomes(first, second):
+    """REWRITE-SPREAD: summarize two already validated and aligned outcome lists."""
+    return {"denominator": 100,
+            "r0_first": {"passed": sum(first), "rate": sum(first) / 100},
+            "r0_second": {"passed": sum(second), "rate": sum(second) / 100},
+            "decode_difference": abs(sum(first) - sum(second)) / 100}
+
+
 def rewrite_spread(source_ids, r0_first, r0_second):
     """REWRITE-SPREAD: record both R0 rates and their absolute decode difference.
 
@@ -278,10 +286,7 @@ def rewrite_spread(source_ids, r0_first, r0_second):
     """
     first = rewrite_outcomes(source_ids, r0_first)
     second = rewrite_outcomes(source_ids, r0_second)
-    return {"denominator": 100,
-            "r0_first": {"passed": sum(first), "rate": sum(first) / 100},
-            "r0_second": {"passed": sum(second), "rate": sum(second) / 100},
-            "decode_difference": abs(sum(first) - sum(second)) / 100}
+    return _spread_outcomes(first, second)
 
 
 def compare_rewrites(source_ids, r0_first, r0_second, candidate):
@@ -291,9 +296,10 @@ def compare_rewrites(source_ids, r0_first, r0_second, candidate):
     This function verifies result membership, not model or run provenance.
     The run reader must verify those identities before using these rows.
     """
-    spread = rewrite_spread(source_ids, r0_first, r0_second)
     first = rewrite_outcomes(source_ids, r0_first)
+    second = rewrite_outcomes(source_ids, r0_second)
     current = rewrite_outcomes(source_ids, candidate)
+    spread = _spread_outcomes(first, second)
     return {"metric": "rewrite_ste", "reference": "r0_first", **spread,
             "candidate": {"passed": sum(current), "rate": sum(current) / 100},
             "comparison": compare_pairs(first, current, spread["decode_difference"])}

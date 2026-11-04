@@ -114,6 +114,23 @@ def test_rewrite_spread_pairs_by_identity_and_keeps_rows_unchanged():
     assert (ids, first, second, candidate) == original
 
 
+def test_rewrite_spread_consumes_each_checker_iterator_once():
+    """REWRITE-SPREAD: reuse aligned outcomes for both spread and comparison."""
+    result = score.compare_rewrites(
+        source_ids(), iter(checks(range(20))), iter(checks(range(21))),
+        iter(checks(range(30))))
+    assert result["r0_first"] == {"passed": 20, "rate": 0.2}
+    assert result["r0_second"] == {"passed": 21, "rate": 0.21}
+    assert result["candidate"] == {"passed": 30, "rate": 0.3}
+    assert result["decode_difference"] == 0.01
+    comparison = result["comparison"]
+    assert (comparison["b"], comparison["c"], comparison["pairs"]) == (10, 0, 100)
+    assert comparison["difference"] == 0.1 and comparison["result"] == "higher"
+    spread = score.rewrite_spread(
+        source_ids(), iter(checks(range(20))), iter(checks(range(21))))
+    assert spread == {key: result[key] for key in spread}
+
+
 @pytest.mark.parametrize("which", [0, 1, 2])
 @pytest.mark.parametrize("change, message", [
     (lambda rows: rows.pop(), "results are missing"),
