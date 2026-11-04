@@ -269,3 +269,147 @@ def test_rewrite_report_does_not_certify_recorded_loop_claims(evidence):
         "seed_check_complete": True, "joint_token_check_complete": True}
     assert "require their separate evidence record" in (
         evidence.out / "report.md").read_text()
+
+
+@pytest.mark.parametrize("reference", ["first", "second"])
+@pytest.mark.parametrize("with_artifacts", [False, True])
+def test_rewrite_report_rejects_epoch_reference(
+        evidence, trained, monkeypatch, capsys, reference, with_artifacts):
+    """REWRITE-SPREAD: even a verified epoch score cannot serve as either R0."""
+    item = candidate(evidence, trained)
+    setattr(evidence, reference, item[0])
+    if with_artifacts:
+        original = report.read_score
+
+        def read_with_producer(path, bundle, **kwargs):
+            """REWRITE-SPREAD: verify the epoch before the reference-only guard."""
+            if path == item[0]:
+                kwargs.update(adapter=item[1], training_build=item[2])
+            return original(path, bundle, **kwargs)
+
+        monkeypatch.setattr(report, "read_score", read_with_producer)
+    expected = ("REWRITE-SPREAD: both references must be untrained R0"
+                if with_artifacts else
+                "REWRITE-SPREAD: adapter comparisons need the producer artifacts")
+    assert compare(evidence) == 2
+    assert expected in capsys.readouterr().err
+    result = json.loads((evidence.out / "comparison.json").read_bytes())
+    assert result["status"] == "failed" and result["failure"]["message"] == expected
+    assert not evidence.out.with_name("comparison.manifest.json").exists()
+
+
+@pytest.mark.parametrize("artifact, field, expected", [
+    ("score", "kind", "REWRITE-RECORD: expected a rewriter score manifest"),
+    ("score", "name", "REWRITE-RECORD: expected a rewriter score manifest"),
+    ("checks", "kind", "REWRITE-CHECK: expected the frozen checker artifact"),
+    ("checks", "name", "REWRITE-CHECK: expected the frozen checker artifact"),
+    ("adapter", "kind", "REWRITE-DECODE: model adapter required"),
+])
+def test_rewrite_report_rejects_resealed_artifact_kind(
+        evidence, trained, capsys, artifact, field, expected):
+    """REWRITE-RECORD: valid content hashes do not establish artifact kinds."""
+    item = candidate(evidence, trained) if artifact == "adapter" else None
+    root = (item[1] if item else evidence.second / "checks" if artifact == "checks"
+            else evidence.second)
+    path = root.with_name(root.name + ".manifest.json")
+    manifest = mf.load_tree(path)
+    setattr(manifest, field, "other")
+    manifest.save(path)
+    if item:
+        change_record(item[0], lambda record: record["adapter"].update(
+            manifest_sha256=mf.sha256_file(path)))
+    elif artifact == "checks":
+        change_record(evidence.second, lambda record: None)
+    assert compare(evidence, [item] if item else []) == 2
+    assert expected in capsys.readouterr().err
+    result = json.loads((evidence.out / "comparison.json").read_bytes())
+    assert result["status"] == "failed" and result["failure"]["message"] == expected
+    assert not evidence.out.with_name("comparison.manifest.json").exists()
+
+
+@pytest.mark.parametrize("change, expected", [
+    (lambda r: r.update(run_id=""), "a score run identity is required"),
+    (lambda r: r.update(run_id=1), "a score run identity is required"),
+    (lambda r: r.update(created_at=r["created_at"].split("+")[0]),
+     "score time needs a UTC offset"),
+    (lambda r: r["gpus"].pop("1"), "both GPU identities and peaks are required"),
+    (lambda r: r["gpus"].update(extra={}),
+     "both GPU identities and peaks are required"),
+    (lambda r: r["peak_memory_bytes"].pop("1"),
+     "both GPU identities and peaks are required"),
+    (lambda r: r["peak_memory_bytes"].update(extra={}),
+     "both GPU identities and peaks are required"),
+])
+def test_rewrite_report_rejects_record_shape(evidence, capsys, change, expected):
+    """REWRITE-RECORD: each malformed field stops on its own diagnostic."""
+    change_record(evidence.second, change)
+    assert compare(evidence) == 2
+    assert "REWRITE-RECORD: " + expected in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("gpu", ["0", "1"])
+@pytest.mark.parametrize("key", ["allocated", "reserved"])
+@pytest.mark.parametrize("value", [-1, 0.5, True])
+def test_rewrite_report_rejects_invalid_memory_peak(evidence, capsys, gpu, key, value):
+    """REWRITE-RECORD: every peak must be an integer and nonnegative."""
+    change_record(evidence.second, lambda r: r["peak_memory_bytes"][gpu].update(
+        {key: value}))
+    assert compare(evidence) == 2
+    assert "REWRITE-RECORD: nonnegative integer memory peaks required" in (
+        capsys.readouterr().err)
+
+
+@pytest.mark.parametrize("epoch", [0.0, False])
+def test_rewrite_report_rejects_noninteger_epoch(evidence, capsys, epoch):
+    """REWRITE-CONFIG: equality to zero does not make an epoch an integer."""
+    change_record(evidence.second, lambda record: record.update(epoch=epoch))
+    assert compare(evidence) == 2
+    assert "REWRITE-CONFIG: integer epoch required" in capsys.readouterr().err
+
+
+def test_rewrite_report_rechecks_plan_before_seal(evidence, monkeypatch, capsys):
+    """REWRITE-RECORD: a changed, resealed plan leaves failed comparison evidence."""
+    original = report.read_score
+
+    def change_plan(path, *args, **kwargs):
+        """REWRITE-RECORD: change plan identity after the second run is read."""
+        result = original(path, *args, **kwargs)
+        if path == evidence.second:
+            plan = evidence.command.plan
+            (plan / "added-evidence.txt").write_text("new evidence\n")
+            mf.build_tree(plan, "evaluation", "ste-rewriter-plan").save(
+                plan.with_name(plan.name + ".manifest.json"))
+        return result
+
+    monkeypatch.setattr(report, "read_score", change_plan)
+    assert compare(evidence) == 2
+    expected = "REWRITE-RECORD: frozen plan changed during comparison"
+    assert expected in capsys.readouterr().err
+    result = json.loads((evidence.out / "comparison.json").read_bytes())
+    assert result["status"] == "failed" and result["failure"]["message"] == expected
+    assert not evidence.out.with_name("comparison.manifest.json").exists()
+
+
+@pytest.mark.parametrize("text", ["", " \t\n "])
+def test_rewrite_report_rescores_empty_as_missing(evidence, monkeypatch, text):
+    """REWRITE-CHECK: verified comparisons retain each pass's empty-output count."""
+    def decode(loaded, kit, folded, **kwargs):
+        """REWRITE-CHECK: retain a synthetic blank first response in the new run."""
+        outputs = outputs_for(kit)
+        outputs[0]["output"] = text
+        yield from outputs
+
+    monkeypatch.setattr(score, "decode_outputs", decode)
+    evidence.command.out = evidence.first.parent / "empty-run"
+    assert run(evidence.command) == 0
+    evidence.second = evidence.command.out
+    assert compare(evidence) == 0
+    result = json.loads((evidence.out / "comparison.json").read_bytes())
+    checked = result["runs"]["r0_second"]["checks"]
+    assert checked["passed"] == 99 and checked["denominator"] == 100
+    assert checked["empty_outputs"] == 1 and checked["failure_rules"] == {"missing": 1}
+    bundle = score.read_plan(evidence.command.plan, repo=evidence.command.repo)
+    verified = report.read_score(evidence.second, bundle, repo=evidence.command.repo)
+    assert verified["checks"][0]["check"]["hard"] == {"missing": [True]}
+    assert verified["checks"][0]["raw"]["output"] == text
+    assert "| r0_second | 99/100 | 1 |" in (evidence.out / "report.md").read_text()

@@ -145,11 +145,12 @@ def markdown(record):
     lines = ["# Rewriter score comparison", "", f"Date: {record['created_at']}", "",
              "Metric: rewrite STE. Meaning review is recorded separately.", "",
              "Reference: the first R0 pass. Score denominator: 100.", "",
-             "| Run | Accepted | Rate | Wall seconds |",
-             "| --- | ---: | ---: | ---: |"]
+             "| Run | Accepted | Empty | Rate | Wall seconds |",
+             "| --- | ---: | ---: | ---: | ---: |"]
     for label, run in record["runs"].items():
         checks = run["checks"]
-        lines.append(f"| {label} | {checks['passed']}/100 | {checks['rate']:.2%} | "
+        lines.append(f"| {label} | {checks['passed']}/100 | {checks['empty_outputs']} | "
+                     f"{checks['rate']:.2%} | "
                      f"{run['wall_seconds']:.3f} |")
     lines += ["", f"R0 absolute decode difference: {record['decode_difference']:.2%}.",
               "", "| Epoch score | Paired difference | 95% interval | p | Result |",
