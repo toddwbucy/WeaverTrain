@@ -107,11 +107,24 @@ def test_rewrite_report_pairs_epoch_against_first_r0(evidence, trained):
     assert "| r1_epoch_1 |" in (evidence.out / "report.md").read_text()
 
 
-@pytest.mark.parametrize("change", ["failed", "adapter", "epoch", "environment",
-                                    "plan", "model", "prompt", "sampler", "code",
-                                    "gpus", "ids", "summary", "lengths", "wall",
-                                    "memory"])
-def test_rewrite_report_rejects_mismatched_r0(evidence, change):
+@pytest.mark.parametrize("change, expected", [
+    ("failed", "REWRITE-RECORD: comparisons require completed score records"),
+    ("adapter", "REWRITE-SPREAD: R0 must be untrained"),
+    ("epoch", "REWRITE-SPREAD: R0 must be untrained"),
+    ("environment", "REWRITE-SPREAD: score identities differ from the frozen plan"),
+    ("plan", "REWRITE-SPREAD: score identities differ from the frozen plan"),
+    ("model", "RENDER-OUTPUT: tree_hash differs"),
+    ("prompt", "REWRITE-SPREAD: score identities differ from the frozen plan"),
+    ("sampler", "REWRITE-SPREAD: score identities differ from the frozen plan"),
+    ("code", "REWRITE-SPREAD: score identities differ from the frozen plan"),
+    ("gpus", "REWRITE-SPREAD: R0 code and GPU identities must be identical"),
+    ("ids", "REWRITE-KIT: the score must cover all 100 frozen inputs"),
+    ("summary", "REWRITE-RECORD: run summary differs from retained checker records"),
+    ("lengths", "REWRITE-RECORD: run summary differs from retained checker records"),
+    ("wall", "REWRITE-RECORD: a finite nonnegative wall time is required"),
+    ("memory", "REWRITE-RECORD: both GPU identities and peaks are required"),
+])
+def test_rewrite_report_rejects_mismatched_r0(evidence, change, expected):
     """REWRITE-SPREAD: valid file hashes cannot authorize changed run identities."""
     def mutate(record):
         """REWRITE-RECORD: change one retained claim while keeping valid JSON."""
@@ -149,18 +162,24 @@ def test_rewrite_report_rejects_mismatched_r0(evidence, change):
     change_record(evidence.second, mutate)
     assert compare(evidence) == 2
     result = json.loads((evidence.out / "comparison.json").read_text())
-    assert result["status"] == "failed" and result["failure"]
+    assert result["status"] == "failed" and result["failure"]["message"] == expected
     assert not evidence.out.with_name("comparison.manifest.json").exists()
 
 
-@pytest.mark.parametrize("change", ["repeated", "reversed"])
-def test_rewrite_report_requires_distinct_r0_in_order(evidence, change):
+@pytest.mark.parametrize("change, expected", [
+    ("repeated", "REWRITE-SPREAD: two distinct R0 runs are required"),
+    ("reversed", "REWRITE-SPREAD: the first R0 must precede the second"),
+])
+def test_rewrite_report_requires_distinct_r0_in_order(evidence, change, expected):
     """REWRITE-SPREAD: a repeated or later baseline is not the first R0 pass."""
     if change == "repeated":
         evidence.second = evidence.first
     else:
         evidence.first, evidence.second = evidence.second, evidence.first
     assert compare(evidence) == 2
+    result = json.loads((evidence.out / "comparison.json").read_bytes())
+    assert result["status"] == "failed" and result["failure"]["message"] == expected
+    assert not evidence.out.with_name("comparison.manifest.json").exists()
 
 
 def test_rewrite_report_reproduces_checker_from_raw_outputs(evidence):
@@ -178,8 +197,12 @@ def test_rewrite_report_reproduces_checker_from_raw_outputs(evidence):
     assert "frozen scorer" in result["failure"]["message"]
 
 
-@pytest.mark.parametrize("change", ["wrong_epoch", "producer", "repeated"])
-def test_rewrite_report_rejects_bad_candidate(evidence, trained, change):
+@pytest.mark.parametrize("change, expected", [
+    ("wrong_epoch", "REWRITE-CONFIG: requested epoch does not identify this adapter"),
+    ("producer", "REWRITE-SPREAD: score adapter identity differs from its producer"),
+    ("repeated", "REWRITE-SPREAD: candidate procedure or run identity repeats"),
+])
+def test_rewrite_report_rejects_bad_candidate(evidence, trained, change, expected):
     """REWRITE-SPREAD: verify epoch provenance again before paired calculations."""
     item = candidate(evidence, trained)
     candidates = [item]
@@ -191,6 +214,9 @@ def test_rewrite_report_rejects_bad_candidate(evidence, trained, change):
     else:
         candidates.append(item)
     assert compare(evidence, candidates) == 2
+    result = json.loads((evidence.out / "comparison.json").read_bytes())
+    assert result["status"] == "failed" and result["failure"]["message"] == expected
+    assert not evidence.out.with_name("comparison.manifest.json").exists()
 
 
 def test_rewrite_report_preserves_input_artifacts(evidence):
