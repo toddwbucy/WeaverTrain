@@ -34,8 +34,8 @@ It changes no value or result in either 30B series.
 | FIXTURE-5 | REWRITE-MEASURE and REWRITE-ORDER | Mechanical result with no STE score |
 | FIXTURE-6 | RUN-OUTPUT and REWRITE-RECONCILE | Fixture deposit and conversion record |
 
-Training uses Python on olympus. Application uses the Rust SPU on the ThinkPad.
-The 30B family entry and R1 emitter test stay in the olympus lane.
+Training uses Python on the training machine. Application uses the Rust SPU machine.
+The 30B family entry and R1 emitter test stay in their 30B lane.
 WeaverAgent PR 450 and the R0 composition stay on hold.
 This fixture gives no authority to seed or deploy an agent.
 It does not complete item 2 before the SPU records are complete.
@@ -58,13 +58,13 @@ The [producer tree][model] has the BF16 weights and the Q4_K_M GGUF.
 This source location alone does not prove that local files agree.
 Before training, check the complete BF16 tree against its manifest.
 Record the tokenizer and template hashes from that same revision.
-Before conversion, check the exact source relationship to the ThinkPad base.
+Before conversion, check the exact source relationship to the SPU base.
 Record the runtime GGUF SHA256 and the SPU's canonical BLAKE3 identity separately.
 Stop if the training base and runtime base have different ancestry.
 
 The merged model registry has only the 30B entry at the source baseline.
 The complete local 4B BF16 tree has no verification record for this procedure.
-Record the olympus inventory and manifest verification before any model load.
+Record the training machine's inventory and manifest verification before any model load.
 If the weights are absent, get the operator's download approval first.
 Then add the pinned model entry and manifest through review.
 The previous tokenizer approval gives no approval to download weights.
@@ -223,7 +223,7 @@ Get an operator decision from the failed measurement before more training.
 
 | Cell | Record that closes it |
 | --- | --- |
-| BF16 availability | Olympus inventory and complete model manifest verification |
+| BF16 availability | Training machine inventory and model manifest verification |
 | Download approval, if absent | Operator approval for the exact source revision |
 | Selected pair identities | Pool verification, 16-pair selection and ordered-ID hash |
 | Memory and duration | Peak memory and elapsed time per step |
