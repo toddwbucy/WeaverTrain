@@ -201,20 +201,24 @@ def test_build_command_retains_partial_failure_and_refuses_retry(command, monkey
     assert (command.out / "build.json").read_bytes() == original
 
 
-def test_build_command_rejects_input_mutation_during_render(command, monkeypatch):
+@pytest.mark.parametrize("source", ["folded", "model"])
+def test_build_command_rejects_input_mutation_during_render(
+        command, monkeypatch, source):
     """RENDER-OUTPUT: changed source bytes cannot produce a successful manifest."""
     render = build.render_pair
 
     def changed_input(*args):
-        """RENDER-SEED: change the file after the builder captures its bytes."""
-        command.folded.write_bytes(b"changed")
+        """RENDER-SEED, RENDER-OUTPUT: change a file after its first verification."""
+        path = command.folded if source == "folded" else command.model / "weights.bin"
+        path.write_bytes(b"changed")
         return render(*args)
 
     monkeypatch.setattr(build, "render_pair", changed_input)
     assert invoke(command) == 2
     record = json.loads((command.out / "build.json").read_text())
     assert record["status"] == "failed"
-    assert "changed during build" in record["failure"]["message"]
+    expected = "changed during build" if source == "folded" else "tree does not match"
+    assert expected in record["failure"]["message"]
     assert not command.out.with_name("build.manifest.json").exists()
 
 

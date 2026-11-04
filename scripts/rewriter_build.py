@@ -591,7 +591,7 @@ def build_tokenizer(evidence):
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_dir, local_files_only=True, trust_remote_code=False)
-    return tokenizer, model_hash
+    return tokenizer, model_manifest, model_dir, model_hash
 
 
 def fresh_build_output(out_dir, repo):
@@ -623,7 +623,7 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     require(selection["available"] and selection["count"] == PROCEDURES[procedure]
             and selection["ordered_ids_sha256"] == pins[f"{procedure}_ordered_ids"],
             "PAIR-BALANCE: selection needs an operator decision")
-    tokenizer, model_hash = build_tokenizer(evidence)
+    tokenizer, model_manifest, model_dir, model_hash = build_tokenizer(evidence)
     template_hash = digest(tokenizer.get_chat_template().encode("utf-8"))
     record = {
         "schema": "weaver-train/rewriter-build/v1", "spec": "0.2",
@@ -671,6 +671,7 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
             "RENDER-OUTPUT: pair manifest changed during build")
         require(digest(tokenizer.get_chat_template().encode()) == template_hash,
                 "RENDER-LAYOUT: tokenizer template changed during build")
+        mf.require_tree(model_manifest, model_dir)
         record["tokens_per_epoch"] = [
             {"epoch": epoch, **record["counts"]} for epoch in (1, 2)]
         record["status"] = "completed"
