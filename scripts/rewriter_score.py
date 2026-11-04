@@ -397,6 +397,8 @@ def score_evidence(repo):
     evidence = build.Evidence(repo)
     pins = tomllib.loads(evidence.read("config/rewriter-inputs.toml").decode())
     provenance = build.prompt_inputs(evidence, pins)
+    # REWRITE-REVIEW: bind the approved prompt bytes to their pinned digest.
+    evidence.read("config/ste-rewrite-review-prompt.md", pins["meaning_review_prompt"])
     for path in ("scripts/ste_score.py", "scripts/ste_prompt.py",
                  "scripts/ste_kit_run.py", "environment.lock", "config/models.toml"):
         evidence.read(path)
@@ -609,6 +611,7 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
              and training_build is not None),
             "REWRITE-ORDER: adapter scores need an epoch and its training build")
     plan, kit, entries, folded, plan_tree, plan_sha = read_plan(plan_dir, repo=repo)
+    commit = mf.git_commit(repo)
     model_manifest_path = loader.manifest_path_for(build.MODEL)
     model_manifest = mf.load_tree(model_manifest_path)
     configured = tomllib.loads((repo / "config/models.toml").read_text())["models"][
@@ -627,7 +630,7 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
     record = {"schema": "weaver-train/rewriter-run/v1", "run_id": uuid4().hex,
               "created_at": datetime.now(timezone.utc).isoformat(),
               "engine": "python-hf", "precision": "bf16", "status": "started",
-              "commit": mf.git_commit(repo), "procedure": procedure, "epoch": epoch,
+              "commit": commit, "procedure": procedure, "epoch": epoch,
               "adapter": None, "model": build.MODEL,
               **{field: plan[field] for field in FIELDS},
               "environment_sha256": plan["environment_sha256"],
@@ -653,6 +656,8 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
     save_record()
     devices = []
     try:
+        require(commit == plan["commit"],
+                "REWRITE-RECORD: checkout commit differs from frozen plan")
         require(torch.cuda.is_available() and torch.cuda.device_count() == 2,
                 "REWRITE-LIMITS: exactly two selected GPUs are required")
         devices = list(range(torch.cuda.device_count()))

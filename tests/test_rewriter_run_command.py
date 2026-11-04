@@ -2,6 +2,7 @@
 
 import json
 import random
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -25,6 +26,8 @@ def command(world, tokenizer, tmp_path, monkeypatch):
     world.pins["meaning_review_prompt"] = score.build.digest(b"fixture review prompt")
     world.pins["r1_ordered_ids"] = score.build.digest(b"fixture ordered pairs")
     save_pins(world)
+    (world.repo / "config/ste-rewrite-review-prompt.md").write_bytes(
+        b"fixture review prompt")
     (world.repo / "config/rewriter-train.toml").write_bytes(
         (score.REPO / "config/rewriter-train.toml").read_bytes())
     for name in ("ste_check", "ste_convert", "ste_experiment", "ste_score",
@@ -133,6 +136,9 @@ def test_rewrite_plan_freezes_all_inputs_tokens_and_sample(command):
     assert [entry["id"] for entry in entries] == ids
     assert plan["review_sample"] == random.Random(2031).sample(sorted(ids), 30)
     assert plan["reviewer_model"] == "claude-opus-5-5"
+    assert plan["inputs"]["config/ste-rewrite-review-prompt.md"] == {
+        "sha256": command.pins["meaning_review_prompt"],
+        "bytes": len(b"fixture review prompt")}
     assert folded == command.folded.read_bytes()
     assert len(tree_hash) == len(manifest_sha) == 64
     assert not command.calls and not command.decoded
@@ -234,6 +240,77 @@ def test_rewrite_run_refuses_environment_change(command, capsys):
     assert run(command) == 2
     assert "REWRITE-RECORD: frozen input identities differ" in capsys.readouterr().err
     assert not command.calls and not command.out.exists()
+
+
+@pytest.mark.parametrize("action", ["plan", "run"])
+@pytest.mark.parametrize("change", ["missing", "changed"])
+def test_rewrite_commands_require_pinned_review_prompt(
+        command, capsys, action, change):
+    """REWRITE-REVIEW: the actual prompt bytes must match the approved pin."""
+    if action == "run":
+        assert make_plan(command) == 0
+    path = command.repo / "config/ste-rewrite-review-prompt.md"
+    if change == "missing":
+        path.unlink()
+    else:
+        path.write_bytes(b"Changed fixture review prompt.")
+    capsys.readouterr()
+    assert (make_plan(command) if action == "plan" else run(command)) == 2
+    error = capsys.readouterr().err.strip()
+    if change == "missing":
+        assert error == (
+            f"{action}: stopped: [Errno 2] No such file or directory: '{path}'")
+    else:
+        assert error == (f"{action}: stopped: PAIR-INPUTS: sha256 differs for "
+                         "config/ste-rewrite-review-prompt.md")
+    output = command.plan if action == "plan" else command.out
+    assert not output.exists()
+    assert not output.with_name(output.name + ".manifest.json").exists()
+    assert not command.calls and not command.decoded
+
+
+@pytest.mark.parametrize("procedure", ["r0", "r1"])
+@pytest.mark.parametrize("change", ["unchanged", "revision", "dirty"])
+def test_rewrite_run_requires_frozen_checkout_before_load(
+        command, trained, capsys, procedure, change):
+    """REWRITE-KIT, REWRITE-RECORD: score only the checkout bound to the plan."""
+    def git(*args):
+        """REWRITE-RECORD: create real commit identities in the fixture only."""
+        subprocess.run(["git", "-C", str(command.repo),
+                        "-c", "user.name=Fixture",
+                        "-c", "user.email=fixture@example.invalid", *args],
+                       check=True, capture_output=True)
+
+    git("init", "-q")
+    git("add", ".")
+    git("commit", "-qm", "Fixture inputs")
+    assert make_plan(command) == 0
+    planned = json.loads((command.plan / "plan.json").read_text())["commit"]
+    assert planned == mf.git_commit(command.repo) and planned["dirty"] is False
+    if change != "unchanged":
+        (command.repo / "notes.md").write_text("Fixture documentation change.\n")
+        if change == "revision":
+            git("add", "notes.md")
+            git("commit", "-qm", "Fixture documentation")
+        assert mf.git_commit(command.repo) != planned
+    capsys.readouterr()
+    result = run(command) if procedure == "r0" else score_adapter(command, trained)
+    if change == "unchanged":
+        assert result == 0
+        record = json.loads((command.out / "run.json").read_text())
+        assert record["commit"] == planned
+        assert command.calls and command.decoded
+    else:
+        assert result == 2
+        assert capsys.readouterr().err.strip() == (
+            "run: stopped: REWRITE-RECORD: checkout commit differs from frozen plan")
+        assert not command.calls and not command.decoded and not trained.attached
+        record = json.loads((command.out / "run.json").read_text())
+        assert record["status"] == "failed" and record["completed_ids"] == []
+        assert record["failure"]["message"] == (
+            "REWRITE-RECORD: checkout commit differs from frozen plan")
+        assert record["commit"] == mf.git_commit(command.repo)
+        assert not command.out.with_name("run.manifest.json").exists()
 
 
 def test_rewrite_run_retains_partial_decode_failure(command, monkeypatch):
@@ -424,6 +501,28 @@ def test_rewrite_run_rejects_model_change_during_generation(command, monkeypatch
     record = json.loads((command.out / "run.json").read_text())
     assert record["status"] == "failed" and len(record["completed_ids"]) == 100
     assert "tree does not match" in record["failure"]["message"]
+    assert not command.out.with_name("run.manifest.json").exists()
+
+
+def test_rewrite_run_rejects_review_prompt_change_during_generation(
+        command, monkeypatch, capsys):
+    """REWRITE-REVIEW, REWRITE-RECORD: a changed review prompt prevents a seal."""
+    assert make_plan(command) == 0
+
+    def changed_prompt(loaded, kit, folded, **kwargs):
+        """REWRITE-REVIEW: change prompt bytes after the first pinned read."""
+        (command.repo / "config/ste-rewrite-review-prompt.md").write_bytes(
+            b"Changed fixture review prompt.")
+        yield from outputs_for(kit)
+
+    monkeypatch.setattr(score, "decode_outputs", changed_prompt)
+    assert run(command) == 2
+    expected = ("PAIR-INPUTS: sha256 differs for "
+                "config/ste-rewrite-review-prompt.md")
+    assert capsys.readouterr().err.strip() == "run: stopped: " + expected
+    record = json.loads((command.out / "run.json").read_text())
+    assert record["status"] == "failed" and len(record["completed_ids"]) == 100
+    assert record["failure"]["message"] == expected
     assert not command.out.with_name("run.manifest.json").exists()
 
 
@@ -705,24 +804,26 @@ def test_rewrite_run_pins_attached_adapter_on_both_gpus(
     assert all(hasattr(layer, "_weaver_pinned_device") for layer in layers)
 
 
-@pytest.mark.parametrize("source", ["evidence", "model"])
+@pytest.mark.parametrize("source", ["evidence", "model", "review-prompt"])
 def test_rewrite_plan_rechecks_inputs_after_preflight(
         command, monkeypatch, capsys, source):
     """REWRITE-RECORD: preflight cannot seal a plan from changed inputs."""
     preflight = score.preflight
+    relative = ("config/ste-rewrite-review-prompt.md" if source == "review-prompt"
+                else "environment.lock")
 
     def changed_input(*args, **kwargs):
         """REWRITE-KIT, REWRITE-LIMITS: change a file after initial verification."""
         result = preflight(*args, **kwargs)
         path = (command.model / "weights.bin" if source == "model" else
-                command.repo / "environment.lock")
+                command.repo / relative)
         path.write_bytes(b"changed fixture input")
         return result
 
     monkeypatch.setattr(score, "preflight", changed_input)
     assert make_plan(command) == 2
     expected = ("tree does not match" if source == "model" else
-                "PAIR-INPUTS: file changed during collection: environment.lock")
+                f"PAIR-INPUTS: file changed during collection: {relative}")
     assert expected in capsys.readouterr().err
     assert not command.plan.exists()
     assert not command.plan.with_name("plan.manifest.json").exists()
