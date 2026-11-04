@@ -3,6 +3,7 @@
 These helpers verify local inputs, preflight prompts and check first outputs.
 They expose no model-run command while the seed-record interface is pending.
 Checker artifacts are not complete R0 or adapter evaluation records.
+Statistical helpers take checker rows after the caller verifies run identities.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ import ste_check
 import ste_convert
 import ste_experiment
 import ste_score
+from lora_score import compare_pairs
 from ste_kit_sample import bin_of
 from weaver_train import manifest as mf
 
@@ -247,3 +249,57 @@ def check_outputs(kit, outputs, out_dir, *, repo=REPO):
         }, ensure_ascii=True) + "\n", encoding="utf-8")
         raise
     return summary, checks
+
+
+def rewrite_outcomes(source_ids, checks):
+    """REWRITE-KIT, REWRITE-SPREAD: align exactly 100 boolean results by source ID."""
+    require(len(source_ids) == 100 and all(type(key) is str and key for key in source_ids),
+            "REWRITE-KIT: comparisons require 100 source IDs")
+    expected = set(source_ids)
+    require(len(expected) == 100, "REWRITE-KIT: comparison source IDs repeat")
+    indexed = {}
+    for row in checks:
+        key = row.get("id")
+        require(type(key) is str and key in expected and key not in indexed,
+                "REWRITE-SPREAD: duplicate or unknown checker ID")
+        check = row.get("check")
+        require(isinstance(check, dict) and type(check.get("ok")) is bool,
+                f"REWRITE-SPREAD: boolean checker result required for {key}")
+        indexed[key] = check["ok"]
+    require(indexed.keys() == expected, "REWRITE-SPREAD: checker results are missing")
+    return [indexed[key] for key in source_ids]
+
+
+def _spread_outcomes(first, second):
+    """REWRITE-SPREAD: summarize two already validated and aligned outcome lists."""
+    return {"denominator": 100,
+            "r0_first": {"passed": sum(first), "rate": sum(first) / 100},
+            "r0_second": {"passed": sum(second), "rate": sum(second) / 100},
+            "decode_difference": abs(sum(first) - sum(second)) / 100}
+
+
+def rewrite_spread(source_ids, r0_first, r0_second):
+    """REWRITE-SPREAD: record both R0 rates and their absolute decode difference.
+
+    This is a calculation on checker rows. The run reader must establish two
+    untrained runs with identical frozen inputs, settings and model identities.
+    """
+    first = rewrite_outcomes(source_ids, r0_first)
+    second = rewrite_outcomes(source_ids, r0_second)
+    return _spread_outcomes(first, second)
+
+
+def compare_rewrites(source_ids, r0_first, r0_second, candidate):
+    """REWRITE-SPREAD, Spec 0.3 RUN-MARGIN: always compare against the first R0.
+
+    Use the unchanged sign test, Newcombe interval and decode-margin rules.
+    This function verifies result membership, not model or run provenance.
+    The run reader must verify those identities before using these rows.
+    """
+    first = rewrite_outcomes(source_ids, r0_first)
+    second = rewrite_outcomes(source_ids, r0_second)
+    current = rewrite_outcomes(source_ids, candidate)
+    spread = _spread_outcomes(first, second)
+    return {"metric": "rewrite_ste", "reference": "r0_first", **spread,
+            "candidate": {"passed": sum(current), "rate": sum(current) / 100},
+            "comparison": compare_pairs(first, current, spread["decode_difference"])}
