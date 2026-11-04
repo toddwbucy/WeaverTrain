@@ -2,6 +2,7 @@
 
 import copy
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -150,7 +151,7 @@ def test_build_command_checks_pair_record_after_manifest(command, field):
     assert not command.out.exists()
 
 
-def test_build_command_rejects_duplicate_pair_identity(command):
+def test_build_command_rejects_duplicate_pair_identity(command, capsys):
     """PAIR-INPUTS: a repeated pair cannot silently replace a selected member."""
     path = command.pairs / "pairs.jsonl"
     rows = [json.loads(line) for line in path.read_text().splitlines()]
@@ -158,6 +159,7 @@ def test_build_command_rejects_duplicate_pair_identity(command):
     save(path, rows, rows=True)
     reseal_pairs(command)
     assert invoke(command) == 2
+    assert "PAIR-INPUTS: duplicate or unknown pair identity" in capsys.readouterr().err
     assert not command.out.exists()
 
 
@@ -201,7 +203,7 @@ def test_build_command_retains_partial_failure_and_refuses_retry(command, monkey
     assert (command.out / "build.json").read_bytes() == original
 
 
-@pytest.mark.parametrize("source", ["folded", "model"])
+@pytest.mark.parametrize("source", ["folded", "model", "pairs", "evidence", "template"])
 def test_build_command_rejects_input_mutation_during_render(
         command, monkeypatch, source):
     """RENDER-OUTPUT: changed source bytes cannot produce a successful manifest."""
@@ -209,16 +211,25 @@ def test_build_command_rejects_input_mutation_during_render(
 
     def changed_input(*args):
         """RENDER-SEED, RENDER-OUTPUT: change a file after its first verification."""
-        path = command.folded if source == "folded" else command.model / "weights.bin"
-        path.write_bytes(b"changed")
-        return render(*args)
+        result = render(*args)
+        if source == "template":
+            args[0].chat_template += "{# changed #}"
+        else:
+            path = {"folded": command.folded, "model": command.model / "weights.bin",
+                    "pairs": command.pairs / "pairs.jsonl",
+                    "evidence": command.repo / "config/rewriter-inputs.toml"}[source]
+            path.write_bytes(b"changed")
+        return result
 
     monkeypatch.setattr(build, "render_pair", changed_input)
     assert invoke(command) == 2
     record = json.loads((command.out / "build.json").read_text())
     assert record["status"] == "failed"
-    expected = "changed during build" if source == "folded" else "tree does not match"
-    assert expected in record["failure"]["message"]
+    expected = {"folded": "RENDER-SEED: folded file changed during build",
+                "model": "tree does not match", "pairs": "tree does not match",
+                "evidence": "PAIR-INPUTS: file changed during collection",
+                "template": "RENDER-LAYOUT: tokenizer template changed during build"}
+    assert expected[source] in record["failure"]["message"]
     assert not command.out.with_name("build.manifest.json").exists()
 
 
@@ -249,3 +260,94 @@ def test_build_command_accepts_symlinked_pair_directory(command):
     assert invoke(command) == 0
     record = json.loads((command.out / "build.json").read_text())
     assert record["status"] == "completed" and record["counts"]["pairs"] == 200
+
+
+@pytest.mark.parametrize("change, message", [
+    ("uuid", "PAIR-HELDOUT: pair trajectory overlaps a kit"),
+    ("target", "PAIR-TARGET: pair target hash differs"),
+    ("source", "PAIR-TARGET: pair source hash differs"),
+    ("checked", "PAIR-TARGET: pair checks or review limit differ"),
+    ("reviewed", "PAIR-TARGET: pair checks or review limit differ"),
+    ("overlap", "PAIR-HELDOUT: pair record contains held-out overlap"),
+    ("revision", "PAIR-INPUTS: pair dataset revision differs"),
+    ("kit", "PAIR-HELDOUT: pair kit identity differs"),
+    ("batch", "PAIR-INPUTS: pair source pin differs"),
+    ("schema", "RENDER-OUTPUT: pair record schema differs"),
+    ("counts", "RENDER-OUTPUT: pair record counts differ"),
+    ("kind", "RENDER-OUTPUT: expected a pair dataset manifest"),
+    ("name", "RENDER-OUTPUT: expected a pair dataset manifest"),
+])
+def test_build_command_rejects_resealed_pair_claim(command, capsys, change, message):
+    """PAIR-INPUTS, PAIR-HELDOUT, PAIR-TARGET: isolate each reader semantic guard."""
+    pair_path = command.pairs / "pairs.jsonl"
+    pairs = [json.loads(line) for line in pair_path.read_text().splitlines()]
+    path = command.pairs / "pairs-record.json"
+    record = json.loads(path.read_text())
+    if change == "uuid":
+        pairs[0]["uuid"] = "held-out"
+    elif change == "target":
+        pairs[0]["target_sha256"] = "0" * 64
+    elif change == "source":
+        pairs[0]["source_sha256"] = "0" * 64
+    elif change == "checked":
+        pairs[0]["checks"]["ok"] = False
+    elif change == "reviewed":
+        pairs[0]["meaning_reviewed"] = True
+    elif change == "overlap":
+        record["heldout_uuid_overlaps"] = 1
+    elif change == "revision":
+        record["source_revision"] = "another-revision"
+    elif change == "kit":
+        record["inputs"]["var/ste/kit-100/source.jsonl"]["sha256"] = "0" * 64
+    elif change == "batch":
+        record["inputs"]["var/ste/batch-200/converted.jsonl"]["sha256"] = "0" * 64
+    elif change == "schema":
+        record["schema"] = "another-schema"
+    elif change == "counts":
+        record["pairs"] += 1
+    save(pair_path, pairs, rows=True)
+    save(path, record)
+    reseal_pairs(command)
+    manifest_path = command.pairs.with_name("pairs.manifest.json")
+    manifest = mf.load_tree(manifest_path)
+    if change == "kind":
+        manifest.kind = "model"
+    elif change == "name":
+        manifest.name = "another-name"
+    manifest.save(manifest_path)
+    assert invoke(command) == 2
+    assert message in capsys.readouterr().err
+    assert not command.out.exists()
+
+
+@pytest.mark.parametrize("field", ["repo_id", "revision"])
+def test_build_command_rejects_other_model_source(command, capsys, field):
+    """REWRITE-LIMITS: valid tree bytes cannot authorize an unconfigured model."""
+    path = command.model.with_name("model.manifest.json")
+    manifest = mf.load_tree(path)
+    manifest.source[field] = "another-source"
+    manifest.save(path)
+    assert invoke(command) == 2
+    assert "REWRITE-LIMITS: model manifest differs" in capsys.readouterr().err
+    assert not command.out.exists()
+
+
+def test_build_command_rejects_changed_ordered_id_pin(command, capsys):
+    """PAIR-BALANCE: the approved count alone cannot authorize different IDs."""
+    command.pins["r1_ordered_ids"] = "0" * 64
+    write_pins(command)
+    record = json.loads((command.pairs / "pairs-record.json").read_text())
+    assert record["balance"]["selections"]["r1"]["count"] == 200
+    assert invoke(command) == 2
+    error = capsys.readouterr().err
+    assert "PAIR-BALANCE: selection needs an operator decision" in error
+    assert not command.out.exists()
+
+
+def test_build_command_refuses_unignored_repository_output(command, capsys):
+    """RENDER-OUTPUT: a fresh directory inside git must be explicitly ignored."""
+    subprocess.run(["git", "init", "--quiet", str(command.repo)], check=True)
+    command.out = command.repo / "build"
+    assert invoke(command) == 2
+    assert "RENDER-OUTPUT: output must stay outside git" in capsys.readouterr().err
+    assert not command.out.exists()
