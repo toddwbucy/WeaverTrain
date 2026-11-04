@@ -1,8 +1,9 @@
-"""Spec 0.1 REWRITE-KIT, REWRITE-DECODE and REWRITE-CHECK foundations.
+"""Spec 0.2 REWRITE-KIT, REWRITE-DECODE and REWRITE-CHECK foundations.
 
 These helpers verify local inputs, preflight prompts and check first outputs.
 The decode helper requires an already verified model and optional adapter.
-They expose no model-run command while the seed-record interface is pending.
+They expose no model-run command yet. RENDER-SEED now permits local procedures
+before the loop seed check. REWRITE-RECONCILE still gates loop use.
 Checker artifacts are not complete R0 or adapter evaluation records.
 Statistical helpers take checker rows after the caller verifies run identities.
 """
@@ -85,7 +86,7 @@ def preflight(tokenizer, kit, folded: bytes, *, repo=REPO):
     """REWRITE-DECODE, RENDER-LAYOUT: check all 100 prompts before any generation.
 
     This returns an in-memory plan only. A matching file hash does not establish
-    seed provenance. The future run entry point must validate the seed record.
+    seed provenance. REWRITE-RECONCILE checks the seed separately before loop use.
     """
     pins = tomllib.loads((repo / "config/rewriter-inputs.toml").read_text(encoding="utf-8"))
     require(build.digest(folded) == pins["folded_prompt"],
@@ -113,7 +114,7 @@ def decode_outputs(loaded, kit, folded: bytes, *, repo=REPO):
     """REWRITE-DECODE, REWRITE-LIMITS: yield each first rewrite without a retry.
 
     The caller must use the current loader to verify and load the model, verify
-    any adapter before attachment, and establish seed and frozen-plan provenance.
+    any adapter before attachment, and establish folded-file and plan provenance.
     This generator does not write a run record or authorize production use.
     The caller must retain yielded rows and record any failure under REWRITE-RECORD.
     """

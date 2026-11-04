@@ -1,4 +1,4 @@
-"""Spec 0.1 section 9: folded messages, final-target masks and GPU loss labels."""
+"""Spec 0.2 section 9: folded messages, final-target masks and GPU loss labels."""
 
 import copy
 import hashlib
@@ -53,17 +53,17 @@ def pair():
 def test_render_seed_preserves_bytes_and_final_lf():
     """RENDER-SEED: UTF-8 decoding preserves both source characters and whitespace."""
     raw = (" " + FOLDED + "\u00b0\r\n").encode("utf-8")
-    result = build.seed_system(raw, raw, hashlib.sha256(raw).hexdigest())
+    result = build.folded_system(raw, hashlib.sha256(raw).hexdigest())
     assert result.encode("utf-8") == raw
 
 
-@pytest.mark.parametrize("saved", [None, "rules", b"", FOLDED.rstrip().encode(),
-                                    FOLDED.replace("\n", "\r\n").encode()])
-def test_render_seed_rejects_absent_or_changed_saved_bytes(saved):
-    """RENDER-SEED: a folded file does not replace absent or different saved bytes."""
+@pytest.mark.parametrize("folded", [None, "rules", b"", FOLDED.rstrip().encode(),
+                                     FOLDED.replace("\n", "\r\n").encode()])
+def test_render_seed_rejects_absent_or_changed_file_bytes(folded):
+    """RENDER-SEED: the local file must match its pin without a seed record."""
     raw = FOLDED.encode()
     with pytest.raises(build.RenderError, match="RENDER-SEED"):
-        build.seed_system(raw, saved, hashlib.sha256(raw).hexdigest())
+        build.folded_system(folded, hashlib.sha256(raw).hexdigest())
 
 
 @pytest.mark.parametrize("source", [b"grouped instruction", b"single bundle", b"system"])
@@ -71,14 +71,14 @@ def test_render_seed_rejects_source_provenance_in_place_of_folded_pin(source):
     """RENDER-SEED: none of the three provenance identities is the folded identity."""
     raw = FOLDED.encode()
     with pytest.raises(build.RenderError, match="folded prompt sha256 differs"):
-        build.seed_system(raw, raw, hashlib.sha256(source).hexdigest())
+        build.folded_system(raw, hashlib.sha256(source).hexdigest())
 
 
 def test_render_seed_rejects_non_utf8_bytes():
     """RENDER-SEED: invalid text bytes stop before message construction."""
     raw = bytes([255])
     with pytest.raises(build.RenderError, match="not UTF-8"):
-        build.seed_system(raw, raw, hashlib.sha256(raw).hexdigest())
+        build.folded_system(raw, hashlib.sha256(raw).hexdigest())
 
 
 def test_render_layout_messages_and_template_options(tokenizer, pair, monkeypatch):

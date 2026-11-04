@@ -3,6 +3,28 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: local rewriter training precedes loop seed verification
+
+The operator accepted [PR 26][rewriter-seed-timing] by merging it on 2026-11-04.
+The merge is `57579afa7caf495c6cb987a33cb9c1fc83b36be6`.
+The approved folded file and its section 11 hash suffice for local build, R0 and R1.
+This supersedes the seeded-save-point requirement in the 2026-11-03 rewriter entry
+for those local procedures and the build hold in [issue 17][build-hold].
+Keep the older entry as the record of the earlier ruling.
+
+The seed record and joint token check remain mandatory before loop use.
+The seed must report the hash computed from inserted bytes, with the identities
+required by REWRITE-RECONCILE. A mismatch stops loop use and needs an operator ruling.
+Preserve the local records even if the later check does not pass.
+This timing change allows local training work to proceed before the loop is ready.
+
+R0 still runs twice, with meaning review before the repair-data decision and R1.
+R1 remains 200 pairs for two epochs, followed by a stop and report.
+R2 still needs the operator's instruction. No training values or data pins change.
+
+[rewriter-seed-timing]: https://github.com/toddwbucy/WeaverTrain/pull/26
+[build-hold]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6614461171
+
 ## 2026-11-03: the first adapter rewrites text with the full loop prompt
 
 The operator's [ruling on issue 17][rewriter-ruling],

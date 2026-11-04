@@ -1,7 +1,7 @@
-"""Spec 0.1 PAIR and RENDER clauses: collect pairs and render final-target masks.
+"""Spec 0.2 PAIR and RENDER clauses: collect pairs and build final-target masks.
 
-The pairs command reads local evidence only. Rendering functions have no output
-command until the RENDER-SEED record interface and folded prompt pin are agreed.
+The pairs and build commands read local evidence only. The build verifies the
+approved folded file without requiring a loop seed record, under RENDER-SEED.
 No function here loads a model, rewrites text, or contacts a service.
 """
 
@@ -34,6 +34,9 @@ WEIGHTS = [37, 30, 33]
 PROVENANCE = ("grouped_instruction", "single_text_bundle", "system_text")
 # RENDER-LENGTH: the approved context has no per-invocation override.
 MAX_SEQ_LENGTH = 49152
+# REWRITE-ORDER, RENDER-OUTPUT: building a selection does not start its training.
+PROCEDURES = {"r1": 200, "r2": 3383}
+MODEL = "nemotron-3-nano-30b-a3b"
 
 
 class PairError(ValueError):
@@ -449,20 +452,17 @@ class RenderError(ValueError):
     """RENDER-SEED, RENDER-MASK, RENDER-LENGTH: refuse a different render."""
 
 
-def seed_system(folded: bytes, saved: bytes, expected_sha256: str) -> str:
-    """RENDER-SEED: compare already extracted saved bytes to the pinned data bytes.
+def folded_system(folded: bytes, expected_sha256: str) -> str:
+    """RENDER-SEED: check local prompt bytes without claiming loop seed evidence.
 
-    This byte check is not a loop record reader or evidence of a real seed. The
-    future build entry point must obtain saved bytes through the agreed record.
+    REWRITE-RECONCILE checks the seed record separately before loop use.
     """
-    if not isinstance(folded, bytes) or not isinstance(saved, bytes):
-        raise RenderError("RENDER-SEED: folded and saved system bytes are required")
+    if not isinstance(folded, bytes):
+        raise RenderError("RENDER-SEED: folded system bytes are required")
     if digest(folded) != expected_sha256:
         raise RenderError("RENDER-SEED: folded prompt sha256 differs")
-    if saved != folded:
-        raise RenderError("RENDER-SEED: saved system bytes differ from folded prompt")
     try:
-        return saved.decode("utf-8")
+        return folded.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RenderError("RENDER-SEED: system bytes are not UTF-8") from exc
 
@@ -501,22 +501,221 @@ def render_pair(tokenizer, pair: dict, system: str) -> dict:
             "initial_messages_sha256": digest(message_bytes)}
 
 
-def main(argv=None):
-    """PAIR-OUTPUT, REWRITE-FILES: expose pair collection without a training path."""
+def read_pair_directory(directory, evidence, pins):
+    """RENDER-LAYOUT, RENDER-OUTPUT: verify the complete pair tree before selection."""
+    directory = Path(directory).resolve()
+    manifest_path = directory.with_name(directory.name + ".manifest.json")
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = mf.TreeManifest.from_dict(json.loads(manifest_bytes))
+    require(manifest.kind == "dataset" and manifest.name == "ste-rewriter-pairs",
+            "RENDER-OUTPUT: expected a pair dataset manifest")
+    mf.require_tree(manifest, directory)
+    names = {"pairs.jsonl", "repairs.jsonl", "excluded.jsonl", "pairs-record.json"}
+    require({entry.path for entry in manifest.files} == names,
+            "RENDER-OUTPUT: pair directory file set differs")
+    captured = {}
+    for entry in manifest.files:
+        raw = (directory / entry.path).read_bytes()
+        require(digest(raw) == entry.sha256,
+                f"RENDER-OUTPUT: captured pair file differs: {entry.path}")
+        captured[entry.path] = raw
+    record = json.loads(captured["pairs-record.json"])
+    require(record["schema"] == "weaver-train/rewriter-pairs/v1",
+            "RENDER-OUTPUT: pair record schema differs")
+    rows = {name: [json.loads(line) for line in captured[name + ".jsonl"].splitlines()
+                   if line.strip()] for name in ("pairs", "repairs", "excluded")}
+    require(all(record[name] == len(values) for name, values in rows.items()),
+            "RENDER-OUTPUT: pair record counts differ")
+    require(record["limits"] == {"targets_checker_passed": True,
+                                  "meaning_reviewed": False,
+                                  "repair_training_allowed": False},
+            "PAIR-TARGET, PAIR-REPAIRS: pair record limits differ")
+    require(record["heldout_uuid_overlaps"] == 0,
+            "PAIR-HELDOUT: pair record contains held-out overlap")
+    provenance = prompt_inputs(evidence, pins)
+    require(record["prompt_provenance"] == provenance,
+            "PAIR-PROVENANCE: pair source prompt identities differ")
+    dataset = tomllib.loads(evidence.read("config/datasets.toml").decode())
+    require(record["source_dataset"] == "nemotron-swe-v1" and
+            record["source_revision"] == dataset["datasets"]["nemotron-swe-v1"][
+                "revision"], "PAIR-INPUTS: pair dataset revision differs")
+    heldout = set()
+    for size in (100, 500):
+        path = f"var/ste/kit-{size}/source.jsonl"
+        heldout.update(entry.data["uuid"] for entry in
+                       evidence.rows(path, pins[f"kit_{size}_source"]))
+        require(record["inputs"][path]["sha256"] == pins[f"kit_{size}_source"],
+                "PAIR-HELDOUT: pair kit identity differs")
+    for batch in BATCHES:
+        for name in ("converted", "source", "codes"):
+            path = f"var/ste/batch-{batch}/{name}.jsonl"
+            require(record["inputs"][path]["sha256"] ==
+                    pins[f"{name}_{batch.replace('-', '_')}"],
+                    "PAIR-INPUTS: pair source pin differs")
+    indexed = {}
+    for pair in rows["pairs"]:
+        key = (pair["batch"], pair["id"])
+        require(key not in indexed and pair["batch"] in BATCHES and pair["id"],
+                "PAIR-INPUTS: duplicate or unknown pair identity")
+        require(pair["uuid"] not in heldout,
+                "PAIR-HELDOUT: pair trajectory overlaps a kit")
+        require(pair["checks"]["ok"] and pair["meaning_reviewed"] is False,
+                "PAIR-TARGET: pair checks or review limit differ")
+        require(digest(pair["target"].encode()) == pair["target_sha256"],
+                "PAIR-TARGET: pair target hash differs")
+        original = pair["lead"] + ste_convert.unmask(pair["input"], pair["codes"])
+        original += pair["trail"]
+        require(digest(original.encode()) == pair["source_sha256"],
+                "PAIR-TARGET: pair source hash differs")
+        indexed[key] = pair
+    measured = balance(rows["pairs"])
+    require(record["balance"] == measured,
+            "PAIR-BALANCE: stored selection differs from measured pairs")
+    return indexed, rows["excluded"], record, manifest, digest(manifest_bytes)
+
+
+def build_tokenizer(evidence):
+    """REWRITE-LIMITS, RENDER-OUTPUT: verify the pinned model before tokenizer use."""
+    from weaver_train import loader
+
+    configured = tomllib.loads(evidence.read("config/models.toml").decode())["models"][
+        MODEL]
+    model_manifest = mf.load_tree(loader.manifest_path_for(MODEL))
+    require(model_manifest.kind == "model" and model_manifest.name == MODEL and
+            all(model_manifest.source.get(key) == configured[key]
+                for key in ("repo_id", "revision")),
+            "REWRITE-LIMITS: model manifest differs from configured reference")
+    model_dir = loader.resolve_dir(model_manifest)
+    model_hash = mf.require_tree(model_manifest, model_dir)
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_dir, local_files_only=True, trust_remote_code=False)
+    return tokenizer, model_hash
+
+
+def fresh_build_output(out_dir, repo):
+    """RENDER-OUTPUT: refuse an existing destination or a path exposed to git."""
+    out = Path(out_dir).resolve()
+    manifest_path = out.with_name(out.name + ".manifest.json")
+    for path in (out, manifest_path):
+        if path.is_relative_to(repo.resolve()):
+            ignored = subprocess.run(["git", "check-ignore", "--quiet", str(path)],
+                                     cwd=repo)
+            require(ignored.returncode == 0,
+                    "RENDER-OUTPUT: output must stay outside git")
+    require(not out.exists() and not manifest_path.exists(),
+            "RENDER-OUTPUT: output directory or manifest already exists")
+    return out, manifest_path
+
+
+def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
+    """RENDER clauses: write the approved selection, masks and immutable identities."""
+    require(procedure in PROCEDURES, "RENDER-OUTPUT: unknown procedure selection")
+    out, manifest_path = fresh_build_output(out_dir, repo)
+    evidence = Evidence(repo)
+    pins = tomllib.loads(evidence.read("config/rewriter-inputs.toml").decode())
+    folded = Path(folded_path).read_bytes()
+    system = folded_system(folded, pins["folded_prompt"])
+    indexed, removed, pairs, pair_manifest, pair_manifest_sha = read_pair_directory(
+        pair_dir, evidence, pins)
+    selection = pairs["balance"]["selections"][procedure]
+    require(selection["available"] and selection["count"] == PROCEDURES[procedure]
+            and selection["ordered_ids_sha256"] == pins[f"{procedure}_ordered_ids"],
+            "PAIR-BALANCE: selection needs an operator decision")
+    tokenizer, model_hash = build_tokenizer(evidence)
+    template_hash = digest(tokenizer.get_chat_template().encode("utf-8"))
+    record = {
+        "schema": "weaver-train/rewriter-build/v1", "spec": "0.2",
+        "status": "started", "commit": mf.git_commit(repo), "procedure": procedure,
+        "tree_hash": model_hash, "template_hash": template_hash, "tools": False,
+        "enable_thinking": False, "max_seq_length": MAX_SEQ_LENGTH,
+        "render_only": False, "seed": 0, "selection": selection,
+        "pair_manifest": json.loads(pair_manifest.to_json()),
+        "pair_manifest_sha256": pair_manifest_sha,
+        "source_dataset": pairs["source_dataset"],
+        "source_revision": pairs["source_revision"], "inputs": evidence.files,
+        "folded_prompt": digest(folded),
+        "prompt_provenance": pairs["prompt_provenance"],
+        "limits": pairs["limits"], "removed": removed,
+        "loop_checks": {"seed_check_complete": False,
+                        "joint_token_check_complete": False},
+        "completed_ids": [], "counts": {"pairs": 0, "all_tokens": 0,
+                                         "final_target_tokens": 0},
+    }
+    # RENDER-OUTPUT: reserve the directory once. A failed build keeps its partial rows.
+    out.mkdir(parents=True, exist_ok=False)
+
+    def save_record():
+        """REWRITE-RECORD: update only this invocation's retained build status."""
+        (out / "build.json").write_text(json.dumps(record, indent=2, ensure_ascii=True)
+                                        + "\n", encoding="utf-8")
+
+    save_record()
+    try:
+        with (out / "train.jsonl").open("x", encoding="utf-8") as stream:
+            for key in selection["ids"]:
+                row = render_pair(tokenizer, indexed[tuple(key)], system)
+                stream.write(json.dumps(row, ensure_ascii=True) + "\n")
+                record["completed_ids"].append(key)
+                record["counts"]["pairs"] += 1
+                record["counts"]["all_tokens"] += len(row["input_ids"])
+                record["counts"]["final_target_tokens"] += sum(row["assistant_masks"])
+        # RENDER-OUTPUT: reject input changes before sealing a successful build.
+        evidence.verify()
+        require(Path(folded_path).read_bytes() == folded,
+                "RENDER-SEED: folded file changed during build")
+        mf.require_tree(pair_manifest, pair_dir)
+        require(mf.sha256_file(Path(pair_dir).with_name(
+            Path(pair_dir).name + ".manifest.json")) == pair_manifest_sha,
+            "RENDER-OUTPUT: pair manifest changed during build")
+        require(digest(tokenizer.get_chat_template().encode()) == template_hash,
+                "RENDER-LAYOUT: tokenizer template changed during build")
+        record["tokens_per_epoch"] = [
+            {"epoch": epoch, **record["counts"]} for epoch in (1, 2)]
+        record["status"] = "completed"
+        save_record()
+        manifest = mf.build_tree(out, "dataset", "ste-rewriter-build",
+                                 source={"spec": "0.2", "commit": record["commit"]})
+        with manifest_path.open("x", encoding="utf-8") as stream:
+            stream.write(manifest.to_json())
+    except BaseException as exc:
+        record["status"] = "failed"
+        record["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        save_record()
+        raise
+    return record, manifest
+
+
+def main(argv=None, *, repo=REPO):
+    """PAIR-OUTPUT, RENDER-OUTPUT: expose collection and verified local rendering."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
     pairs = commands.add_parser("pairs", help="verify and retain the fixed batch pairs")
     pairs.add_argument("--out", required=True)
+    build = commands.add_parser("build", help="render an approved pair selection")
+    build.add_argument("--pairs", type=Path, required=True)
+    build.add_argument("--folded-prompt", type=Path, required=True)
+    build.add_argument("--selection", choices=tuple(PROCEDURES), required=True)
+    build.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        record, manifest = write_pairs(args.out)
-    except (PairError, OSError, KeyError, TypeError, IndexError, ValueError) as exc:
-        print(f"PAIR: stopped: {exc}", file=sys.stderr)
+        if args.command == "pairs":
+            record, manifest = write_pairs(args.out, repo)
+            result = {"pairs": record["pairs"], "repairs": record["repairs"],
+                      "excluded": record["excluded"],
+                      "bins": record["balance"]["pool_bins"],
+                      "maximum": record["balance"]["maximum"]}
+        else:
+            record, manifest = write_build(args.pairs, args.folded_prompt,
+                                           args.selection, args.out, repo=repo)
+            result = {"selection": args.selection, "status": record["status"],
+                      "counts": record["counts"]}
+    except (mf.ManifestError, OSError, KeyError, TypeError,
+            IndexError, ValueError) as exc:
+        print(f"{args.command}: stopped: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps({"pairs": record["pairs"], "repairs": record["repairs"],
-                      "excluded": record["excluded"], "bins": record["balance"]["pool_bins"],
-                      "maximum": record["balance"]["maximum"],
-                      "tree_hash": manifest.tree_hash}))
+    print(json.dumps({**result, "tree_hash": manifest.tree_hash}))
     return 0
 
 

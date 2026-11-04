@@ -1,8 +1,8 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Proposal for the seed check. The procedure sizes keep their approval.
+**Status:** Approved in PR 26. The procedure sizes keep their approval.
 
-**Version:** 0.2 **Date:** 2026-11-03 **Parent:** `docs/decisions.md`
+**Version:** 0.2 **Date:** 2026-11-04 **Parent:** `docs/decisions.md`
 
 **Language:** STE100. Use `ste/` at `ab63a918b569e5b8673dc2e78e66575ee9df1bd7`.
 Add no words to that tree. Use `scripts/ste_check.py` with limits of 20 and 25 words.
