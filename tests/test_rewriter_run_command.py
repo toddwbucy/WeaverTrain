@@ -20,9 +20,10 @@ from weaver_train import loader, manifest as mf
 def commit_fixture(repo):
     """REWRITE-RECORD: commit only synthetic inputs in the temporary test repo."""
     for args in (("init", "-q"), ("add", "."),
-                 ("commit", "-qm", "Fixture inputs")):
+                 ("commit", "-q", "--no-verify", "-m", "Fixture inputs")):
         subprocess.run(["git", "-C", str(repo), "-c", "user.name=Fixture",
-                        "-c", "user.email=fixture@example.invalid", *args],
+                        "-c", "user.email=fixture@example.invalid",
+                        "-c", "commit.gpgsign=false", *args],
                        check=True, capture_output=True)
 
 
