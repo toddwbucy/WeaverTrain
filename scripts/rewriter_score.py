@@ -670,6 +670,8 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
                 "REWRITE-RECORD: checkout commit differs from frozen plan")
         require(torch.cuda.is_available() and torch.cuda.device_count() == 2,
                 "REWRITE-LIMITS: exactly two selected GPUs are required")
+        # REWRITE-RECORD: the allocator must exist before peak counters are reset.
+        torch.cuda.init()
         devices = list(range(torch.cuda.device_count()))
         for device in devices:
             torch.cuda.reset_peak_memory_stats(device)

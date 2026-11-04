@@ -97,6 +97,7 @@ def command(world, tokenizer, tmp_path, monkeypatch):
     monkeypatch.setattr(loader, "load", load)
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    monkeypatch.setattr(torch.cuda, "init", lambda: None)
     monkeypatch.setattr(torch.cuda, "reset_peak_memory_stats", lambda device=None: None)
     monkeypatch.setattr(torch.cuda, "get_device_name",
                         lambda device=None: "Fixture GPU")
@@ -439,6 +440,94 @@ def test_rewrite_run_retains_model_load_failure(command, monkeypatch):
     assert record["status"] == "failed" and record["completed_ids"] == []
     assert record["failure"]["message"] == "fixture load failed"
     assert not command.decoded
+
+
+def test_rewrite_run_retains_cuda_initialization_failure(
+        command, monkeypatch, capsys):
+    """REWRITE-LIMITS, REWRITE-RECORD: initialization failures stop before loading."""
+    import torch
+
+    assert make_plan(command) == 0
+    capsys.readouterr()
+
+    def failing():
+        """REWRITE-LIMITS: inject only the initialization failure."""
+        raise RuntimeError("fixture CUDA initialization failed")
+
+    monkeypatch.setattr(torch.cuda, "init", failing)
+    assert run(command) == 2
+    assert capsys.readouterr().err.strip() == (
+        "run: stopped: fixture CUDA initialization failed")
+    record = json.loads((command.out / "run.json").read_text())
+    assert record["status"] == "failed" and record["completed_ids"] == []
+    assert record["failure"] == {
+        "type": "RuntimeError", "message": "fixture CUDA initialization failed"}
+    assert record["peak_memory_bytes"] == {}
+    assert not command.calls and not command.decoded
+    assert not (command.out / "segments.jsonl").exists()
+    assert not command.out.with_name("run.manifest.json").exists()
+
+
+@pytest.mark.gpu
+@pytest.mark.multigpu
+def test_rewrite_run_initializes_cuda_in_fresh_process(command):
+    """REWRITE-RECORD: cold GPU setup measures loader allocations on both GPUs."""
+    assert make_plan(command) == 0
+    script = r'''
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+import rewriter_score as score
+import torch
+
+repo, plan, out, model = map(Path, sys.argv[2:])
+assert not torch.cuda.is_initialized(), "test process must start with cold CUDA"
+score.loader.manifest_path_for = lambda name: model.with_name("model.manifest.json")
+score.loader.resolve_dir = lambda manifest: model
+events = []
+reset = torch.cuda.reset_peak_memory_stats
+
+def observe_reset(device):
+    """REWRITE-RECORD: observe the real counter API without replacing its work."""
+    reset(device)
+    events.append(["reset", device])
+
+def loader_boundary(*args, **kwargs):
+    """REWRITE-RECORD: measure small allocations without loading model weights."""
+    events.append(["load"])
+    assert torch.cuda.is_initialized()
+    for device in (0, 1):
+        temporary = torch.empty(1024 * 1024, dtype=torch.uint8, device=device)
+        del temporary
+    raise RuntimeError("fixture loader boundary")
+
+torch.cuda.reset_peak_memory_stats = observe_reset
+score.loader.load = loader_boundary
+try:
+    score.run_score(plan, out, procedure="r0", repo=repo)
+except RuntimeError as exc:
+    assert str(exc) == "fixture loader boundary", repr(exc)
+else:
+    raise AssertionError("fixture loader boundary was not reached")
+assert events == [["reset", 0], ["reset", 1], ["load"]], events
+record = json.loads((out / "run.json").read_text())
+assert record["status"] == "failed" and record["completed_ids"] == []
+assert record["failure"] == {
+    "type": "RuntimeError", "message": "fixture loader boundary"}
+assert set(record["gpus"]) == set(record["peak_memory_bytes"]) == {"0", "1"}
+for peaks in record["peak_memory_bytes"].values():
+    assert peaks["allocated"] >= 1024 * 1024
+    assert peaks["reserved"] >= peaks["allocated"]
+assert not (out / "segments.jsonl").exists()
+assert not out.with_name(out.name + ".manifest.json").exists()
+'''
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(score.REPO / "scripts"),
+         str(command.repo), str(command.plan), str(command.out), str(command.model)],
+        capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_rewrite_run_retains_seal_failure(command, monkeypatch):
