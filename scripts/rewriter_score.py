@@ -2,9 +2,9 @@
 
 These helpers verify local inputs, preflight prompts and check first outputs.
 The decode helper requires an already verified model and optional adapter.
-They expose no model-run command yet. RENDER-SEED now permits local procedures
-before the loop seed check. REWRITE-RECONCILE still gates loop use.
-Checker artifacts are not complete R0 or adapter evaluation records.
+The plan and run commands retain frozen inputs and complete first-pass records.
+RENDER-SEED permits local procedures before the loop seed check.
+REWRITE-RECONCILE still gates loop use.
 Statistical helpers take checker rows after the caller verifies run identities.
 """
 
@@ -12,14 +12,17 @@ from __future__ import annotations
 
 import json
 import math
+import random
 import re
 import subprocess
 import sys
 import time
 import tomllib
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(REPO / "scripts"), str(REPO / "src")]
@@ -32,6 +35,10 @@ import ste_score
 from lora_score import compare_pairs
 from ste_kit_sample import bin_of
 from weaver_train import loader, manifest as mf
+
+# REWRITE-RECORD, RENDER-OUTPUT: preserve the five fields and the review identity.
+FIELDS = ("tree_hash", "template_hash", "tools", "enable_thinking", "max_seq_length")
+REVIEW_MODEL = "claude-opus-5-5"
 
 
 class ScoreError(ValueError):
@@ -363,3 +370,344 @@ def compare_rewrites(source_ids, r0_first, r0_second, candidate):
     return {"metric": "rewrite_ste", "reference": "r0_first", **spread,
             "candidate": {"passed": sum(current), "rate": sum(current) / 100},
             "comparison": compare_pairs(first, current, spread["decode_difference"])}
+
+
+def artifact(directory):
+    """REWRITE-RECORD: verify every file before reading an artifact's contents."""
+    directory = Path(directory).resolve()
+    path = directory.with_name(directory.name + ".manifest.json")
+    raw = path.read_bytes()
+    manifest = mf.TreeManifest.from_dict(json.loads(raw))
+    mf.require_tree(manifest, directory)
+    return directory, manifest, build.digest(raw)
+
+
+def captured_file(directory, manifest, name):
+    """REWRITE-RECORD: bind the bytes consumed after verification to the manifest."""
+    expected = {entry.path: entry.sha256 for entry in manifest.files}
+    raw = (directory / name).read_bytes()
+    require(build.digest(raw) == expected.get(name),
+            f"REWRITE-RECORD: captured file differs from manifest: {name}")
+    return raw
+
+
+def score_evidence(repo):
+    """REWRITE-KIT, REWRITE-CHECK, REWRITE-RECORD: freeze the checked local inputs."""
+    evidence = build.Evidence(repo)
+    pins = tomllib.loads(evidence.read("config/rewriter-inputs.toml").decode())
+    provenance = build.prompt_inputs(evidence, pins)
+    for path in ("scripts/ste_score.py", "scripts/ste_prompt.py",
+                 "scripts/ste_kit_run.py", "environment.lock", "config/models.toml"):
+        evidence.read(path)
+    return evidence, pins, provenance
+
+
+def require_fields(record, expected):
+    """RENDER-OUTPUT, REWRITE-DECODE: field values and types must remain identical."""
+    for key in FIELDS:
+        require(key in record and type(record[key]) is type(expected[key]) and
+                record[key] == expected[key], f"RENDER-OUTPUT: {key} differs")
+
+
+def fresh_score_output(out_dir, *, repo, inputs=()):
+    """REWRITE-RECORD: reserve fresh evidence outside git and verified input trees."""
+    out, manifest_path = build.fresh_build_output(out_dir, repo)
+    for path in inputs:
+        root = Path(path).resolve()
+        require(out != root and root not in out.parents and out not in root.parents,
+                "REWRITE-RECORD: output overlaps an input tree")
+    for path in (out, *out.parents):
+        exists = path.name and path.with_name(path.name + ".manifest.json").is_file()
+        require(not exists,
+                "REWRITE-RECORD: output is inside a manifested tree")
+    return out, manifest_path
+
+
+def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
+    """REWRITE-KIT, REWRITE-DECODE, REWRITE-REVIEW: freeze the plan before R0."""
+    out, manifest_path = fresh_score_output(out_dir, repo=repo, inputs=(build_dir,))
+    evidence, pins, provenance = score_evidence(repo)
+    directory, build_manifest, manifest_sha = artifact(build_dir)
+    require(build_manifest.kind == "dataset" and
+            build_manifest.name == "ste-rewriter-build",
+            "REWRITE-RECORD: expected a rewriter build manifest")
+    build_bytes = captured_file(directory, build_manifest, "build.json")
+    record = json.loads(build_bytes)
+    require(record["schema"] == "weaver-train/rewriter-build/v1" and
+            record["status"] == "completed" and not record["render_only"],
+            "REWRITE-RECORD: a completed rewriter training build is required")
+    folded = Path(folded_path).read_bytes()
+    build.folded_system(folded, pins["folded_prompt"])
+    require(record["folded_prompt"] == pins["folded_prompt"] and
+            record["prompt_provenance"] == provenance,
+            "RENDER-SEED: build prompt identities differ")
+    tokenizer, model_manifest, model_dir, model_hash = build.build_tokenizer(evidence)
+    fresh_score_output(out, repo=repo, inputs=(build_dir, model_dir))
+    expected = {"tree_hash": model_hash,
+                "template_hash": build.digest(tokenizer.get_chat_template().encode()),
+                "tools": False, "enable_thinking": False, "max_seq_length": 49152}
+    require_fields(record, expected)
+    kit = load_kit(repo)
+    entries = preflight(tokenizer, kit, folded, repo=repo)
+    end = tokenizer.convert_tokens_to_ids("<|im_end|>")
+    require(type(end) is int and end >= 0 and end != tokenizer.unk_token_id,
+            "REWRITE-DECODE: end-of-turn token is unavailable")
+    sample = random.Random(2031).sample(sorted(row["id"] for row in kit["rows"]), 30)
+    plan = {"schema": "weaver-train/rewriter-plan/v1", "commit": mf.git_commit(repo),
+            **expected, "folded_prompt": pins["folded_prompt"],
+            "prompt_provenance": provenance, "inputs": evidence.files,
+            "environment_sha256": evidence.files["environment.lock"]["sha256"],
+            "build_sha256": build.digest(build_bytes),
+            "build_manifest_sha256": manifest_sha,
+            "build_tree_hash": build_manifest.tree_hash,
+            "input_sha256": kit["input_sha256"], "denominator": 100,
+            "source_seed": 2030, "review_sample_seed": 2031, "review_sample": sample,
+            "reviewer_model": REVIEW_MODEL,
+            "reviewer_prompt_sha256": pins["meaning_review_prompt"],
+            "sampler": {"do_sample": False, "num_beams": 1, "num_return_sequences": 1,
+                        "eos_token_id": end, "pad_token_id": tokenizer.pad_token_id
+                        if tokenizer.pad_token_id is not None else end,
+                        "reply_budget": "min(8192, len(masked_input) // 2 + 256)"},
+            "loop_checks": {"seed_check_complete": False,
+                            "joint_token_check_complete": False}}
+    evidence.verify()
+    mf.require_tree(model_manifest, model_dir)
+    inputs = [{key: row[key] for key in ("id", "kind", "text")} for row in kit["rows"]]
+    plan_bytes = (json.dumps(plan, indent=2, ensure_ascii=True) + "\n").encode()
+    files = {"plan.json": plan_bytes,
+             "kit.json": (json.dumps(kit, ensure_ascii=True) + "\n").encode(),
+             "entries.jsonl": jsonl_bytes(entries), "input.jsonl": jsonl_bytes(inputs),
+             "folded.txt": folded}
+    out.mkdir(parents=True, exist_ok=False)
+    for name, raw in files.items():
+        with (out / name).open("xb") as stream:
+            stream.write(raw)
+    manifest = mf.build_tree(out, "evaluation", "ste-rewriter-plan")
+    with manifest_path.open("x", encoding="utf-8") as stream:
+        stream.write(manifest.to_json())
+    return plan, manifest
+
+
+def read_plan(plan_dir, *, repo=REPO):
+    """REWRITE-KIT, REWRITE-RECORD: check frozen sources, settings and identities."""
+    directory, manifest, manifest_sha = artifact(plan_dir)
+    require(manifest.kind == "evaluation" and manifest.name == "ste-rewriter-plan",
+            "REWRITE-RECORD: expected a frozen rewriter plan")
+    raw = {name: captured_file(directory, manifest, name) for name in
+           ("plan.json", "kit.json", "entries.jsonl", "input.jsonl", "folded.txt")}
+    plan, kit = json.loads(raw["plan.json"]), json.loads(raw["kit.json"])
+    entries = [json.loads(line) for line in raw["entries.jsonl"].splitlines()]
+    require(plan["schema"] == "weaver-train/rewriter-plan/v1" and
+            plan["denominator"] == 100, "REWRITE-KIT: plan schema or count differs")
+    evidence, pins, provenance = score_evidence(repo)
+    require(plan["inputs"] == evidence.files,
+            "REWRITE-RECORD: frozen input identities differ")
+    require(plan["environment_sha256"] == evidence.files["environment.lock"]["sha256"],
+            "REWRITE-RECORD: frozen environment differs")
+    require(kit == load_kit(repo), "REWRITE-KIT: frozen source records differ")
+    inputs = [{key: row[key] for key in ("id", "kind", "text")} for row in kit["rows"]]
+    require(raw["input.jsonl"] == jsonl_bytes(inputs) and
+            plan["input_sha256"] == kit["input_sha256"],
+            "REWRITE-KIT: frozen masked inputs differ")
+    build.folded_system(raw["folded.txt"], pins["folded_prompt"])
+    require(plan["folded_prompt"] == pins["folded_prompt"] and
+            plan["prompt_provenance"] == provenance,
+            "RENDER-SEED: frozen prompt identities differ")
+    sample = random.Random(2031).sample(sorted(row["id"] for row in kit["rows"]), 30)
+    require(plan["source_seed"] == 2030 and plan["review_sample"] == sample and
+            plan["review_sample_seed"] == 2031 and
+            plan["reviewer_model"] == REVIEW_MODEL and
+            plan["reviewer_prompt_sha256"] == pins["meaning_review_prompt"],
+            "REWRITE-REVIEW: frozen review sample or prompt differs")
+    require([entry["id"] for entry in entries] == [row["id"] for row in kit["rows"]],
+            "REWRITE-KIT: frozen prompt membership differs")
+    evidence.verify()
+    return plan, kit, entries, raw["folded.txt"], manifest.tree_hash, manifest_sha
+
+
+def validate_loaded_plan(plan, kit, entries, folded, loaded, *, repo):
+    """REWRITE-DECODE: compare the complete loaded render before the first output."""
+    tok = loaded.tokenizer
+    expected = {"tree_hash": loaded.tree_hash,
+                "template_hash": build.digest(tok.get_chat_template().encode()),
+                "tools": False, "enable_thinking": False, "max_seq_length": 49152}
+    require_fields(plan, expected)
+    require(entries == preflight(tok, kit, folded, repo=repo),
+            "REWRITE-DECODE: frozen prompt tokens or reply budgets differ")
+    end = tok.convert_tokens_to_ids("<|im_end|>")
+    require(type(end) is int and end >= 0 and end != tok.unk_token_id,
+            "REWRITE-DECODE: end-of-turn token is unavailable")
+    sampler = {"do_sample": False, "num_beams": 1, "num_return_sequences": 1,
+               "eos_token_id": end, "pad_token_id": tok.pad_token_id
+               if tok.pad_token_id is not None else end,
+               "reply_budget": "min(8192, len(masked_input) // 2 + 256)"}
+    require(plan["sampler"] == sampler, "REWRITE-DECODE: frozen sampler differs")
+
+
+def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None, repo=REPO):
+    """REWRITE-DECODE, REWRITE-CHECK, REWRITE-RECORD: retain one complete first pass."""
+    import torch
+
+    started = time.monotonic()
+    require((procedure == "r0" and adapter is None and epoch == 0) or
+            (procedure in ("r1", "r2") and adapter is not None and epoch in (1, 2)),
+            "REWRITE-ORDER: R0 has no adapter, later scores name an epoch adapter")
+    plan, kit, entries, folded, plan_tree, plan_sha = read_plan(plan_dir, repo=repo)
+    model_manifest_path = loader.manifest_path_for(build.MODEL)
+    model_manifest = mf.load_tree(model_manifest_path)
+    configured = tomllib.loads((repo / "config/models.toml").read_text())["models"][
+        build.MODEL]
+    require(model_manifest.kind == "model" and model_manifest.name == build.MODEL and
+            all(model_manifest.source.get(key) == configured[key]
+                for key in ("repo_id", "revision")),
+            "REWRITE-LIMITS: model manifest differs from configured reference")
+    require(model_manifest.tree_hash == plan["tree_hash"],
+            "REWRITE-DECODE: model manifest differs from frozen plan")
+    model_dir = loader.resolve_dir(model_manifest)
+    inputs = [plan_dir, model_dir] + ([adapter] if adapter is not None else [])
+    out, manifest_path = fresh_score_output(out_dir, repo=repo, inputs=inputs)
+    record = {"schema": "weaver-train/rewriter-run/v1", "run_id": uuid4().hex,
+              "created_at": datetime.now(timezone.utc).isoformat(),
+              "engine": "python-hf", "precision": "bf16", "status": "started",
+              "commit": mf.git_commit(repo), "procedure": procedure, "epoch": epoch,
+              "adapter": None, "model": build.MODEL,
+              **{field: plan[field] for field in FIELDS},
+              "environment_sha256": plan["environment_sha256"],
+              "plan_tree_hash": plan_tree, "plan_manifest_sha256": plan_sha,
+              "build_sha256": plan["build_sha256"],
+              "input_sha256": plan["input_sha256"],
+              "folded_prompt": plan["folded_prompt"],
+              "prompt_provenance": plan["prompt_provenance"],
+              "sampler": plan["sampler"],
+              "device_map": "balanced", "completed_ids": [], "exclusions": [],
+              "review": {"status": "pending", "model": plan["reviewer_model"],
+                         "prompt_sha256": plan["reviewer_prompt_sha256"],
+                         "sample": plan["review_sample"]},
+              "loop_checks": {"seed_check_complete": False,
+                              "joint_token_check_complete": False}}
+    out.mkdir(parents=True, exist_ok=False)
+
+    def save_record():
+        """REWRITE-RECORD: keep this invocation's status beside its outputs."""
+        (out / "run.json").write_text(json.dumps(record, indent=2, ensure_ascii=True)
+                                      + "\n", encoding="utf-8")
+
+    save_record()
+    devices = []
+    try:
+        require(torch.cuda.is_available() and torch.cuda.device_count() == 2,
+                "REWRITE-LIMITS: exactly two selected GPUs are required")
+        devices = list(range(torch.cuda.device_count()))
+        for device in devices:
+            torch.cuda.reset_peak_memory_stats(device)
+        record["gpus"] = {str(device): {"name": torch.cuda.get_device_name(device),
+            "capability": list(torch.cuda.get_device_capability(device))}
+            for device in devices}
+        adapter_manifest, adapter_path, adapter_sha = None, None, None
+        if adapter is not None:
+            adapter_path, adapter_manifest, adapter_sha = artifact(adapter)
+            require({entry.path for entry in adapter_manifest.files} >=
+                    {"adapter_config.json", "adapter_model.safetensors"},
+                    "REWRITE-DECODE: adapter files are missing")
+            record["adapter"] = {"tree_hash": adapter_manifest.tree_hash,
+                                 "manifest_sha256": adapter_sha}
+        loaded = loader.load(build.MODEL, path=model_dir,
+                             manifest_path=model_manifest_path, device_map="balanced")
+        validate_loaded_plan(plan, kit, entries, folded, loaded, repo=repo)
+        if adapter_path is not None:
+            from peft import PeftModel
+
+            loaded.model = PeftModel.from_pretrained(
+                loaded.model, str(adapter_path), is_trainable=False,
+                local_files_only=True)
+            loader.pin_layer_devices(loaded.model)
+        placement = {parameter.device for parameter in loaded.model.parameters()}
+        require(placement == {torch.device("cuda:0"), torch.device("cuda:1")},
+                "REWRITE-LIMITS: all parameters must span the two selected GPUs")
+        outputs = []
+        with (out / "segments.jsonl").open("xb") as stream:
+            for row in decode_outputs(loaded, kit, folded, repo=repo):
+                stream.write(jsonl_bytes([row]))
+                stream.flush()
+                outputs.append(row)
+                record["completed_ids"].append(row["id"])
+                print(f"rewritten {len(outputs)}/100: {row['id']}", flush=True)
+        require(record["completed_ids"] == [entry["id"] for entry in entries],
+                "REWRITE-DECODE: first outputs do not cover the frozen plan")
+        summary, checks = check_outputs(kit, outputs, out / "checks", repo=repo)
+        record["checks"] = summary
+        record["output_lengths"] = [{"id": row["id"],
+            "characters": row["output_characters"], "tokens": row["output_tokens"]}
+            for row in checks]
+        # REWRITE-RECORD: no later edit may silently change the frozen run identities.
+        final_plan = read_plan(plan_dir, repo=repo)
+        require(final_plan[4:] == (plan_tree, plan_sha),
+                "REWRITE-RECORD: plan changed during generation")
+        if adapter_path is not None:
+            _, after, after_sha = artifact(adapter_path)
+            require(after.tree_hash == adapter_manifest.tree_hash and
+                    after_sha == adapter_sha,
+                    "REWRITE-DECODE: adapter changed during generation")
+        record["segments_sha256"] = mf.sha256_file(out / "segments.jsonl")
+        record["status"] = "completed"
+    except BaseException as exc:
+        record["status"] = "failed"
+        record["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        raise
+    finally:
+        record["wall_seconds"] = time.monotonic() - started
+        record["peak_memory_bytes"] = {str(device): {
+            "allocated": torch.cuda.max_memory_allocated(device),
+            "reserved": torch.cuda.max_memory_reserved(device)} for device in devices}
+        save_record()
+    try:
+        manifest = mf.build_tree(out, "evaluation", "ste-rewriter-run")
+        with manifest_path.open("x", encoding="utf-8") as stream:
+            stream.write(manifest.to_json())
+    except BaseException as exc:
+        # REWRITE-RECORD: a failed seal keeps a failed record and all outputs.
+        record["status"] = "failed"
+        record["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        save_record()
+        raise
+    return record, manifest
+
+
+def main(argv=None, *, repo=REPO):
+    """REWRITE-KIT, REWRITE-DECODE: freeze a local plan or execute one first pass."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    commands = parser.add_subparsers(dest="command", required=True)
+    plan = commands.add_parser("plan", help="freeze the inputs and render before R0")
+    plan.add_argument("--build", type=Path, required=True)
+    plan.add_argument("--folded-prompt", type=Path, required=True)
+    plan.add_argument("--out", type=Path, required=True)
+    run = commands.add_parser("run", help="record the first rewrite for all 100 inputs")
+    run.add_argument("--plan", type=Path, required=True)
+    run.add_argument("--out", type=Path, required=True)
+    run.add_argument("--procedure", choices=("r0", "r1", "r2"), required=True)
+    run.add_argument("--epoch", type=int, default=0)
+    run.add_argument("--adapter", type=Path)
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "plan":
+            record, manifest = freeze_plan(args.build, args.folded_prompt, args.out,
+                                            repo=repo)
+            result = {"denominator": record["denominator"],
+                      "review_sample": record["review_sample"]}
+        else:
+            record, manifest = run_score(args.plan, args.out, procedure=args.procedure,
+                                         epoch=args.epoch, adapter=args.adapter,
+                                         repo=repo)
+            result = {"status": record["status"], "passed": record["checks"]["passed"]}
+    except (mf.ManifestError, loader.LoadError, OSError, KeyError, TypeError,
+            IndexError, ValueError, RuntimeError) as exc:
+        print(f"{args.command}: stopped: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps({**result, "tree_hash": manifest.tree_hash}))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
