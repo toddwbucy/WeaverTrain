@@ -1,8 +1,8 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Proposal for the seed check. The procedure sizes keep their approval.
+**Status:** Approved in PR 26. The procedure sizes keep their approval.
 
-**Version:** 0.2 **Date:** 2026-11-03 **Parent:** `docs/decisions.md`
+**Version:** 0.2 **Date:** 2026-11-04 **Parent:** `docs/decisions.md`
 
 **Language:** STE100. Use `ste/` at `ab63a918b569e5b8673dc2e78e66575ee9df1bd7`.
 Add no words to that tree. Use `scripts/ste_check.py` with limits of 20 and 25 words.
@@ -349,6 +349,7 @@ RENDER-SEED supplies the system bytes for generation.
 Use the model text after the same removal of outer whitespace as `ste_kit_run.py`.
 Do not change the text or its case to increase a score.
 An absent output or an output stopped by the token limit is a failure.
+An empty output, or an output with only whitespace, is an absent output.
 Keep its raw output in the record and do not write its ID to the scorer's output file.
 The scorer then records that ID as missing in its denominator of 100.
 Reject duplicate or unknown output IDs before the scorer reads them.
@@ -486,6 +487,7 @@ another bin.
 - **REWRITE-KIT, REWRITE-DECODE:** Both base and adapter paths use the same 100 inputs
   and fit checks.
 - **REWRITE-CHECK:** Missing and truncated outputs stay failures out of 100.
+  Empty outputs and outputs with only whitespace must count as missing.
   Reject duplicate and unknown IDs. Compare results with the unchanged scorer.
   A missing or changed approved-verbs file must stop the procedure before the scorer
   reads it.

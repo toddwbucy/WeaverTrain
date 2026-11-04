@@ -14,3 +14,9 @@ kit_500_source = "1e80e935c0008e0ca44dd9af633f3f0c29678f1799d0cb62d816102ca4ff48
 grouped_instruction = "ab4d2d8a87a434f976a19ea7b470e14f1fb37125f61b4188521ff0cd0fb26d2f"
 single_text_bundle = "e21370fcd140a4bb5e7a0d2dd415c58d8ecead9333a9e730adb66ab96e7a851c"
 system_text = "0a42709ebe47ef8f17d728921b8bd802e0bf1466fced8d020b0b3c6dec6aa701"
+# PAIR-BALANCE, RENDER-OUTPUT: approved ordered selections from section 11.
+r1_ordered_ids = "9c8afa63abc7d4aa9652a4dfcb04f66fadfe97c81dc29a37f094f8782c2371d2"
+r2_ordered_ids = "8cde3c1cbd5c8cb5c8cb288d24fe9d9f038fece32e2983f81c9edada380c9a21"
+# REWRITE-REVIEW: the approved prompt must land with the issue 15 plan before review.
+meaning_review_prompt = """
+c18b9dea736f81fea6225d1e096e54a1d6d8840805085fb542c62b4a32f9e112"""

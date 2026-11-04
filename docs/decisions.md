@@ -3,6 +3,135 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: bind builds to the plan and leave producer seals for later work
+
+The operator directed the executor to fix item D and defer item E in PR 27.
+The [executor receipt][rewriter-decision-de] records that instruction.
+The items are from the [CodeRabbit review][rewriter-review-de] and
+[review-seat return][rewriter-return-de]. This entry and the D fix share one commit.
+
+Under REWRITE-RECORD, each build must have the same commit as the clean plan checkout.
+Check the build record before the plan is made.
+Check the adapter's training build before the model is loaded for its score.
+Reject a build with a different revision or dirty state, or without a known commit.
+Each path has its own rejection text and keeps no success manifest on failure.
+Redo the R1 build from the clean plan commit before training.
+That build uses the tokenizer and does not load model weights.
+
+Item E stays later work. The trainer stays unchanged in PR 27.
+The trainer's final `run.json` has no manifest that seals its bytes after training.
+An edit before the first adapter score can change the producer claims.
+The score's `run_sha256` records the bytes read at score time.
+The report checks that hash for later changes, but cannot close the earlier interval.
+Score each adapter soon after its authorized training procedure and keep the producer
+record unchanged. This rule does not seal the interval before the first score.
+
+The later change must write a training-output manifest after the final `run.json` write.
+The scorer must check that manifest and use the captured producer bytes.
+That change needs separate authority for the trainer and its tests.
+No trainer change or new procedure is authorized by this deferral.
+
+[rewriter-decision-de]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6640982784
+[rewriter-review-de]: https://github.com/toddwbucy/WeaverTrain/pull/27#pullrequestreview-5774316449
+[rewriter-return-de]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6639896839
+
+## 2026-11-04: check the environment before each rewriter procedure
+
+The [operator decision][rewriter-env-ruling] answers the
+[executor request][rewriter-env-request] and item C in the
+[CodeRabbit review][rewriter-env-review]. The [record directive][rewriter-env-record]
+says to add this entry before PR 27 merges.
+
+No environment check is added to the score code in PR 27.
+`environment_sha256` stays the hash of `environment.lock`.
+A code check is later work if a procedure shows an environment change.
+
+Before each authorized `plan` and `run`, use
+`scripts/setup-env.sh --only verify --reverify` from the run checkout.
+This applies to R0 twice, then R1.
+The command checks installed files and does the kernel checks again.
+Do not use the `lock` stage alone. It does not do the kernel checks.
+Record each verification check in the issue 21 log beside its procedure.
+Record the commit, UTC time and result.
+On a failure, stop and report.
+Do not use `plan` or `run`, or score, until the operator rules.
+
+Review item A adds no filter on `target_round`.
+PAIR-TARGET keeps the final accepted target of each ID.
+PAIR-REPAIRS holds back only repair conversations.
+The approved pins and selections stay unchanged.
+
+Each `plan` and `run` must use a clean, committed checkout at the plan's commit.
+This follows requests 1, 3 and 5 of the combined review.
+File the R0 report from a checkout other than the `run` checkout, or after the last
+R1 score.
+
+[rewriter-env-ruling]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6639297550
+[rewriter-env-request]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6638467634
+[rewriter-env-review]: https://github.com/toddwbucy/WeaverTrain/pull/27#pullrequestreview-5773404099
+[rewriter-env-record]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6639327892
+
+## 2026-11-04: use the approved prompt and resume the rewriter stack
+
+The operator's [final prompt ruling][final-prompt] selects the approved folded
+prompt for R0, R1 and R2 of the first rewriter series. Its SHA256 stays
+`0fe2ee35a59f6b1e30734af4d7a72e32bd6dbc0e728abc98e32e2c609dad07ed`.
+The first adapter starts the bootstrap. The loop can check and retry its misses.
+The rules stay in the editable prompt. A shorter prompt is a later decision.
+
+The A/B comparison is cancelled, including its separate measurement PR.
+This supersedes [the comparison ruling][cancelled-ab] and
+[the measurement directive][cancelled-measurement], except the empty-output rule.
+The full-word candidate stays local as the record of the completed measurement.
+It is not approved for use. Any return to it requires a new ruling.
+
+PRs 27 through 30 resume their existing scope and review flow.
+Close the review requests and pass the gates on each child.
+The operator merges the children into the stack. Root PR 27 stays draft until
+the combined review, then is undrafted once for the final review.
+Only the operator merges. R0 uses A twice from merged main after the stack merges.
+Complete the fixed 30-source meaning review with seed 2031 and the R0 report.
+The repair-training cell stays open until that report.
+R1 remains 200 pairs, two epochs and seed 0, followed by a stop and report.
+R2 still waits for the operator's go.
+
+The shared writer in PR 28 treats empty first outputs as absent after outer
+whitespace removal. It omits them from scorer input, retains their raw records
+and reports the empty count for each pass. The frozen scorer counts them as
+missing in the denominator of 100. Truncated outputs remain withheld.
+The Spec and its section 9 tests state this rule. The frozen checker is unchanged.
+
+The [review reproduction][empty-reproduction] supplied 100 synthetic empty outputs.
+The frozen scorer accepted three: t016, t040 and t083.
+These were not observed model responses. No rewriter R0 pass had run.
+
+[final-prompt]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6633945372
+[cancelled-ab]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6632737374
+[cancelled-measurement]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6633220971
+[empty-reproduction]: https://github.com/toddwbucy/WeaverTrain/pull/28#issuecomment-6634079450
+
+## 2026-11-04: local rewriter training precedes loop seed verification
+
+The operator accepted [PR 26][rewriter-seed-timing] by merging it on 2026-11-04.
+The merge is `57579afa7caf495c6cb987a33cb9c1fc83b36be6`.
+The approved folded file and its section 11 hash suffice for local build, R0 and R1.
+This supersedes the seeded-save-point requirement in the 2026-11-03 rewriter entry
+for those local procedures and the build hold in [issue 17][build-hold].
+Keep the older entry as the record of the earlier ruling.
+
+The seed record and joint token check remain mandatory before loop use.
+The seed must report the hash computed from inserted bytes, with the identities
+required by REWRITE-RECONCILE. A mismatch stops loop use and needs an operator ruling.
+Preserve the local records even if the later check does not pass.
+This timing change allows local training work to proceed before the loop is ready.
+
+R0 still runs twice, with meaning review before the repair-data decision and R1.
+R1 remains 200 pairs for two epochs, followed by a stop and report.
+R2 still needs the operator's instruction. No training values or data pins change.
+
+[rewriter-seed-timing]: https://github.com/toddwbucy/WeaverTrain/pull/26
+[build-hold]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6614461171
+
 ## 2026-11-03: the first adapter rewrites text with the full loop prompt
 
 The operator's [ruling on issue 17][rewriter-ruling],

@@ -150,9 +150,9 @@ def test_rewrite_decode_finish_reason_at_budget_and_empty_stop(world, ending):
         row["token_ids"] if ending == "length" else row["token_ids"][:-1])
     retained, scorer_rows = score.prepare_outputs(world.kit, [row])
     assert retained[0]["raw"] == row and len(retained) == 100
-    assert bool(scorer_rows) is (ending != "length")
+    assert bool(scorer_rows) is (ending == "boundary_stop")
     if ending == "empty_stop":
-        assert row["output"] == "" and scorer_rows == [{"id": "s000", "output": ""}]
+        assert row["output"] == "" and scorer_rows == []
 
 
 @pytest.mark.parametrize("end", [None, -1, True, 1])
