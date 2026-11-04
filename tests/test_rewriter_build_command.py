@@ -228,3 +228,14 @@ def test_build_command_refuses_unapproved_selection(command):
         build.write_build(command.pairs, command.folded, "r2", command.out,
                            repo=command.repo)
     assert not command.out.exists()
+
+
+@pytest.mark.parametrize("source", ["model", "pairs"])
+def test_build_command_preserves_input_directory(command, source):
+    """REWRITE-LIMITS, RENDER-OUTPUT: refuse output within either verified tree."""
+    directory = command.model if source == "model" else command.pairs
+    command.out = directory / "build"
+    before = mf.build_tree(directory, "model", "fixture").tree_hash
+    assert invoke(command) == 2
+    assert not command.out.exists()
+    assert mf.build_tree(directory, "model", "fixture").tree_hash == before

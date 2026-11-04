@@ -613,6 +613,10 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     """RENDER clauses: write the approved selection, masks and immutable identities."""
     require(procedure in PROCEDURES, "RENDER-OUTPUT: unknown procedure selection")
     out, manifest_path = fresh_build_output(out_dir, repo)
+    pair_root = Path(pair_dir).resolve()
+    require(out != pair_root and pair_root not in out.parents and
+            out not in pair_root.parents,
+            "RENDER-OUTPUT: output overlaps the pair directory")
     evidence = Evidence(repo)
     pins = tomllib.loads(evidence.read("config/rewriter-inputs.toml").decode())
     folded = Path(folded_path).read_bytes()
@@ -624,6 +628,11 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
             and selection["ordered_ids_sha256"] == pins[f"{procedure}_ordered_ids"],
             "PAIR-BALANCE: selection needs an operator decision")
     tokenizer, model_manifest, model_dir, model_hash = build_tokenizer(evidence)
+    # REWRITE-LIMITS: never create build files inside or around the reference tree.
+    model_root = model_dir.resolve()
+    require(out != model_root and model_root not in out.parents and
+            out not in model_root.parents,
+            "REWRITE-LIMITS: output overlaps the reference model directory")
     template_hash = digest(tokenizer.get_chat_template().encode("utf-8"))
     record = {
         "schema": "weaver-train/rewriter-build/v1", "spec": "0.2",
