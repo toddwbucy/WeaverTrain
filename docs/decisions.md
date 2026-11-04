@@ -19,7 +19,6 @@ Before each authorized `plan` and `run`, use
 This applies to R0 twice, then R1.
 The command checks installed files and does the kernel checks again.
 Do not use the `lock` stage alone. It does not do the kernel checks.
-The lock comparison alone cannot show a changed installed file.
 Record each verification check in the issue 21 log beside its procedure.
 Record the commit, UTC time and result.
 On a failure, stop and report.
