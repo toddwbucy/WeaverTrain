@@ -544,14 +544,69 @@ def validate_loaded_plan(plan, kit, entries, folded, loaded, *, repo):
     require(plan["sampler"] == sampler, "REWRITE-DECODE: frozen sampler differs")
 
 
-def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None, repo=REPO):
+def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, repo):
+    """REWRITE-CONFIG, REWRITE-RECORD: bind an epoch adapter to its completed train."""
+    raw = (adapter.parent / "run.json").read_bytes()
+    producer = mf.RunRecord(**json.loads(raw))
+    producer.validate()
+    require(producer.schema == mf.RUN_SCHEMA and producer.kind == "train" and
+            producer.status == "completed" and producer.precision == "bf16",
+            "REWRITE-RECORD: a completed bf16 training record is required")
+    require(producer.model == {"name": build.MODEL, "tree_hash": plan["tree_hash"]},
+            "REWRITE-RECORD: adapter producer used a different base model")
+    directory, data_manifest, data_sha = artifact(training_build)
+    require(data_manifest.kind == "dataset" and
+            data_manifest.name == "ste-rewriter-build",
+            "REWRITE-RECORD: adapter needs a rewriter training build")
+    build_bytes = captured_file(directory, data_manifest, "build.json")
+    record = json.loads(build_bytes)
+    require(record["schema"] == "weaver-train/rewriter-build/v1" and
+            record["status"] == "completed" and record["render_only"] is False and
+            record["procedure"] == procedure,
+            "REWRITE-RECORD: adapter training procedure differs")
+    require_fields(record, plan)
+    require(record["folded_prompt"] == plan["folded_prompt"] and
+            record["prompt_provenance"] == plan["prompt_provenance"],
+            "RENDER-SEED: adapter training prompt differs")
+    pins = tomllib.loads((repo / "config/rewriter-inputs.toml").read_text())
+    require(record["counts"]["pairs"] == build.PROCEDURES[procedure] and
+            record["selection"]["ordered_ids_sha256"] ==
+            pins[f"{procedure}_ordered_ids"],
+            "PAIR-BALANCE: adapter training selection differs")
+    train_sha = build.digest(captured_file(directory, data_manifest, "train.jsonl"))
+    expected_data = {"sha256": train_sha, "build_sha256": build.digest(build_bytes),
+                     "rows": record["counts"]["pairs"],
+                     "assistant_tokens": record["counts"]["final_target_tokens"]}
+    require(isinstance(producer.dataset, dict) and
+            all(producer.dataset.get(key) == value
+                for key, value in expected_data.items()),
+            "REWRITE-RECORD: adapter producer used a different training build")
+    config_bytes = (repo / "config/rewriter-train.toml").read_bytes()
+    config = tomllib.loads(config_bytes.decode())
+    require(producer.config == config and producer.seed == config["train"]["seed"],
+            "REWRITE-CONFIG: adapter training values differ")
+    epochs = [entry for entry in producer.results["epoch_adapters"]
+              if type(entry["epoch"]) is int and entry["epoch"] == epoch]
+    require(len(epochs) == 1 and epochs[0]["tree_hash"] == manifest.tree_hash,
+            "REWRITE-CONFIG: requested epoch does not identify this adapter")
+    return {"run_id": producer.run_id, "run_sha256": build.digest(raw),
+            "build_tree_hash": data_manifest.tree_hash,
+            "build_manifest_sha256": data_sha, **expected_data,
+            "config_sha256": build.digest(config_bytes),
+            "procedure": procedure, "epoch": epoch}
+
+
+def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
+              training_build=None, repo=REPO):
     """REWRITE-DECODE, REWRITE-CHECK, REWRITE-RECORD: retain one complete first pass."""
     import torch
 
     started = time.monotonic()
-    require((procedure == "r0" and adapter is None and epoch == 0) or
-            (procedure in ("r1", "r2") and adapter is not None and epoch in (1, 2)),
-            "REWRITE-ORDER: R0 has no adapter, later scores name an epoch adapter")
+    require((procedure == "r0" and adapter is None and epoch == 0 and
+             training_build is None) or
+            (procedure in ("r1", "r2") and adapter is not None and epoch in (1, 2)
+             and training_build is not None),
+            "REWRITE-ORDER: adapter scores need an epoch and its training build")
     plan, kit, entries, folded, plan_tree, plan_sha = read_plan(plan_dir, repo=repo)
     model_manifest_path = loader.manifest_path_for(build.MODEL)
     model_manifest = mf.load_tree(model_manifest_path)
@@ -564,7 +619,9 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None, repo=REPO)
     require(model_manifest.tree_hash == plan["tree_hash"],
             "REWRITE-DECODE: model manifest differs from frozen plan")
     model_dir = loader.resolve_dir(model_manifest)
-    inputs = [plan_dir, model_dir] + ([adapter] if adapter is not None else [])
+    inputs = [plan_dir, model_dir]
+    if adapter is not None:
+        inputs.extend((adapter, training_build))
     out, manifest_path = fresh_score_output(out_dir, repo=repo, inputs=inputs)
     record = {"schema": "weaver-train/rewriter-run/v1", "run_id": uuid4().hex,
               "created_at": datetime.now(timezone.utc).isoformat(),
@@ -606,11 +663,15 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None, repo=REPO)
         adapter_manifest, adapter_path, adapter_sha = None, None, None
         if adapter is not None:
             adapter_path, adapter_manifest, adapter_sha = artifact(adapter)
-            require({entry.path for entry in adapter_manifest.files} >=
+            require(adapter_manifest.kind == "model" and
+                    {entry.path for entry in adapter_manifest.files} >=
                     {"adapter_config.json", "adapter_model.safetensors"},
                     "REWRITE-DECODE: adapter files are missing")
             record["adapter"] = {"tree_hash": adapter_manifest.tree_hash,
-                                 "manifest_sha256": adapter_sha}
+                                 "manifest_sha256": adapter_sha,
+                                 "producer": adapter_producer(
+                                     adapter_path, adapter_manifest, training_build,
+                                     procedure, epoch, plan, repo)}
         loaded = loader.load(build.MODEL, path=model_dir,
                              manifest_path=model_manifest_path, device_map="balanced")
         validate_loaded_plan(plan, kit, entries, folded, loaded, repo=repo)
@@ -643,11 +704,16 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None, repo=REPO)
         final_plan = read_plan(plan_dir, repo=repo)
         require(final_plan[4:] == (plan_tree, plan_sha),
                 "REWRITE-RECORD: plan changed during generation")
+        mf.require_tree(model_manifest, model_dir)
         if adapter_path is not None:
             _, after, after_sha = artifact(adapter_path)
             require(after.tree_hash == adapter_manifest.tree_hash and
                     after_sha == adapter_sha,
                     "REWRITE-DECODE: adapter changed during generation")
+            require(adapter_producer(adapter_path, after, training_build,
+                                     procedure, epoch, plan, repo) ==
+                    record["adapter"]["producer"],
+                    "REWRITE-RECORD: adapter producer changed during generation")
         record["segments_sha256"] = mf.sha256_file(out / "segments.jsonl")
         record["status"] = "completed"
     except BaseException as exc:
@@ -689,6 +755,7 @@ def main(argv=None, *, repo=REPO):
     run.add_argument("--procedure", choices=("r0", "r1", "r2"), required=True)
     run.add_argument("--epoch", type=int, default=0)
     run.add_argument("--adapter", type=Path)
+    run.add_argument("--training-build", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -699,7 +766,7 @@ def main(argv=None, *, repo=REPO):
         else:
             record, manifest = run_score(args.plan, args.out, procedure=args.procedure,
                                          epoch=args.epoch, adapter=args.adapter,
-                                         repo=repo)
+                                         training_build=args.training_build, repo=repo)
             result = {"status": record["status"], "passed": record["checks"]["passed"]}
     except (mf.ManifestError, loader.LoadError, OSError, KeyError, TypeError,
             IndexError, ValueError, RuntimeError) as exc:

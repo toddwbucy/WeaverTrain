@@ -3,6 +3,7 @@
 import json
 import random
 import sys
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,7 +23,10 @@ def command(world, tokenizer, tmp_path, monkeypatch):
 
     world.pins["grouped_instruction"] = score.build.digest(b"fixture grouped prompt")
     world.pins["meaning_review_prompt"] = score.build.digest(b"fixture review prompt")
+    world.pins["r1_ordered_ids"] = score.build.digest(b"fixture ordered pairs")
     save_pins(world)
+    (world.repo / "config/rewriter-train.toml").write_bytes(
+        (score.REPO / "config/rewriter-train.toml").read_bytes())
     for name in ("ste_check", "ste_convert", "ste_experiment", "ste_score",
                  "ste_prompt", "ste_kit_run"):
         path = world.repo / "scripts" / (name + ".py")
@@ -44,7 +48,10 @@ def command(world, tokenizer, tmp_path, monkeypatch):
     build_dir = tmp_path / "build"
     build_dir.mkdir()
     record = {"schema": "weaver-train/rewriter-build/v1", "status": "completed",
-              "render_only": False, "tree_hash": model_manifest.tree_hash,
+              "render_only": False, "procedure": "r1",
+              "counts": {"pairs": 200, "final_target_tokens": 400},
+              "selection": {"ordered_ids_sha256": world.pins["r1_ordered_ids"]},
+              "tree_hash": model_manifest.tree_hash,
               "template_hash": score.build.digest(
                   tokenizer.get_chat_template().encode()),
               "tools": False, "enable_thinking": False, "max_seq_length": 49152,
@@ -246,20 +253,28 @@ def test_rewrite_run_retains_seal_failure(command, monkeypatch):
     assert record["failure"]["message"] == "fixture seal failed"
 
 
-@pytest.mark.parametrize("changed", [False, True])
-def test_rewrite_run_verifies_adapter_before_attachment(command, monkeypatch, changed):
-    """REWRITE-DECODE: only a verified adapter reaches the shared first-pass path."""
+@pytest.fixture
+def trained(command, monkeypatch):
+    """REWRITE-RECORD: a synthetic record with the unchanged trainer's field layout."""
     from peft import PeftModel
 
-    assert make_plan(command) == 0
-    adapter = command.out.parent / "adapter"
-    adapter.mkdir()
+    adapter = command.out.parent / "training" / "adapter-epoch-1"
+    adapter.mkdir(parents=True)
     (adapter / "adapter_config.json").write_text('{}\n')
     (adapter / "adapter_model.safetensors").write_bytes(b"fixture adapter")
     manifest = mf.build_tree(adapter, "model", "fixture-adapter")
-    manifest.save(adapter.with_name("adapter.manifest.json"))
-    if changed:
-        (adapter / "adapter_model.safetensors").write_bytes(b"changed")
+    manifest.save(adapter.with_name(adapter.name + ".manifest.json"))
+    producer = mf.RunRecord(
+        kind="train", seed=0, status="completed",
+        model={"name": score.build.MODEL, "tree_hash": command.loaded.tree_hash},
+        dataset={"sha256": mf.sha256_file(command.build / "train.jsonl"),
+                 "build_sha256": mf.sha256_file(command.build / "build.json"),
+                 "rows": 200, "assistant_tokens": 400},
+        config=tomllib.loads((command.repo / "config/rewriter-train.toml").read_text()),
+        results={"epoch_adapters": [{"epoch": 1, "tree_hash": manifest.tree_hash},
+                                    {"epoch": 2, "tree_hash": "second-epoch"}]})
+    producer_path = adapter.parent / "run.json"
+    producer.save(producer_path)
     attached = []
 
     def attach(model, path, **options):
@@ -269,19 +284,83 @@ def test_rewrite_run_verifies_adapter_before_attachment(command, monkeypatch, ch
 
     monkeypatch.setattr(PeftModel, "from_pretrained", attach)
     monkeypatch.setattr(loader, "pin_layer_devices", lambda model: 0)
-    status = score.main(["run", "--plan", str(command.plan), "--out", str(command.out),
-                         "--procedure", "r1", "--epoch", "1",
-                         "--adapter", str(adapter)],
-                        repo=command.repo)
+    return SimpleNamespace(adapter=adapter, manifest=manifest, producer=producer,
+                           producer_path=producer_path, attached=attached)
+
+
+def score_adapter(command, trained, *options):
+    """REWRITE-DECODE: name both the epoch artifact and the verified training input."""
+    return score.main(["run", "--plan", str(command.plan), "--out", str(command.out),
+                       "--procedure", "r1", "--epoch", "1",
+                       "--adapter", str(trained.adapter),
+                       "--training-build", str(command.build), *options],
+                      repo=command.repo)
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_rewrite_run_verifies_adapter_before_attachment(command, trained, changed):
+    """REWRITE-DECODE: only a verified adapter reaches the shared first-pass path."""
+    assert make_plan(command) == 0
+    if changed:
+        (trained.adapter / "adapter_model.safetensors").write_bytes(b"changed")
+    status = score_adapter(command, trained)
     assert status == (2 if changed else 0)
     if changed:
-        assert not attached and not command.decoded
+        assert not trained.attached and not command.decoded
     else:
         record = json.loads((command.out / "run.json").read_text())
-        assert record["adapter"]["tree_hash"] == manifest.tree_hash
+        assert record["adapter"]["tree_hash"] == trained.manifest.tree_hash
+        assert record["adapter"]["producer"]["run_sha256"] == mf.sha256_file(
+            trained.producer_path)
         assert record["procedure"] == "r1" and record["epoch"] == 1
-        assert attached == [(str(adapter), {"is_trainable": False,
-                                            "local_files_only": True})]
+        assert trained.attached == [(str(trained.adapter), {"is_trainable": False,
+                                                            "local_files_only": True})]
+
+
+@pytest.mark.parametrize("change", ["procedure", "epoch", "model", "data", "config",
+                                    "incomplete", "missing"])
+def test_rewrite_run_rejects_wrong_adapter_producer(command, trained, change):
+    """REWRITE-CONFIG, REWRITE-RECORD: a valid adapter cannot be mislabeled."""
+    assert make_plan(command) == 0
+    options = []
+    if change == "procedure":
+        options = ["--procedure", "r2"]
+    elif change == "epoch":
+        options = ["--epoch", "2"]
+    elif change == "model":
+        trained.producer.model["tree_hash"] = "another-model"
+    elif change == "data":
+        trained.producer.dataset["sha256"] = "another-build"
+    elif change == "config":
+        trained.producer.config["train"]["num_train_epochs"] = 1
+    elif change == "incomplete":
+        trained.producer.status = "started"
+    trained.producer.save(trained.producer_path)
+    if change == "missing":
+        trained.producer_path.unlink()
+    assert score_adapter(command, trained, *options) == 2
+    assert not trained.attached and not command.calls and not command.decoded
+    record = json.loads((command.out / "run.json").read_text())
+    assert record["status"] == "failed" and record["completed_ids"] == []
+    assert not command.out.with_name("run.manifest.json").exists()
+
+
+def test_rewrite_run_rejects_producer_change(command, trained, monkeypatch):
+    """REWRITE-RECORD: producer provenance must remain fixed through generation."""
+    assert make_plan(command) == 0
+
+    def changed_producer(loaded, kit, folded, **kwargs):
+        """REWRITE-RECORD: alter a valid record after attachment."""
+        trained.producer.run_id = "changed-run"
+        trained.producer.save(trained.producer_path)
+        yield from outputs_for(kit)
+
+    monkeypatch.setattr(score, "decode_outputs", changed_producer)
+    assert score_adapter(command, trained) == 2
+    record = json.loads((command.out / "run.json").read_text())
+    assert record["status"] == "failed" and len(record["completed_ids"]) == 100
+    assert "producer changed" in record["failure"]["message"]
+    assert not command.out.with_name("run.manifest.json").exists()
 
 
 def test_rewrite_commands_preserve_reference_tree(command):
@@ -291,3 +370,20 @@ def test_rewrite_commands_preserve_reference_tree(command):
     assert make_plan(command) == 2
     assert not command.plan.exists()
     assert mf.build_tree(command.model, "model", "fixture").tree_hash == before
+
+
+def test_rewrite_run_rejects_model_change_during_generation(command, monkeypatch):
+    """REWRITE-RECORD: a changed model tree cannot receive a successful run seal."""
+    assert make_plan(command) == 0
+
+    def changed_model(loaded, kit, folded, **kwargs):
+        """REWRITE-LIMITS: alter one fixture file after the model-load boundary."""
+        (command.model / "weights.bin").write_bytes(b"changed")
+        yield from outputs_for(kit)
+
+    monkeypatch.setattr(score, "decode_outputs", changed_model)
+    assert run(command) == 2
+    record = json.loads((command.out / "run.json").read_text())
+    assert record["status"] == "failed" and len(record["completed_ids"]) == 100
+    assert "tree does not match" in record["failure"]["message"]
+    assert not command.out.with_name("run.manifest.json").exists()
