@@ -1,8 +1,8 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Procedure sizes approved on 2026-11-03. The seed record is still required.
+**Status:** Proposal for the seed check. The procedure sizes keep their approval.
 
-**Version:** 0.1 **Date:** 2026-11-03 **Parent:** `docs/decisions.md`
+**Version:** 0.2 **Date:** 2026-11-03 **Parent:** `docs/decisions.md`
 
 **Language:** STE100. Use `ste/` at `ab63a918b569e5b8673dc2e78e66575ee9df1bd7`.
 Add no words to that tree. Use `scripts/ste_check.py` with limits of 20 and 25 words.
@@ -187,10 +187,12 @@ The operator must review the folded file before the seed.
 Record its SHA256 as `folded_prompt` in section 11 before a training data record or R0.
 Import no code from WeaverAgent.
 
-Before you make a training data record, get the loop's seeded save point.
-Read its exact system bytes through the agreed loop record.
-They must equal the pinned folded file's bytes.
-Do not replace the saved system bytes with the file alone.
+Before you make a training data record, check the folded file against its section 11
+hash.
+After this check, use the file bytes for the training data record, R0 and R1.
+The loop's seeded save point is not required for those procedures.
+This file check does not show which bytes the loop uses.
+The seed check is required before loop use under REWRITE-RECONCILE.
 The folded prompt is the render identity.
 Keep its hash and the three source hashes of PAIR-PROVENANCE in different fields.
 Also record the complete initial message-list hash in a different field.
@@ -199,9 +201,9 @@ reference does.
 For message-list hashes, use UTF-8 JSON with `ensure_ascii=True`.
 Set `separators=(",", ":")` and use no final LF.
 Each message has `role` then `content`, with no other field.
-If saved bytes or layout are different, stop and request an operator decision.
-The absence of a save point does not stop pair checks or this Spec review.
-Do not make a training data record or start the new R0 without that save point.
+If the file hash or layout is different, stop and request an operator decision.
+The absence of a seed record does not stop data preparation, R0 or R1.
+Follow the procedure sequence and decisions in REWRITE-ORDER.
 
 **RENDER-MASK.** Give loss to the final target, its end-of-turn token and the LF after
 that token.
@@ -402,6 +404,8 @@ It also holds wall time, GPU memory, accepted totals, review of the sense and
 exclusions.
 A procedure with a failure records its completed IDs and its failure.
 Do not replace the record of the failure with a successful record.
+Record whether the seed check and joint token check are complete.
+Keep their later results in a different record.
 
 Use a new deposit in `weaver-testing/` with a README and `SHA256SUMS`.
 Keep inputs, accepted pairs, repair records, plans, outputs, adapters and logs outside
@@ -418,6 +422,18 @@ merged workflow.
 This Spec gives that repository no new authority.
 Keep the current RECONCILE-FIELDS names and meanings from Spec 0.3.
 The rewriter data record supplies the values for this adapter.
+
+Before loop use, get the seed record from WeaverAgent issue 449.
+Check the SHA256 that the seed calculated from the inserted prompt bytes.
+It must equal the `folded_prompt` hash in the training data record and section 11.
+Do not use a hash copied only from the certificate.
+Record the seed artifact identity, save point identity and digest, certificate digest
+and operator review reference.
+Equal hashes show that the prompt bytes are equal.
+No export of the prompt bytes is required.
+Stop loop use if the record is absent, incomplete or different.
+Do not change a training data record or its prompt to make the hashes equal.
+If this check is not satisfactory, keep its record and request an operator decision.
 
 Use one held-out input with placeholders to write one complete initial message list.
 Both sides use those same message-list bytes.
@@ -450,7 +466,9 @@ another bin.
 - **RENDER-LAYOUT, RENDER-SEED:** Check the folded system message, user wrapper,
   LF bytes, tool absence and absence of separate example messages.
   Check the folded prompt hash and its three source prompt hashes without interchange.
-  Missing or different saved bytes stop the training data record.
+  Missing or different folded file bytes stop the training data record.
+  The absence of a seed record does not stop the `build` command with the approved
+  folded file.
 - **RENDER-MASK:** Compare the final-target token span with the mask.
   Only the target, end-of-turn token and template's final LF have a mask value of 1.
   The system, with all examples, the user input and the final assistant header have
@@ -479,6 +497,8 @@ another bin.
   a completed directory.
 - **REWRITE-RECONCILE:** Record the two real token sequences and compare them in the
   joint check.
+  Stop loop use if the seed record is absent, incomplete or has a different prompt hash.
+  Check the seed record and the file hash in different steps.
   A unit test does not replace that measurement.
 
 The current independence tests continue to apply.
@@ -512,11 +532,11 @@ implementation.
 **Loop capture and conversion.** Open for the joint work with WeaverAgent.
 The operator reviewed the folded file on 2026-11-03.
 The seed record work is in [WeaverAgent issue 449][seed-record].
-The reader PR must change RENDER-SEED for the comparison in the
-[operator decision][approvals].
-The record reader and the `build` command wait for that work.
+The record reader waits for that work.
+The `build` command, R0 and R1 use the approved file under RENDER-SEED.
+The seed record and the joint token check are required before loop use.
 No organ amendment is required for this layout.
-RENDER-SEED and REWRITE-RECONCILE close this cell with records.
+REWRITE-RECONCILE closes this cell with records.
 
 ## 11. Pinned identities and analysis
 
