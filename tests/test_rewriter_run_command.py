@@ -56,12 +56,15 @@ def command(world, tokenizer, tmp_path, monkeypatch):
     (world.repo / "config/models.toml").write_text(
         f'[models."{score.build.MODEL}"]\nrepo_id = "fixture"\n'
         'revision = "fixture-revision"\n')
+    (world.repo / "notes.md").write_text("Fixture documentation.\n")
+    commit_fixture(world.repo)
     monkeypatch.setattr(loader, "manifest_path_for", lambda name: model_manifest_path)
     monkeypatch.setattr(loader, "resolve_dir",
                         lambda manifest, path=None: Path(path) if path else model_dir)
     build_dir = tmp_path / "build"
     build_dir.mkdir()
     record = {"schema": "weaver-train/rewriter-build/v1", "status": "completed",
+              "commit": mf.git_commit(world.repo),
               "render_only": False, "procedure": "r1",
               "counts": {"pairs": 200, "final_target_tokens": 400},
               "selection": {"ordered_ids_sha256": world.pins["r1_ordered_ids"]},
@@ -110,7 +113,6 @@ def command(world, tokenizer, tmp_path, monkeypatch):
         yield from outputs_for(kit)
 
     monkeypatch.setattr(score, "decode_outputs", decode)
-    commit_fixture(world.repo)
     return SimpleNamespace(repo=world.repo, build=build_dir, folded=folded,
                            model=model_dir, loaded=loaded, calls=calls, decoded=decoded,
                            plan=tmp_path / "plan", out=tmp_path / "run",
@@ -320,9 +322,6 @@ def test_rewrite_run_requires_frozen_checkout_before_load(
 def test_rewrite_run_rechecks_checkout_before_completion(
         command, trained, monkeypatch, capsys, procedure, change):
     """REWRITE-RECORD: changed code cannot seal completed synthetic outputs."""
-    if change == "tracked":
-        (command.repo / "notes.md").write_text("Fixture documentation.\n")
-        commit_fixture(command.repo)
     assert make_plan(command) == 0
     planned = json.loads((command.plan / "plan.json").read_text())["commit"]
     decode = score.decode_outputs
@@ -333,7 +332,8 @@ def test_rewrite_run_rechecks_checkout_before_completion(
         if change == "non-git":
             (command.repo / ".git").rename(command.repo.with_name("unused-git"))
         else:
-            (command.repo / "notes.md").write_text("Fixture documentation change.\n")
+            name = "untracked.md" if change == "untracked" else "notes.md"
+            (command.repo / name).write_text("Fixture documentation change.\n")
             if change == "revision":
                 commit_fixture(command.repo)
 
@@ -359,11 +359,9 @@ def test_rewrite_run_rechecks_checkout_before_completion(
 def test_rewrite_plan_requires_known_clean_checkout(
         command, monkeypatch, capsys, change):
     """REWRITE-KIT, REWRITE-RECORD: a plan needs a known, clean code identity."""
-    if change == "tracked":
-        (command.repo / "notes.md").write_text("Fixture documentation.\n")
-        commit_fixture(command.repo)
     if change in ("tracked", "untracked"):
-        (command.repo / "notes.md").write_text("Changed fixture documentation.\n")
+        name = "untracked.md" if change == "untracked" else "notes.md"
+        (command.repo / name).write_text("Changed fixture documentation.\n")
         assert mf.git_commit(command.repo)["dirty"] is True
     elif change == "non-git":
         (command.repo / ".git").rename(command.repo.with_name("unused-git"))
@@ -709,6 +707,14 @@ def change_build(command, change):
         record[change] = True
     elif change == "max_seq_length":
         record[change] = 1024
+    elif change == "commit_revision":
+        record["commit"]["rev"] = "0" * 40
+    elif change == "commit_dirty":
+        record["commit"]["dirty"] = True
+    elif change == "commit_unknown":
+        record["commit"] = {"rev": None, "dirty": None}
+    elif change == "commit_missing":
+        record.pop("commit")
     path.write_text(json.dumps(record))
     manifest = mf.build_tree(command.build, "dataset", "ste-rewriter-build")
     if change == "kind":
@@ -716,6 +722,38 @@ def change_build(command, change):
     elif change == "name":
         manifest.name = "another-name"
     manifest.save(command.build.with_name("build.manifest.json"))
+
+
+@pytest.mark.parametrize("action", ["plan", "run"])
+@pytest.mark.parametrize("change", ["revision", "dirty", "unknown", "missing"])
+def test_rewrite_commands_require_build_checkout(command, trained, capsys, action, change):
+    """REWRITE-RECORD: valid artifact hashes cannot hide another build checkout."""
+    commit = mf.git_commit(command.repo)
+    assert commit["dirty"] is False
+    assert json.loads((command.build / "build.json").read_text())["commit"] == commit
+    if action == "run":
+        assert make_plan(command) == 0
+    change_build(command, "commit_" + change)
+    if action == "run":
+        trained.producer.dataset["build_sha256"] = mf.sha256_file(
+            command.build / "build.json")
+        trained.producer.save(trained.producer_path)
+    capsys.readouterr()
+    result = make_plan(command) if action == "plan" else score_adapter(command, trained)
+    assert result == 2
+    message = ("REWRITE-RECORD: build checkout differs from plan checkout"
+               if action == "plan" else
+               "REWRITE-RECORD: adapter training build checkout differs from frozen plan")
+    assert capsys.readouterr().err.strip() == f"{action}: stopped: {message}"
+    assert not command.calls and not command.decoded and not trained.attached
+    output = command.plan if action == "plan" else command.out
+    assert not output.with_name(output.name + ".manifest.json").exists()
+    if action == "plan":
+        assert not command.plan.exists()
+    else:
+        record = json.loads((command.out / "run.json").read_text())
+        assert record["status"] == "failed" and record["completed_ids"] == []
+        assert record["failure"]["message"] == message and record["commit"] == commit
 
 
 @pytest.mark.parametrize("change", ["failed", "render_only", "kind", "name",

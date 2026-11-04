@@ -443,6 +443,8 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
     require(record["schema"] == "weaver-train/rewriter-build/v1" and
             record["status"] == "completed" and not record["render_only"],
             "REWRITE-RECORD: a completed rewriter training build is required")
+    require(record.get("commit") == commit,
+            "REWRITE-RECORD: build checkout differs from plan checkout")
     folded = Path(folded_path).read_bytes()
     build.folded_system(folded, pins["folded_prompt"])
     require(record["folded_prompt"] == pins["folded_prompt"] and
@@ -573,6 +575,8 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
             record["status"] == "completed" and record["render_only"] is False and
             record["procedure"] == procedure,
             "REWRITE-RECORD: adapter training procedure differs")
+    require(record.get("commit") == plan["commit"],
+            "REWRITE-RECORD: adapter training build checkout differs from frozen plan")
     require_fields(record, plan)
     require(record["folded_prompt"] == plan["folded_prompt"] and
             record["prompt_provenance"] == plan["prompt_provenance"],

@@ -3,6 +3,38 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: bind builds to the plan and leave producer seals for later work
+
+The operator directed the executor to fix item D and defer item E in PR 27.
+The [executor receipt][rewriter-decision-de] records that instruction.
+The items are from the [CodeRabbit review][rewriter-review-de] and
+[review-seat return][rewriter-return-de]. This entry and the D fix share one commit.
+
+Under REWRITE-RECORD, each build must have the same commit as the clean plan checkout.
+Check the build record before the plan is made.
+Check the adapter's training build before the model is loaded for its score.
+Reject a build with a different revision or dirty state, or without a known commit.
+Each path has its own rejection text and keeps no success manifest on failure.
+Redo the R1 build from the clean plan commit before training.
+That build uses the tokenizer and does not load model weights.
+
+Item E stays later work. The trainer stays unchanged in PR 27.
+The trainer's final `run.json` has no manifest that seals its bytes after training.
+An edit before the first adapter score can change the producer claims.
+The score's `run_sha256` records the bytes read at score time.
+The report checks that hash for later changes, but cannot close the earlier interval.
+Score each adapter soon after its authorized training procedure and keep the producer
+record unchanged. This rule does not seal the interval before the first score.
+
+The later change must write a training-output manifest after the final `run.json` write.
+The scorer must check that manifest and use the captured producer bytes.
+That change needs separate authority for the trainer and its tests.
+No trainer change or new procedure is authorized by this deferral.
+
+[rewriter-decision-de]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6640982784
+[rewriter-review-de]: https://github.com/toddwbucy/WeaverTrain/pull/27#pullrequestreview-5774316449
+[rewriter-return-de]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6639896839
+
 ## 2026-11-04: check the environment before each rewriter procedure
 
 The [operator decision][rewriter-env-ruling] answers the
