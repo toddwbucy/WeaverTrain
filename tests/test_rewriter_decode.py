@@ -235,9 +235,13 @@ def test_rewrite_decode_base_and_adapter_share_100_inputs_on_split_model(
     monkeypatch.setattr(score, "reply_budget", lambda text: 2)
     outputs, prompts, devices_seen = [], [], set()
     for adapted in (False, True):
-        loaded = score.loader.load(path=model_dir, manifest_path=model_manifest,
-                                   device_map=SPLIT)
+        # REWRITE-LIMITS: the helper must establish its own layer device guards.
+        with monkeypatch.context() as unpinned_load:
+            unpinned_load.setattr(score.loader, "pin_layer_devices", lambda model: 0)
+            loaded = score.loader.load(path=model_dir, manifest_path=model_manifest,
+                                       device_map=SPLIT)
         assert loaded.devices == ["cuda:0", "cuda:1"]
+        assert loaded.pinned_layers == 0
         if adapted:
             adapter = tmp_path / "adapter"
             adapted_model = get_peft_model(loaded.model, LoraConfig(
@@ -269,12 +273,28 @@ def test_rewrite_decode_base_and_adapter_share_100_inputs_on_split_model(
             assert torch.cuda.current_device() == device
             devices_seen.add(device)
 
-        for name, module in loaded.model.named_modules():
-            if isinstance(module, torch.nn.ModuleList) and name.endswith("layers"):
-                for layer in module:
-                    layer.register_forward_pre_hook(observe_device)
+        layers = [layer for name, module in loaded.model.named_modules()
+                  if isinstance(module, torch.nn.ModuleList) and name.endswith("layers")
+                  for layer in module]
+        assert layers and all(not hasattr(layer, "_weaver_pinned_device") for layer in layers)
+        generate = loaded.model.generate
+        handles = []
+
+        def observe_generate(*args, **kwargs):
+            """REWRITE-LIMITS: register observers after the helper's pin opportunity."""
+            if not handles:
+                handles.extend(layer.register_forward_pre_hook(observe_device)
+                               for layer in layers)
+            return generate(*args, **kwargs)
+
+        monkeypatch.setattr(loaded.model, "generate", observe_generate)
         prompts.append(score.preflight(tok, kit, folded, repo=tmp_path))
+        torch.cuda.set_device(1)
         outputs.append(list(score.decode_outputs(loaded, kit, folded, repo=tmp_path)))
+        assert len(handles) == len(layers)
+        assert all(hasattr(layer, "_weaver_pinned_device") for layer in layers)
+        for handle in handles:
+            handle.remove()
         if adapted:
             assert all(not p.requires_grad for p in loaded.model.parameters())
         del loaded
