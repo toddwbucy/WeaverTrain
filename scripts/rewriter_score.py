@@ -199,7 +199,7 @@ def prepare_outputs(kit, outputs):
     for row in kit["rows"]:
         raw = indexed.get(row["id"])
         text = raw["output"].strip() if raw and raw["output"] is not None else None
-        included = text is not None and raw["finish_reason"] == "stop"
+        included = bool(text) and raw["finish_reason"] == "stop"
         retained.append({"id": row["id"], "raw": raw, "output": text,
                          "scorer_included": included})
         if included:
@@ -291,6 +291,7 @@ def check_outputs(kit, outputs, out_dir, *, repo=REPO):
                 "REWRITE-CHECK: per-ID results differ from the reference scorer")
         summary = {"schema": "weaver-train/rewriter-check/v1", "denominator": 100,
                    "passed": passed,
+                   "empty_outputs": sum(row["output"] == "" for row in retained),
                    "scorer_outputs": len(scorer_rows), "checker_inputs": evidence.files,
                    "kit_inputs": kit["inputs"], "input_sha256": kit["input_sha256"],
                    "literal_failure_segments": sum(bool(r["literal_failures"]) for r in checks)}

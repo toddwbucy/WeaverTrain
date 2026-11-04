@@ -159,6 +159,7 @@ def test_rewrite_run_keeps_complete_results_and_model_identity(command):
     assert record["checks"]["by_kind"]["narration"] == {"total": 90, "passed": 90}
     assert record["checks"]["by_bin"]["0"] == {"total": 37, "passed": 37}
     assert record["checks"]["failure_rules"] == {}
+    assert record["checks"]["empty_outputs"] == 0
     assert len(record["output_lengths"]) == 100
     assert record["peak_memory_bytes"] == {
         "0": {"allocated": 100, "reserved": 200},
@@ -169,6 +170,26 @@ def test_rewrite_run_keeps_complete_results_and_model_identity(command):
     original = (command.out / "run.json").read_bytes()
     assert run(command) == 2
     assert (command.out / "run.json").read_bytes() == original
+
+
+@pytest.mark.parametrize("text", ["", " \t\n "])
+def test_rewrite_run_records_empty_first_outputs(command, monkeypatch, text):
+    """REWRITE-CHECK, REWRITE-RECORD: each pass keeps its empty-output count."""
+    def decode(loaded, kit, folded, **kwargs):
+        """REWRITE-CHECK: one synthetic empty response ends with a stop."""
+        outputs = outputs_for(kit)
+        outputs[0]["output"] = text
+        yield from outputs
+
+    monkeypatch.setattr(score, "decode_outputs", decode)
+    assert make_plan(command) == 0 and run(command) == 0
+    record = json.loads((command.out / "run.json").read_bytes())
+    assert record["checks"]["empty_outputs"] == 1
+    assert record["checks"]["failure_rules"] == {"missing": 1}
+    assert record["checks"]["passed"] == 99
+    assert record["checks"]["denominator"] == 100
+    raw = json.loads((command.out / "segments.jsonl").read_bytes().splitlines()[0])
+    assert raw["output"] == text and raw["finish_reason"] == "stop"
 
 
 @pytest.mark.parametrize("change, message", [
