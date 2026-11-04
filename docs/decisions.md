@@ -3,6 +3,43 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: check the environment before each rewriter procedure
+
+The [operator decision][rewriter-env-ruling] answers the
+[executor request][rewriter-env-request] and item C in the
+[CodeRabbit review][rewriter-env-review]. The [record directive][rewriter-env-record]
+says to add this entry before PR 27 merges.
+
+No environment check is added to the score code in PR 27.
+`environment_sha256` stays the hash of `environment.lock`.
+A code check is later work if a procedure shows an environment change.
+
+Before each authorized `plan` and `run`, use
+`scripts/setup-env.sh --only verify --reverify` from the run checkout.
+This applies to R0 twice, then R1.
+The command checks installed files and does the kernel checks again.
+Do not use the `lock` stage alone. It does not do the kernel checks.
+The lock comparison alone cannot show a changed installed file.
+Record each verification check in the issue 21 log beside its procedure.
+Record the commit, UTC time and result.
+On a failure, stop and report.
+Do not use `plan` or `run`, or score, until the operator rules.
+
+Review item A adds no filter on `target_round`.
+PAIR-TARGET keeps the final accepted target of each ID.
+PAIR-REPAIRS holds back only repair conversations.
+The approved pins and selections stay unchanged.
+
+Each `plan` and `run` must use a clean, committed checkout at the plan's commit.
+This follows requests 1, 3 and 5 of the combined review.
+File the R0 report from a checkout other than the `run` checkout, or after the last
+R1 score.
+
+[rewriter-env-ruling]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6639297550
+[rewriter-env-request]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6638467634
+[rewriter-env-review]: https://github.com/toddwbucy/WeaverTrain/pull/27#pullrequestreview-5773404099
+[rewriter-env-record]: https://github.com/toddwbucy/WeaverTrain/pull/27#issuecomment-6639327892
+
 ## 2026-11-04: use the approved prompt and resume the rewriter stack
 
 The operator's [final prompt ruling][final-prompt] selects the approved folded
