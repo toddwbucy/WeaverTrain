@@ -44,7 +44,8 @@ def command(world, tokenizer, tmp_path, monkeypatch):
         f'[models."{score.build.MODEL}"]\nrepo_id = "fixture"\n'
         'revision = "fixture-revision"\n')
     monkeypatch.setattr(loader, "manifest_path_for", lambda name: model_manifest_path)
-    monkeypatch.setattr(loader, "resolve_dir", lambda manifest: model_dir)
+    monkeypatch.setattr(loader, "resolve_dir",
+                        lambda manifest, path=None: Path(path) if path else model_dir)
     build_dir = tmp_path / "build"
     build_dir.mkdir()
     record = {"schema": "weaver-train/rewriter-build/v1", "status": "completed",
@@ -70,6 +71,7 @@ def command(world, tokenizer, tmp_path, monkeypatch):
     loaded = SimpleNamespace(model=model, tokenizer=tokenizer,
                              tree_hash=model_manifest.tree_hash)
     calls = []
+    original_load, original_pin = loader.load, loader.pin_layer_devices
 
     def load(*args, **kwargs):
         """REWRITE-DECODE: observe verified-loader arguments without loading weights."""
@@ -79,12 +81,14 @@ def command(world, tokenizer, tmp_path, monkeypatch):
     monkeypatch.setattr(loader, "load", load)
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
-    monkeypatch.setattr(torch.cuda, "reset_peak_memory_stats", lambda device: None)
+    monkeypatch.setattr(torch.cuda, "reset_peak_memory_stats", lambda device=None: None)
     monkeypatch.setattr(torch.cuda, "get_device_name",
                         lambda device=None: "Fixture GPU")
     monkeypatch.setattr(torch.cuda, "get_device_capability", lambda device=None: (8, 6))
-    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda device: 100 + device)
-    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda device: 200 + device)
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated",
+                        lambda device=None: 100 + (device or 0))
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved",
+                        lambda device=None: 200 + (device or 0))
     decoded = []
 
     def decode(loaded, kit, folded, **kwargs):
@@ -96,7 +100,8 @@ def command(world, tokenizer, tmp_path, monkeypatch):
     return SimpleNamespace(repo=world.repo, build=build_dir, folded=folded,
                            model=model_dir, loaded=loaded, calls=calls, decoded=decoded,
                            plan=tmp_path / "plan", out=tmp_path / "run",
-                           pins=world.pins)
+                           pins=world.pins, original_load=original_load,
+                           original_pin=original_pin)
 
 
 def make_plan(command):
@@ -258,6 +263,7 @@ def trained(command, monkeypatch):
     """REWRITE-RECORD: a synthetic record with the unchanged trainer's field layout."""
     from peft import PeftModel
 
+    original_attach = PeftModel.from_pretrained
     adapter = command.out.parent / "training" / "adapter-epoch-1"
     adapter.mkdir(parents=True)
     (adapter / "adapter_config.json").write_text('{}\n')
@@ -285,7 +291,8 @@ def trained(command, monkeypatch):
     monkeypatch.setattr(PeftModel, "from_pretrained", attach)
     monkeypatch.setattr(loader, "pin_layer_devices", lambda model: 0)
     return SimpleNamespace(adapter=adapter, manifest=manifest, producer=producer,
-                           producer_path=producer_path, attached=attached)
+                           producer_path=producer_path, attached=attached,
+                           original_attach=original_attach)
 
 
 def score_adapter(command, trained, *options):
@@ -387,3 +394,281 @@ def test_rewrite_run_rejects_model_change_during_generation(command, monkeypatch
     assert record["status"] == "failed" and len(record["completed_ids"]) == 100
     assert "tree does not match" in record["failure"]["message"]
     assert not command.out.with_name("run.manifest.json").exists()
+
+
+@pytest.mark.parametrize("change, message", [
+    ("kit", "REWRITE-KIT: frozen source records differ"),
+    ("input", "REWRITE-KIT: frozen masked inputs differ"),
+    ("folded", "RENDER-SEED: folded prompt sha256 differs"),
+    ("provenance", "RENDER-SEED: frozen prompt identities differ"),
+    ("kind", "REWRITE-RECORD: expected a frozen rewriter plan"),
+    ("schema", "REWRITE-KIT: plan schema or count differs"),
+    ("denominator", "REWRITE-KIT: plan schema or count differs"),
+    ("membership", "REWRITE-KIT: frozen prompt membership differs"),
+])
+def test_rewrite_run_rejects_resealed_plan(command, capsys, change, message):
+    """REWRITE-KIT, RENDER-SEED: isolate frozen-source checks after manifest checks."""
+    assert make_plan(command) == 0
+    if change == "input":
+        path = command.plan / "input.jsonl"
+        path.write_bytes(path.read_bytes() + b"\n")
+    elif change == "folded":
+        (command.plan / "folded.txt").write_bytes(b"Changed fixture prompt.\n")
+    elif change == "kit":
+        path = command.plan / "kit.json"
+        value = json.loads(path.read_text())
+        value["rows"][0]["raw"] = "Changed fixture source."
+        path.write_text(json.dumps(value))
+    elif change == "membership":
+        path = command.plan / "entries.jsonl"
+        entries = [json.loads(line) for line in path.read_text().splitlines()]
+        entries[0]["id"] = "another-id"
+        path.write_bytes(score.jsonl_bytes(entries))
+    else:
+        path = command.plan / "plan.json"
+        plan = json.loads(path.read_text())
+        if change == "provenance":
+            plan["prompt_provenance"]["system_text"] = "0" * 64
+        elif change == "schema":
+            plan["schema"] = "another-schema"
+        elif change == "denominator":
+            plan["denominator"] = 99
+        path.write_text(json.dumps(plan))
+    reseal_plan(command)
+    if change == "kind":
+        path = command.plan.with_name("plan.manifest.json")
+        manifest = mf.load_tree(path)
+        manifest.kind = "dataset"
+        manifest.save(path)
+    assert run(command) == 2
+    assert message in capsys.readouterr().err
+    assert not command.calls and not command.out.exists()
+
+
+def test_rewrite_run_rechecks_plan_after_decode(command, monkeypatch, capsys):
+    """REWRITE-RECORD: a plan edit during generation cannot receive a success seal."""
+    assert make_plan(command) == 0
+
+    def changed_plan(loaded, kit, folded, **kwargs):
+        """REWRITE-KIT: re-seal a valid plan with a changed artifact identity."""
+        path = command.plan / "plan.json"
+        plan = json.loads(path.read_text())
+        plan["commit"]["rev"] = "another-commit"
+        path.write_text(json.dumps(plan))
+        reseal_plan(command)
+        yield from outputs_for(kit)
+
+    monkeypatch.setattr(score, "decode_outputs", changed_plan)
+    assert run(command) == 2
+    assert "REWRITE-RECORD: plan changed during generation" in capsys.readouterr().err
+    record = json.loads((command.out / "run.json").read_text())
+    assert record["status"] == "failed" and len(record["completed_ids"]) == 100
+    assert not command.out.with_name("run.manifest.json").exists()
+
+
+def change_build(command, change):
+    """REWRITE-RECORD: change a synthetic header while retaining valid file hashes."""
+    path = command.build / "build.json"
+    record = json.loads(path.read_text())
+    if change == "failed":
+        record["status"] = "failed"
+    elif change == "render_only":
+        record["render_only"] = True
+    elif change == "provenance":
+        record["prompt_provenance"]["system_text"] = "0" * 64
+    elif change == "procedure":
+        record["procedure"] = "r2"
+    elif change in ("tree_hash", "template_hash"):
+        record[change] = "0" * 64
+    elif change in ("tools", "enable_thinking"):
+        record[change] = True
+    elif change == "max_seq_length":
+        record[change] = 1024
+    path.write_text(json.dumps(record))
+    manifest = mf.build_tree(command.build, "dataset", "ste-rewriter-build")
+    if change == "kind":
+        manifest.kind = "model"
+    elif change == "name":
+        manifest.name = "another-name"
+    manifest.save(command.build.with_name("build.manifest.json"))
+
+
+@pytest.mark.parametrize("change", ["failed", "render_only", "kind", "name",
+                                    "provenance", *score.FIELDS])
+def test_rewrite_plan_rejects_build_claim(command, capsys, change):
+    """RENDER-OUTPUT, RENDER-SEED: plan input must be the completed matching build."""
+    change_build(command, change)
+    expected = ("REWRITE-RECORD: expected a rewriter build manifest"
+                if change in ("kind", "name") else
+                "REWRITE-RECORD: a completed rewriter training build is required"
+                if change in ("failed", "render_only") else
+                "RENDER-SEED: build prompt identities differ"
+                if change == "provenance" else f"RENDER-OUTPUT: {change} differs")
+    assert make_plan(command) == 2
+    assert expected in capsys.readouterr().err
+    assert not command.plan.exists() and not command.calls
+
+
+@pytest.mark.parametrize("change", ["repo_id", "revision", "tree"])
+def test_rewrite_run_rejects_other_model(command, capsys, change):
+    """REWRITE-LIMITS, REWRITE-DECODE: valid trees need the configured identity."""
+    assert make_plan(command) == 0
+    path = command.model.with_name("model.manifest.json")
+    manifest = mf.load_tree(path)
+    if change == "tree":
+        (command.model / "weights.bin").write_bytes(b"other fixture weights")
+        manifest = mf.build_tree(command.model, "model", score.build.MODEL,
+                                  source=manifest.source)
+    else:
+        manifest.source[change] = "another-source"
+    manifest.save(path)
+    assert run(command) == 2
+    expected = ("REWRITE-DECODE: model manifest differs from frozen plan"
+                if change == "tree" else
+                "REWRITE-LIMITS: model manifest differs from configured reference")
+    assert expected in capsys.readouterr().err
+    assert not command.calls and not command.out.exists()
+
+
+@pytest.mark.parametrize("placement", ["cpu", "cuda:0", "one-selected"])
+def test_rewrite_run_requires_both_gpus(command, monkeypatch, capsys, placement):
+    """REWRITE-LIMITS: reject incomplete selection or placement before generation."""
+    import torch
+
+    assert make_plan(command) == 0
+    if placement == "one-selected":
+        monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
+    else:
+        command.loaded.model.parameters = lambda: iter([
+            SimpleNamespace(device=torch.device(placement))])
+    assert run(command) == 2
+    expected = ("REWRITE-LIMITS: exactly two selected GPUs are required"
+                if placement == "one-selected" else
+                "REWRITE-LIMITS: all parameters must span the two selected GPUs")
+    assert expected in capsys.readouterr().err
+    assert not command.decoded
+
+
+@pytest.mark.parametrize("procedure, epoch, adapter, training", [
+    ("r0", 0, True, False), ("r0", 0, False, True),
+    ("r1", 1, False, False), ("r1", 1, True, False),
+    ("r1", 1, False, True), ("r1", 0, True, True), ("r1", 3, True, True),
+])
+def test_rewrite_run_refuses_bad_arguments(
+        command, capsys, procedure, epoch, adapter, training):
+    """REWRITE-ORDER: invalid procedure arguments stop before any run output."""
+    assert make_plan(command) == 0
+    options = ["--procedure", procedure, "--epoch", str(epoch)]
+    if adapter:
+        options.extend(("--adapter", str(command.out.parent / "adapter")))
+    if training:
+        options.extend(("--training-build", str(command.build)))
+    assert run(command, *options) == 2
+    assert "REWRITE-ORDER: adapter scores need an epoch" in capsys.readouterr().err
+    assert not command.out.exists() and not command.calls
+
+
+@pytest.mark.parametrize("change", ["kind", "provenance", "procedure", *score.FIELDS])
+def test_rewrite_run_isolates_producer_build_checks(command, trained, capsys, change):
+    """REWRITE-RECORD: each producer build guard must reject its own mismatch."""
+    assert make_plan(command) == 0
+    change_build(command, change)
+    trained.producer.dataset["build_sha256"] = mf.sha256_file(
+        command.build / "build.json")
+    trained.producer.save(trained.producer_path)
+    assert score_adapter(command, trained) == 2
+    expected = ("REWRITE-RECORD: adapter needs a rewriter training build"
+                if change == "kind" else
+                "REWRITE-RECORD: adapter training procedure differs"
+                if change == "procedure" else
+                "RENDER-SEED: adapter training prompt differs"
+                if change == "provenance" else f"RENDER-OUTPUT: {change} differs")
+    assert expected in capsys.readouterr().err
+    assert not trained.attached and not command.decoded
+
+
+@pytest.mark.parametrize("change", ["kind", "missing-weights"])
+def test_rewrite_run_refuses_non_adapter(command, trained, capsys, change):
+    """REWRITE-DECODE: a valid artifact manifest must still describe adapter files."""
+    assert make_plan(command) == 0
+    if change == "missing-weights":
+        (trained.adapter / "adapter_model.safetensors").unlink()
+    kind = "dataset" if change == "kind" else "model"
+    manifest = mf.build_tree(trained.adapter, kind, "fixture-adapter")
+    manifest.save(trained.adapter.with_name(trained.adapter.name + ".manifest.json"))
+    assert score_adapter(command, trained) == 2
+    assert "REWRITE-DECODE: adapter files are missing" in capsys.readouterr().err
+    assert not trained.attached and not command.decoded
+
+
+def test_rewrite_run_refuses_incomplete_decode(command, monkeypatch, capsys):
+    """REWRITE-DECODE: a decoder ending early must keep a failed partial record."""
+    assert make_plan(command) == 0
+    def incomplete(loaded, kit, folded, **kwargs):
+        """REWRITE-DECODE: end normally with one planned ID still absent."""
+        yield from outputs_for(kit)[:99]
+
+    monkeypatch.setattr(score, "decode_outputs", incomplete)
+    assert run(command) == 2
+    assert "REWRITE-DECODE: first outputs do not cover" in capsys.readouterr().err
+    record = json.loads((command.out / "run.json").read_text())
+    assert record["status"] == "failed" and len(record["completed_ids"]) == 99
+    assert not command.out.with_name("run.manifest.json").exists()
+
+
+@pytest.mark.gpu
+@pytest.mark.multigpu
+def test_rewrite_run_pins_attached_adapter_on_both_gpus(
+        command, trained, tiny_model, monkeypatch):
+    """REWRITE-LIMITS: the command must pin a newly attached split adapter model."""
+    import torch
+    from peft import LoraConfig, PeftModel, get_peft_model
+    from tests.conftest import SPLIT
+
+    loaded = command.original_load(path=tiny_model[0], manifest_path=tiny_model[1],
+                                    device_map=SPLIT)
+    assert loaded.pinned_layers == 0
+    adapted = get_peft_model(loaded.model, LoraConfig(
+        r=16, lora_alpha=32, lora_dropout=0.0, task_type="CAUSAL_LM",
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "in_proj"]))
+    adapted.save_pretrained(trained.adapter)
+    command.loaded.model = adapted.unload()
+    trained.manifest = mf.build_tree(trained.adapter, "model", "fixture-adapter")
+    trained.manifest.save(trained.adapter.with_name(
+        trained.adapter.name + ".manifest.json"))
+    trained.producer.results["epoch_adapters"][0]["tree_hash"] = (
+        trained.manifest.tree_hash)
+    trained.producer.save(trained.producer_path)
+    monkeypatch.setattr(PeftModel, "from_pretrained", trained.original_attach)
+    monkeypatch.setattr(loader, "pin_layer_devices", command.original_pin)
+    layers = [layer for name, module in command.loaded.model.named_modules()
+              if isinstance(module, torch.nn.ModuleList) and name.endswith("layers")
+              for layer in module]
+    assert layers
+    assert all(not hasattr(layer, "_weaver_pinned_device") for layer in layers)
+    seen = set()
+
+    def observe_device(module, args):
+        """REWRITE-LIMITS: assert the device before any Mamba kernel can run."""
+        expected = next(module.parameters()).device.index
+        assert torch.cuda.current_device() == expected
+        seen.add(expected)
+
+    def decode_after_attachment(loaded, kit, folded, **kwargs):
+        """REWRITE-DECODE: exercise command hooks without the decoder helper's pins."""
+        handles = [layer.register_forward_pre_hook(observe_device) for layer in layers]
+        try:
+            torch.cuda.set_device(1)
+            with torch.inference_mode():
+                logits = loaded.model(torch.ones((1, 16), dtype=torch.long,
+                    device="cuda:0"), use_cache=False).logits
+            assert torch.isfinite(logits).all()
+        finally:
+            for handle in handles:
+                handle.remove()
+        yield from outputs_for(kit)
+
+    monkeypatch.setattr(score, "decode_outputs", decode_after_attachment)
+    assert make_plan(command) == 0 and score_adapter(command, trained) == 0
+    assert seen == {0, 1}
+    assert all(hasattr(layer, "_weaver_pinned_device") for layer in layers)
