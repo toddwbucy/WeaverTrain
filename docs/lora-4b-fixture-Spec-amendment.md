@@ -66,7 +66,8 @@ The merged model registry has only the 30B entry at the source baseline.
 The complete local 4B BF16 tree has no verification record for this procedure.
 Record the training machine's inventory and manifest verification before any model load.
 If the weights are absent, get the operator's download approval first.
-Then add the pinned model entry and manifest through review.
+Before any model load, add the pinned model entry and manifest through review.
+This requirement applies to local weights and new downloads.
 The previous tokenizer approval gives no approval to download weights.
 Keep reference weights read-only and check them again after training.
 
@@ -81,7 +82,10 @@ Do not use a repair conversation, new rewrite or new dataset download.
 
 Keep pairs whose input and target each have at most 200 Unicode characters.
 Count the stored text with placeholders, before template application.
-Use the PAIR-BALANCE seed-0 hash sequence and its tie rules.
+Hash the UTF-8 bytes of `0\n<batch>\n<segment_id>` with SHA256, without a final LF.
+Sort all eligible pairs from both batches in one sequence by that hash.
+For equal hashes, compare batch, then segment ID, as strings.
+Put the smallest value first.
 Select the first 16 eligible pairs in that sequence, without replacement.
 The fixture has no length-bin quota or narration quota.
 Record the ordered IDs, their hash and the pair-pool manifest.
