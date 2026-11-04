@@ -622,7 +622,7 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     folded = Path(folded_path).read_bytes()
     system = folded_system(folded, pins["folded_prompt"])
     indexed, removed, pairs, pair_manifest, pair_manifest_sha = read_pair_directory(
-        pair_dir, evidence, pins)
+        pair_root, evidence, pins)
     selection = pairs["balance"]["selections"][procedure]
     require(selection["available"] and selection["count"] == PROCEDURES[procedure]
             and selection["ordered_ids_sha256"] == pins[f"{procedure}_ordered_ids"],
@@ -674,9 +674,9 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
         evidence.verify()
         require(Path(folded_path).read_bytes() == folded,
                 "RENDER-SEED: folded file changed during build")
-        mf.require_tree(pair_manifest, pair_dir)
-        require(mf.sha256_file(Path(pair_dir).with_name(
-            Path(pair_dir).name + ".manifest.json")) == pair_manifest_sha,
+        mf.require_tree(pair_manifest, pair_root)
+        require(mf.sha256_file(pair_root.with_name(
+            pair_root.name + ".manifest.json")) == pair_manifest_sha,
             "RENDER-OUTPUT: pair manifest changed during build")
         require(digest(tokenizer.get_chat_template().encode()) == template_hash,
                 "RENDER-LAYOUT: tokenizer template changed during build")

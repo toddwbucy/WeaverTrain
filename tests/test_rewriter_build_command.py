@@ -239,3 +239,13 @@ def test_build_command_preserves_input_directory(command, source):
     assert invoke(command) == 2
     assert not command.out.exists()
     assert mf.build_tree(directory, "model", "fixture").tree_hash == before
+
+
+def test_build_command_accepts_symlinked_pair_directory(command):
+    """RENDER-OUTPUT: use one resolved pair tree for both manifest verifications."""
+    alias = command.pairs.with_name("pair-alias")
+    alias.symlink_to(command.pairs, target_is_directory=True)
+    command.pairs = alias
+    assert invoke(command) == 0
+    record = json.loads((command.out / "build.json").read_text())
+    assert record["status"] == "completed" and record["counts"]["pairs"] == 200
