@@ -185,22 +185,56 @@ def test_rewrite_check_missing_truncated_and_empty_stay_failures(world, tmp_path
     summary, checks = score.check_outputs(kit, outputs, out, repo=world.repo)
     assert summary["passed"] == 96 and summary["denominator"] == 100
     assert summary["rate"] == 0.96
-    assert summary["failure_rules"] == {"missing": 3, "placeholders": 1}
+    assert summary["failure_rules"] == {"missing": 4}
+    assert summary["empty_outputs"] == 1
     scorer_rows = [json.loads(line) for line in (out / "output.jsonl").read_bytes().splitlines()]
-    assert {"id": kit["rows"][2]["id"], "output": ""} in scorer_rows
+    assert all(row["id"] != kit["rows"][2]["id"] for row in scorer_rows)
     assert summary["by_kind"] == {"narration": {"total": 90, "passed": 86},
                                    "final": {"total": 10, "passed": 10}}
     assert summary["by_bin"]["0"] == {"total": 37, "passed": 33}
     assert checks[0]["output"] == "Use [[C1]]." and checks[0]["raw"] == original[0]
     assert checks[1]["raw"]["finish_reason"] == "length"
-    assert all(checks[i]["check"]["hard"] == {"missing": [True]} for i in (1, 3, 4))
-    assert "placeholders" in checks[2]["check"]["hard"]
+    assert all(checks[i]["check"]["hard"] == {"missing": [True]} for i in (1, 2, 3, 4))
     assert outputs == original
     assert calls == [[str(out / "output.jsonl"), "--input", str(out / "input.jsonl"),
                       "--prompt", str(out / score.build.PROMPT), "--md", str(out / "score.md")]]
     assert "96/100 pass" in (out / "score.md").read_text(encoding="utf-8")
     assert (out / "score.md").read_text(encoding="utf-8").count("\n## ") == 100
     assert score.mf.verify_tree(score.mf.load_tree(out.with_name("checks.manifest.json")), out) == []
+
+
+@pytest.mark.parametrize("text, finish, empty_count", [
+    ("", "stop", 1),
+    (" \t\r\n ", "stop", 1),
+    ("Use the model.", "length", 0),
+    ("", "length", 1),
+    (None, "stop", 0),
+])
+def test_rewrite_check_withholds_absent_and_truncated_text(
+        world, tmp_path, text, finish, empty_count):
+    """REWRITE-CHECK: a short source cannot pass with an empty first output."""
+    world.rows[0]["raw"] = "Use the model."
+    save_rows(world.repo / "var/ste/kit-100/source.jsonl", world.rows)
+    save_pins(world)
+    kit = score.load_kit(world.repo)
+    outputs = outputs_for(kit)
+    outputs[0].update(output=text, finish_reason=finish)
+    original = copy.deepcopy(outputs)
+    out = tmp_path / "withheld"
+    summary, checks = score.check_outputs(kit, outputs, out, repo=world.repo)
+    assert summary["denominator"] == 100 and summary["passed"] == 99
+    assert summary["scorer_outputs"] == 99
+    assert summary["empty_outputs"] == empty_count
+    assert summary["failure_rules"] == {"missing": 1}
+    assert checks[0]["check"] == {
+        "ok": False, "hard": {"missing": [True]}, "soft": {}}
+    assert checks[0]["scorer_included"] is False
+    assert checks[0]["raw"] == original[0] and outputs == original
+    written = [json.loads(line) for line in (out / "output.jsonl").read_bytes().splitlines()]
+    assert all(row["id"] != outputs[0]["id"] for row in written)
+    retained = json.loads((out / "raw.jsonl").read_bytes().splitlines()[0])
+    assert retained["raw"] == original[0] and retained["scorer_included"] is False
+    assert "99/100 pass" in (out / "score.md").read_text()
 
 
 @pytest.mark.parametrize("change, message", [

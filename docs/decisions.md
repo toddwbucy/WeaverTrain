@@ -3,6 +3,45 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: use the approved prompt and resume the rewriter stack
+
+The operator's [final prompt ruling][final-prompt] selects the approved folded
+prompt for R0, R1 and R2 of the first rewriter series. Its SHA256 stays
+`0fe2ee35a59f6b1e30734af4d7a72e32bd6dbc0e728abc98e32e2c609dad07ed`.
+The first adapter starts the bootstrap. The loop can check and retry its misses.
+The rules stay in the editable prompt. A shorter prompt is a later decision.
+
+The A/B comparison is cancelled, including its separate measurement PR.
+This supersedes [the comparison ruling][cancelled-ab] and
+[the measurement directive][cancelled-measurement], except the empty-output rule.
+The full-word candidate stays local as the record of the completed measurement.
+It is not approved for use. Any return to it requires a new ruling.
+
+PRs 27 through 30 resume their existing scope and review flow.
+Close the review requests and pass the gates on each child.
+The operator merges the children into the stack. Root PR 27 stays draft until
+the combined review, then is undrafted once for the final review.
+Only the operator merges. R0 uses A twice from merged main after the stack merges.
+Complete the fixed 30-source meaning review with seed 2031 and the R0 report.
+The repair-training cell stays open until that report.
+R1 remains 200 pairs, two epochs and seed 0, followed by a stop and report.
+R2 still waits for the operator's go.
+
+The shared writer in PR 28 treats empty first outputs as absent after outer
+whitespace removal. It omits them from scorer input, retains their raw records
+and reports the empty count for each pass. The frozen scorer counts them as
+missing in the denominator of 100. Truncated outputs remain withheld.
+The Spec and its section 9 tests state this rule. The frozen checker is unchanged.
+
+The [review reproduction][empty-reproduction] supplied 100 synthetic empty outputs.
+The frozen scorer accepted three: t016, t040 and t083.
+These were not observed model responses. No rewriter R0 pass had run.
+
+[final-prompt]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6633945372
+[cancelled-ab]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6632737374
+[cancelled-measurement]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6633220971
+[empty-reproduction]: https://github.com/toddwbucy/WeaverTrain/pull/28#issuecomment-6634079450
+
 ## 2026-11-04: local rewriter training precedes loop seed verification
 
 The operator accepted [PR 26][rewriter-seed-timing] by merging it on 2026-11-04.
