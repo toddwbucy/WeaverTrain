@@ -171,8 +171,15 @@ def test_rewrite_run_keeps_complete_results_and_model_identity(command):
     assert (command.out / "run.json").read_bytes() == original
 
 
-@pytest.mark.parametrize("change", ["tokens", "budget", "tools", "sampler", "sample"])
-def test_rewrite_run_rejects_changed_plan_before_generation(command, change):
+@pytest.mark.parametrize("change, message", [
+    ("tokens", "REWRITE-DECODE: frozen prompt tokens or reply budgets differ"),
+    ("budget", "REWRITE-DECODE: frozen prompt tokens or reply budgets differ"),
+    ("tools", "RENDER-OUTPUT: tools differs"),
+    ("sampler", "REWRITE-DECODE: frozen sampler differs"),
+    ("sample", "REWRITE-REVIEW: frozen review sample or prompt differs"),
+])
+def test_rewrite_run_rejects_changed_plan_before_generation(
+        command, capsys, change, message):
     """REWRITE-DECODE, REWRITE-REVIEW: re-sealing cannot change frozen behavior."""
     assert make_plan(command) == 0
     if change in ("tokens", "budget"):
@@ -194,14 +201,17 @@ def test_rewrite_run_rejects_changed_plan_before_generation(command, change):
             plan["review_sample"].reverse()
         path.write_text(json.dumps(plan))
     reseal_plan(command)
-    assert run(command) == 2 and not command.decoded
+    assert run(command) == 2
+    assert message in capsys.readouterr().err
+    assert not command.decoded
 
 
-def test_rewrite_run_refuses_environment_change(command):
+def test_rewrite_run_refuses_environment_change(command, capsys):
     """REWRITE-RECORD: the environment identity remains frozen between procedures."""
     assert make_plan(command) == 0
     (command.repo / "environment.lock").write_text("different environment\n")
     assert run(command) == 2
+    assert "REWRITE-RECORD: frozen input identities differ" in capsys.readouterr().err
     assert not command.calls and not command.out.exists()
 
 
@@ -672,3 +682,26 @@ def test_rewrite_run_pins_attached_adapter_on_both_gpus(
     assert make_plan(command) == 0 and score_adapter(command, trained) == 0
     assert seen == {0, 1}
     assert all(hasattr(layer, "_weaver_pinned_device") for layer in layers)
+
+
+@pytest.mark.parametrize("source", ["evidence", "model"])
+def test_rewrite_plan_rechecks_inputs_after_preflight(
+        command, monkeypatch, capsys, source):
+    """REWRITE-RECORD: preflight cannot seal a plan from changed inputs."""
+    preflight = score.preflight
+
+    def changed_input(*args, **kwargs):
+        """REWRITE-KIT, REWRITE-LIMITS: change a file after initial verification."""
+        result = preflight(*args, **kwargs)
+        path = (command.model / "weights.bin" if source == "model" else
+                command.repo / "environment.lock")
+        path.write_bytes(b"changed fixture input")
+        return result
+
+    monkeypatch.setattr(score, "preflight", changed_input)
+    assert make_plan(command) == 2
+    expected = ("tree does not match" if source == "model" else
+                "PAIR-INPUTS: file changed during collection: environment.lock")
+    assert expected in capsys.readouterr().err
+    assert not command.plan.exists()
+    assert not command.plan.with_name("plan.manifest.json").exists()
