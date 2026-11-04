@@ -2,7 +2,7 @@
 
 ASD-STE100:9 thesaurus: 022df3d809593696766893bf95f915229628497b89ef571dbc997ac8585224da
 
-**Status:** MERGED. These clauses take effect when the operator merges this amendment.
+**Status:** MERGED. These clauses apply when the operator merges this amendment.
 **Version:** 0.1 **Date:** 2026-11-04
 **Document ID:** `lora-4b-fixture-Spec-amendment`
 **Parent:** `docs/decisions.md`
