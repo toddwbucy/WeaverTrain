@@ -3,6 +3,44 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: diagnose the first rewriter R0 failure before a retry
+
+The first R0 invocation stopped during GPU setup before model loading.
+The [failure record][rewriter-cuda-failure] keeps the failed procedure and its hash.
+The operator authorized diagnosis and a focused draft fix PR.
+The [executor receipt][rewriter-cuda-authority] records that instruction.
+
+The fresh-process test reproduced the failure at the peak-memory reset.
+The availability and device-count checks did not initialize the PyTorch allocator.
+Under REWRITE-RECORD, initialize CUDA before the reset and before model loading.
+An initialization failure must keep its failed record and stop before loading.
+Test the real counters on both selected GPUs in a fresh process.
+Keep the earlier failed directory and the pinned run checkout unchanged.
+
+This ruling does not authorize a production retry or R1 training.
+A fix must pass review and merge before the operator authorizes another R0 attempt.
+Make a new build and plan at that merged commit before the attempt.
+Keep finding E deferred and leave the trainer unchanged.
+
+[rewriter-cuda-failure]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6642562384
+[rewriter-cuda-authority]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6644333609
+
+## 2026-11-04: allow the observed graphics allocations during rewriter R0
+
+The operator lifted the GPU stop recorded before the first R0 pass.
+The [executor receipt][rewriter-graphics-ruling] records the instruction.
+The observed graphics process held 4 MiB on each selected A6000.
+The operator said to ignore those allocations because they do not interfere.
+The operator states that the monitors use GPU 2, while this work uses GPUs 0 and 1.
+
+Keep the selected devices in PCI bus order from `.env`.
+Check for other processes and repeat environment verification before each procedure.
+This exception does not authorize stopping a service or ignoring another failure.
+The earlier stop record stays in the evidence.
+R1 training still needs the operator's go after the R0 report and repair-data ruling.
+
+[rewriter-graphics-ruling]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6642511702
+
 ## 2026-11-04: bind builds to the plan and leave producer seals for later work
 
 The operator directed the executor to fix item D and defer item E in PR 27.
