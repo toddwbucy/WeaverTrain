@@ -726,6 +726,8 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
                                      procedure, epoch, plan, repo) ==
                     record["adapter"]["producer"],
                     "REWRITE-RECORD: adapter producer changed during generation")
+        require(mf.git_commit(repo) == plan["commit"],
+                "REWRITE-RECORD: checkout changed during generation")
         record["segments_sha256"] = mf.sha256_file(out / "segments.jsonl")
         record["status"] = "completed"
     except BaseException as exc:

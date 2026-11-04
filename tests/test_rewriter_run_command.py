@@ -315,6 +315,42 @@ def test_rewrite_run_requires_frozen_checkout_before_load(
         assert not command.out.with_name("run.manifest.json").exists()
 
 
+@pytest.mark.parametrize("procedure", ["r0", "r1"])
+@pytest.mark.parametrize("change", ["revision", "dirty", "non-git"])
+def test_rewrite_run_rechecks_checkout_before_completion(
+        command, trained, monkeypatch, capsys, procedure, change):
+    """REWRITE-RECORD: changed code cannot seal completed synthetic outputs."""
+    assert make_plan(command) == 0
+    planned = json.loads((command.plan / "plan.json").read_text())["commit"]
+    decode = score.decode_outputs
+
+    def changed_checkout(*args, **kwargs):
+        """REWRITE-DECODE: change only Git identity during synthetic generation."""
+        yield from decode(*args, **kwargs)
+        if change == "non-git":
+            (command.repo / ".git").rename(command.repo.with_name("unused-git"))
+        else:
+            (command.repo / "notes.md").write_text("Fixture documentation change.\n")
+            if change == "revision":
+                commit_fixture(command.repo)
+
+    monkeypatch.setattr(score, "decode_outputs", changed_checkout)
+    result = run(command) if procedure == "r0" else score_adapter(command, trained)
+    assert result == 2
+    assert capsys.readouterr().err.strip() == (
+        "run: stopped: REWRITE-RECORD: checkout changed during generation")
+    assert command.calls and command.decoded
+    record = json.loads((command.out / "run.json").read_text())
+    rows = [json.loads(line) for line in
+            (command.out / "segments.jsonl").read_text().splitlines()]
+    assert len(rows) == 100 and record["completed_ids"] == [row["id"] for row in rows]
+    assert record["status"] == "failed" and record["commit"] == planned
+    assert record["commit"] != mf.git_commit(command.repo)
+    assert record["failure"]["message"] == (
+        "REWRITE-RECORD: checkout changed during generation")
+    assert not command.out.with_name("run.manifest.json").exists()
+
+
 @pytest.mark.parametrize("change", ["tracked", "untracked", "non-git",
                                     "unknown-clean", "blank-clean", "nonstring-clean"])
 def test_rewrite_plan_requires_known_clean_checkout(
