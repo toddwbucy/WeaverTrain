@@ -20,7 +20,8 @@ STE quality is not an acceptance condition.
 The executor proposes the numeric limits below for this purpose.
 
 The source baseline is `0a44847611a5fe157fd3dd2e2035d98c7ab7d28e`.
-The [training Spec][training] gives approval for 30B training and 4B token preparation.
+The [training Spec][training] is for 30B training and its render-only 4B exception.
+This amendment gives authority for the 4B fixture after operator merge.
 The [rewriter Spec][rewriter] also limits training to 30B.
 This amendment adds one different 4B fixture procedure.
 It changes no value or result in either 30B series.
@@ -163,7 +164,11 @@ Keep the partial record and do not retry with changed values.
 All five specified target classes must have adapters. Record their adapted modules.
 Keep the trainer's target-coverage refusal and component-coverage record.
 Do not remove `in_proj` to get past a conversion or backend failure.
-Record each step's loss, elapsed time and peak device memory.
+Record each step's loss and elapsed time.
+Use the trainer's `peak_vram_gib` for peak PyTorch allocations per device.
+Before model load, the trainer uses `reset_peak_memory_stats`.
+It reads `max_memory_allocated` after the procedure.
+This is one peak per device for the whole procedure, not a peak per step.
 Loss is diagnostic data, not a quality threshold.
 Save only the final adapter for acceptance. Do not select a favorable checkpoint.
 No parameter search, automatic extension or second training procedure is approved here.
@@ -239,7 +244,7 @@ Get an operator decision from the failed measurement before more training.
 | BF16 availability | Training machine inventory and model manifest verification |
 | Download approval, if absent | Operator approval for the exact source revision |
 | Selected pair identities | Pool verification, 16-pair selection and ordered-ID hash |
-| Memory and duration | Peak memory and elapsed time per step |
+| Memory and duration | Peak allocation per device and elapsed time per step |
 | Mamba application | Complete target-name table and SPU device observations |
 | Observable application | Two base-only, scale-0 and scale-1 token records |
 | Python/SPU limit | Measured differences and an explicit operator decision |
