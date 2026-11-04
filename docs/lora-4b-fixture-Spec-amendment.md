@@ -189,14 +189,20 @@ Do not claim conversion success from a file's presence alone.
 Use [LORA-1 through LORA-7][spu-spec] for the Rust SPU fixture test.
 Compare new base-only, scale-0 and scale-1 residencies on all 16 inputs.
 Do each case twice from a fresh residency with identical tokens and decode settings.
+Use one fixture process per residency, for six SPU processes in total.
+At the pinned backend, scale 0 keeps the adapter loaded and unattached.
+This control measures load cost and residency without adapter application.
 The two procedures for each case must have equal output token sequences.
 The scale-0 outputs must equal base-only outputs.
 At least one scale-1 output must be different from its base-only output.
 Keep all 16 results, with unchanged outputs and failures.
 This comparison proves application only when the admission and attachment records agree.
 
-Prove attachment before prefix decode and capture every target's device placement.
+Prove scale-1 attachment before prefix decode and capture every target's device placement.
 Prove cleanup on success and on the required failure paths.
+At this pin, `llama_set_adapters_lora` always gives 0.
+Use fault injection for the attachment-failure check.
+The real procedure records attachment success and the target placement observations.
 Keep the resource observations and refusal checks from LORA-6 and LORA-7.
 A successful loader handle or a fake backend cannot replace these records.
 Record Python/SPU differences separately. The operator's accepted numerical difference
@@ -214,6 +220,8 @@ This capture does not claim a trainer-written seal across the earlier interval.
 The deferred producer-seal work in [PR 27][producer-seal] stays in a different task.
 
 Record the converter commit, exact arguments and source adapter tree hash.
+Use `--outtype f32` for this fixture's GGUF adapter conversion.
+The SPU reader refuses quantized adapter tensors, such as `q8_0`.
 Record the converted adapter SHA256 and the target-name table.
 Keep the runtime base identities, sampler settings and complete comparison records.
 Label the result `fixture-only`, with no STE quality claim.
