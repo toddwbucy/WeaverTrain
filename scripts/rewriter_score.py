@@ -429,6 +429,10 @@ def fresh_score_output(out_dir, *, repo, inputs=()):
 def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
     """REWRITE-KIT, REWRITE-DECODE, REWRITE-REVIEW: freeze the plan before R0."""
     out, manifest_path = fresh_score_output(out_dir, repo=repo, inputs=(build_dir,))
+    commit = mf.git_commit(repo)
+    require(isinstance(commit["rev"], str) and bool(commit["rev"]) and
+            commit["dirty"] is False,
+            "REWRITE-RECORD: a known clean checkout is required to freeze the plan")
     evidence, pins, provenance = score_evidence(repo)
     directory, build_manifest, manifest_sha = artifact(build_dir)
     require(build_manifest.kind == "dataset" and
@@ -456,7 +460,7 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
     require(type(end) is int and end >= 0 and end != tokenizer.unk_token_id,
             "REWRITE-DECODE: end-of-turn token is unavailable")
     sample = random.Random(2031).sample(sorted(row["id"] for row in kit["rows"]), 30)
-    plan = {"schema": "weaver-train/rewriter-plan/v1", "commit": mf.git_commit(repo),
+    plan = {"schema": "weaver-train/rewriter-plan/v1", "commit": commit,
             **expected, "folded_prompt": pins["folded_prompt"],
             "prompt_provenance": provenance, "inputs": evidence.files,
             "environment_sha256": evidence.files["environment.lock"]["sha256"],
@@ -475,6 +479,8 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
                             "joint_token_check_complete": False}}
     evidence.verify()
     mf.require_tree(model_manifest, model_dir)
+    require(mf.git_commit(repo) == commit,
+            "REWRITE-RECORD: checkout changed while freezing the plan")
     inputs = [{key: row[key] for key in ("id", "kind", "text")} for row in kit["rows"]]
     plan_bytes = (json.dumps(plan, indent=2, ensure_ascii=True) + "\n").encode()
     files = {"plan.json": plan_bytes,

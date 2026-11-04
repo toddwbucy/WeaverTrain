@@ -17,6 +17,15 @@ from tests.test_rewriter_score import outputs_for, save_pins, world
 from weaver_train import loader, manifest as mf
 
 
+def commit_fixture(repo):
+    """REWRITE-RECORD: commit only synthetic inputs in the temporary test repo."""
+    for args in (("init", "-q"), ("add", "."),
+                 ("commit", "-qm", "Fixture inputs")):
+        subprocess.run(["git", "-C", str(repo), "-c", "user.name=Fixture",
+                        "-c", "user.email=fixture@example.invalid", *args],
+                       check=True, capture_output=True)
+
+
 @pytest.fixture
 def command(world, tokenizer, tmp_path, monkeypatch):
     """REWRITE-KIT, REWRITE-RECORD: local fixture trees and a controlled decode path."""
@@ -100,6 +109,7 @@ def command(world, tokenizer, tmp_path, monkeypatch):
         yield from outputs_for(kit)
 
     monkeypatch.setattr(score, "decode_outputs", decode)
+    commit_fixture(world.repo)
     return SimpleNamespace(repo=world.repo, build=build_dir, folded=folded,
                            model=model_dir, loaded=loaded, calls=calls, decoded=decoded,
                            plan=tmp_path / "plan", out=tmp_path / "run",
@@ -254,6 +264,8 @@ def test_rewrite_commands_require_pinned_review_prompt(
         path.unlink()
     else:
         path.write_bytes(b"Changed fixture review prompt.")
+    if action == "plan":
+        commit_fixture(command.repo)
     capsys.readouterr()
     assert (make_plan(command) if action == "plan" else run(command)) == 2
     error = capsys.readouterr().err.strip()
@@ -274,24 +286,13 @@ def test_rewrite_commands_require_pinned_review_prompt(
 def test_rewrite_run_requires_frozen_checkout_before_load(
         command, trained, capsys, procedure, change):
     """REWRITE-KIT, REWRITE-RECORD: score only the checkout bound to the plan."""
-    def git(*args):
-        """REWRITE-RECORD: create real commit identities in the fixture only."""
-        subprocess.run(["git", "-C", str(command.repo),
-                        "-c", "user.name=Fixture",
-                        "-c", "user.email=fixture@example.invalid", *args],
-                       check=True, capture_output=True)
-
-    git("init", "-q")
-    git("add", ".")
-    git("commit", "-qm", "Fixture inputs")
     assert make_plan(command) == 0
     planned = json.loads((command.plan / "plan.json").read_text())["commit"]
     assert planned == mf.git_commit(command.repo) and planned["dirty"] is False
     if change != "unchanged":
         (command.repo / "notes.md").write_text("Fixture documentation change.\n")
         if change == "revision":
-            git("add", "notes.md")
-            git("commit", "-qm", "Fixture documentation")
+            commit_fixture(command.repo)
         assert mf.git_commit(command.repo) != planned
     capsys.readouterr()
     result = run(command) if procedure == "r0" else score_adapter(command, trained)
@@ -311,6 +312,60 @@ def test_rewrite_run_requires_frozen_checkout_before_load(
             "REWRITE-RECORD: checkout commit differs from frozen plan")
         assert record["commit"] == mf.git_commit(command.repo)
         assert not command.out.with_name("run.manifest.json").exists()
+
+
+@pytest.mark.parametrize("change", ["tracked", "untracked", "non-git",
+                                    "unknown-clean", "blank-clean", "nonstring-clean"])
+def test_rewrite_plan_requires_known_clean_checkout(
+        command, monkeypatch, capsys, change):
+    """REWRITE-KIT, REWRITE-RECORD: a plan needs a known, clean code identity."""
+    if change == "tracked":
+        (command.repo / "notes.md").write_text("Fixture documentation.\n")
+        commit_fixture(command.repo)
+    if change in ("tracked", "untracked"):
+        (command.repo / "notes.md").write_text("Changed fixture documentation.\n")
+        assert mf.git_commit(command.repo)["dirty"] is True
+    elif change == "non-git":
+        (command.repo / ".git").rename(command.repo.with_name("unused-git"))
+        assert mf.git_commit(command.repo) == {"rev": None, "dirty": None}
+    else:
+        revision = {"unknown-clean": None, "blank-clean": "",
+                    "nonstring-clean": 1}[change]
+        monkeypatch.setattr(mf, "git_commit",
+                            lambda repo: {"rev": revision, "dirty": False})
+    assert make_plan(command) == 2
+    assert capsys.readouterr().err.strip() == (
+        "plan: stopped: REWRITE-RECORD: a known clean checkout is required "
+        "to freeze the plan")
+    assert not command.plan.exists()
+    assert not command.plan.with_name("plan.manifest.json").exists()
+    assert not command.calls and not command.decoded
+
+
+@pytest.mark.parametrize("change", ["revision", "dirty", "non-git"])
+def test_rewrite_plan_rechecks_checkout_before_seal(
+        command, monkeypatch, capsys, change):
+    """REWRITE-RECORD: the checked code identity must stay fixed through planning."""
+    preflight = score.preflight
+
+    def changed_checkout(*args, **kwargs):
+        """REWRITE-KIT: change only Git identity after the initial clean check."""
+        entries = preflight(*args, **kwargs)
+        if change == "non-git":
+            (command.repo / ".git").rename(command.repo.with_name("unused-git"))
+        else:
+            (command.repo / "notes.md").write_text("Fixture documentation change.\n")
+            if change == "revision":
+                commit_fixture(command.repo)
+        return entries
+
+    monkeypatch.setattr(score, "preflight", changed_checkout)
+    assert make_plan(command) == 2
+    assert capsys.readouterr().err.strip() == (
+        "plan: stopped: REWRITE-RECORD: checkout changed while freezing the plan")
+    assert not command.plan.exists()
+    assert not command.plan.with_name("plan.manifest.json").exists()
+    assert not command.calls and not command.decoded
 
 
 def test_rewrite_run_retains_partial_decode_failure(command, monkeypatch):
