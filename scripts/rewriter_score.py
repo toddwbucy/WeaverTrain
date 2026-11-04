@@ -1,6 +1,7 @@
 """Spec 0.1 REWRITE-KIT, REWRITE-DECODE and REWRITE-CHECK foundations.
 
 These helpers verify local inputs, preflight prompts and check first outputs.
+The decode helper requires an already verified model and optional adapter.
 They expose no model-run command while the seed-record interface is pending.
 Checker artifacts are not complete R0 or adapter evaluation records.
 Statistical helpers take checker rows after the caller verifies run identities.
@@ -13,6 +14,7 @@ import math
 import re
 import subprocess
 import sys
+import time
 import tomllib
 from collections import Counter
 from pathlib import Path
@@ -28,7 +30,7 @@ import ste_experiment
 import ste_score
 from lora_score import compare_pairs
 from ste_kit_sample import bin_of
-from weaver_train import manifest as mf
+from weaver_train import loader, manifest as mf
 
 
 class ScoreError(ValueError):
@@ -105,6 +107,63 @@ def preflight(tokenizer, kit, folded: bytes, *, repo=REPO):
         plan.append({"id": row["id"], "input_ids": ids, "max_new_tokens": budget,
                      "initial_messages_sha256": build.digest(message_bytes)})
     return plan
+
+
+def decode_outputs(loaded, kit, folded: bytes, *, repo=REPO):
+    """REWRITE-DECODE, REWRITE-LIMITS: yield each first rewrite without a retry.
+
+    The caller must use the current loader to verify and load the model, verify
+    any adapter before attachment, and establish seed and frozen-plan provenance.
+    This generator does not write a run record or authorize production use.
+    The caller must retain yielded rows and record any failure under REWRITE-RECORD.
+    """
+    import torch
+    from transformers import GenerationConfig
+
+    model, tokenizer = loaded.model, loaded.tokenizer
+    plan = preflight(tokenizer, kit, folded, repo=repo)
+    end = tokenizer.convert_tokens_to_ids("<|im_end|>")
+    require(type(end) is int and end >= 0 and end != tokenizer.unk_token_id,
+            "REWRITE-DECODE: end-of-turn token is unavailable")
+    devices = {parameter.device for parameter in model.parameters()}
+    require(devices and all(device.type == "cuda" for device in devices),
+            "REWRITE-LIMITS: model has a parameter off GPU")
+    loader.pin_layer_devices(model)
+    model.eval()
+    device = model.get_input_embeddings().weight.device
+    for entry in plan:
+        for gpu in devices:
+            torch.cuda.synchronize(gpu)
+        started = time.monotonic()
+        ids = torch.tensor([entry["input_ids"]], dtype=torch.long, device=device)
+        config = GenerationConfig(
+            do_sample=False, num_beams=1, num_return_sequences=1,
+            return_dict_in_generate=False,
+            max_new_tokens=entry["max_new_tokens"], eos_token_id=end,
+            pad_token_id=tokenizer.pad_token_id if tokenizer.pad_token_id is not None
+            else end)
+        with torch.inference_mode():
+            output = model.generate(input_ids=ids, attention_mask=torch.ones_like(ids),
+                                    generation_config=config)
+        require(output.ndim == 2 and output.shape[0] == 1 and
+                output.shape[1] >= ids.shape[1] and
+                torch.equal(output[0, :ids.shape[1]], ids[0]),
+                "REWRITE-DECODE: generated sequence changed the prompt")
+        tokens = output[0, ids.shape[1]:].tolist()
+        require(0 < len(tokens) <= entry["max_new_tokens"],
+                "REWRITE-DECODE: generated token count is outside the reply budget")
+        stopped = tokens[-1] == end
+        require(end not in tokens[:-1] and
+                (stopped or len(tokens) == entry["max_new_tokens"]),
+                "REWRITE-DECODE: output has no valid stop or length finish")
+        text = tokenizer.decode(tokens[:-1] if stopped else tokens,
+                                skip_special_tokens=False,
+                                clean_up_tokenization_spaces=False)
+        for gpu in devices:
+            torch.cuda.synchronize(gpu)
+        yield {"id": entry["id"], "output": text, "token_ids": tokens,
+               "finish_reason": "stop" if stopped else "length",
+               "wall_seconds": time.monotonic() - started}
 
 
 def prepare_outputs(kit, outputs):
