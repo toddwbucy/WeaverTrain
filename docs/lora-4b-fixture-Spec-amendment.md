@@ -198,7 +198,8 @@ At least one scale-1 output must be different from its base-only output.
 Keep all 16 results, with unchanged outputs and failures.
 This comparison proves application only when the admission and attachment records agree.
 
-Prove scale-1 attachment before prefix decode and capture every target's device placement.
+Prove scale-1 attachment before prefix decode.
+Capture every target's device placement.
 Prove cleanup on success and on the required failure paths.
 At this pin, `llama_set_adapters_lora` always gives 0.
 Use fault injection for the attachment-failure check.
