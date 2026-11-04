@@ -43,7 +43,7 @@ def verify_snapshot(directory, identity):
 
 
 def read_score(directory, plan_bundle, *, adapter=None, training_build=None, repo=REPO):
-    """REWRITE-SPREAD: establish score and producer identities before comparison."""
+    """REWRITE-ORDER, REWRITE-SPREAD: bind score and producer identities to the plan."""
     plan, kit, entries, folded, plan_tree, plan_sha = plan_bundle
     root, manifest, manifest_sha = score.artifact(directory)
     require(manifest.kind == "evaluation" and manifest.name == "ste-rewriter-run",
@@ -56,6 +56,7 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
     score.require_fields(record, plan)
     expected = {"engine": "python-hf", "precision": "bf16",
                 "model": score.build.MODEL, "device_map": "balanced",
+                "commit": plan["commit"],
                 "plan_tree_hash": plan_tree, "plan_manifest_sha256": plan_sha,
                 **{key: plan[key] for key in ("environment_sha256", "build_sha256",
                     "input_sha256", "folded_prompt", "prompt_provenance", "sampler")}}
@@ -136,7 +137,7 @@ def run_summary(run):
     return {"identity": run["identity"], "checks": run["summary"],
             **{key: record[key] for key in ("procedure", "epoch", "created_at",
                 "commit", "adapter", "wall_seconds", "peak_memory_bytes", "gpus",
-                "output_lengths", "review", "loop_checks")}}
+                "output_lengths", "review")}}
 
 
 def markdown(record):
@@ -163,6 +164,7 @@ def markdown(record):
               "The JSON record retains per-kind and per-bin totals, failure rules,",
               "output lengths, GPU peaks, wall times and artifact identities.",
               "These STE results do not establish a change in meaning quality.", "",
+              "Loop seed and token checks require their separate evidence record.", "",
               f"Commit: {record['commit']['rev']}", ""]
     return "\n".join(lines)
 

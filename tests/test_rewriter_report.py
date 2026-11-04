@@ -237,3 +237,35 @@ def test_rewrite_report_rejects_producer_change(evidence, trained, monkeypatch):
         report.read_score(item[0], score.read_plan(evidence.command.plan,
             repo=evidence.command.repo), adapter=item[1], training_build=item[2],
             repo=evidence.command.repo)
+
+
+@pytest.mark.parametrize("which", ["both-r0", "candidate"])
+def test_rewrite_report_binds_score_code_to_plan(evidence, trained, which):
+    """REWRITE-ORDER, REWRITE-SPREAD: equal run claims must match the frozen code."""
+    candidates = []
+    if which == "candidate":
+        item = candidate(evidence, trained)
+        candidates.append(item)
+        paths = [item[0]]
+    else:
+        paths = [evidence.first, evidence.second]
+    for path in paths:
+        change_record(path, lambda record: record["commit"].update(rev="other-code"))
+    assert compare(evidence, candidates) == 2
+    result = json.loads((evidence.out / "comparison.json").read_text())
+    assert "score identities differ from the frozen plan" in (
+        result["failure"]["message"])
+    assert not evidence.out.with_name("comparison.manifest.json").exists()
+
+
+def test_rewrite_report_does_not_certify_recorded_loop_claims(evidence):
+    """REWRITE-RECONCILE: a checker comparison cannot verify seed or token equality."""
+    change_record(evidence.first, lambda record: record.update(loop_checks={
+        "seed_check_complete": True, "joint_token_check_complete": True}))
+    assert compare(evidence) == 0
+    result = json.loads((evidence.out / "comparison.json").read_text())
+    assert all("loop_checks" not in run for run in result["runs"].values())
+    assert json.loads((evidence.first / "run.json").read_text())["loop_checks"] == {
+        "seed_check_complete": True, "joint_token_check_complete": True}
+    assert "require their separate evidence record" in (
+        evidence.out / "report.md").read_text()
