@@ -382,6 +382,8 @@ Use `random.Random(2032).shuffle` and give the results opaque review IDs.
 Keep the procedure map outside the reviewer input.
 Record the exact sequence and its hash.
 Each review batch gets a new identity and keeps the earlier verdicts.
+Before you map verdicts, check the prompt, input and verdict file hashes against
+the deposit.
 
 The reviewer reads the original source and the rewrite with its code spans put back.
 Put code spans back only with that source's frozen map.
@@ -496,8 +498,8 @@ another bin.
   reads it.
 - **REWRITE-SPREAD:** Check paired comparisons against the first R0 procedure and the
   recorded decode difference.
-- **REWRITE-REVIEW:** Check the prompt hash, blind sequence, code spans put back,
-  missing cases, defect denominators and override records.
+- **REWRITE-REVIEW:** Check the prompt, input and verdict hashes, blind sequence,
+  code spans put back, missing cases, defect denominators and override records.
 - **REWRITE-RECORD:** A procedure with a failure keeps its records and cannot overwrite
   a completed directory.
 - **REWRITE-RECONCILE:** Record the two real token sequences and compare them in the

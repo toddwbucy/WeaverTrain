@@ -237,7 +237,7 @@ def summarize(rows):
 
 
 def ingest(batch_dir, plan_dir, sources, verdict_file, out_dir, *, input_sha256,
-           prompt_sha256, overrides=None, repo=REPO):
+           prompt_sha256, verdicts_sha256, overrides=None, repo=REPO):
     """REWRITE-REVIEW: preserve original bytes and dated overrides in a new record."""
     sources = list(sources)
     inputs = input_paths(plan_dir, sources) + [batch_dir, verdict_file]
@@ -247,7 +247,8 @@ def ingest(batch_dir, plan_dir, sources, verdict_file, out_dir, *, input_sha256,
     record = {"schema": "weaver-train/rewriter-review-verdicts/v1",
               "record_id": uuid4().hex, "status": "started", "completed_ids": [],
               "created_at": datetime.now(timezone.utc).isoformat(),
-              "commit": mf.git_commit(repo), "model": score.REVIEW_MODEL}
+              "commit": mf.git_commit(repo), "model": score.REVIEW_MODEL,
+              "deposited_verdicts_sha256": verdicts_sha256}
     out.mkdir(parents=True, exist_ok=False)
     save_record(out, "review.json", record)
     try:
@@ -262,6 +263,8 @@ def ingest(batch_dir, plan_dir, sources, verdict_file, out_dir, *, input_sha256,
         (out / "original-verdicts.jsonl").write_bytes(raw)
         record.update(verdicts_sha256=score.build.digest(raw),
                       input_sha256=input_sha256, prompt_sha256=prompt_sha256)
+        require(record["verdicts_sha256"] == verdicts_sha256,
+                "REWRITE-REVIEW: verdict file hash differs from deposited hash")
         verdicts = report.rows(raw)
         items = audit["sequence"]
         require([row["review_id"] for row in verdicts] ==
@@ -329,6 +332,7 @@ def main(argv=None, *, repo=REPO):
             command.add_argument("--verdicts", type=Path, required=True)
             command.add_argument("--input-sha256", required=True)
             command.add_argument("--prompt-sha256", required=True)
+            command.add_argument("--verdicts-sha256", required=True)
             command.add_argument("--overrides", type=Path)
     args = parser.parse_args(argv)
     sources = [(path, None, None) for path in args.run] + args.candidate
@@ -338,7 +342,7 @@ def main(argv=None, *, repo=REPO):
         else:
             record, manifest = ingest(args.batch, args.plan, sources, args.verdicts,
                 args.out, input_sha256=args.input_sha256, prompt_sha256=args.prompt_sha256,
-                overrides=args.overrides, repo=repo)
+                verdicts_sha256=args.verdicts_sha256, overrides=args.overrides, repo=repo)
     except (mf.ManifestError, OSError, KeyError, TypeError, IndexError, ValueError,
             RuntimeError) as exc:
         print(f"review: stopped: {exc}", file=sys.stderr)

@@ -18,7 +18,8 @@ It writes one verdicts file in the pinned prompt's JSON line shape.
 
 Keep the model ID, invocation and UTC start and end times in the run deposit.
 Keep the prompt, input and verdicts hashes and the session transcript there too.
-The ingest command verifies hashes, order and fields before mapping verdicts back.
+The ingest command verifies the prompt, input and verdict hashes from the deposit.
+It checks order and fields before mapping verdicts back.
 This route needs no API key in the run environment.
 Production preparation still waits for the review code to merge.
 

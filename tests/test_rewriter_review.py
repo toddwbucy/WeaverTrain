@@ -36,9 +36,10 @@ def batch(evidence):
 
 
 def ingest(batch, **kwargs):
-    """REWRITE-REVIEW: ingest external fixture verdicts with explicit input pins."""
+    """REWRITE-REVIEW: pin fixture bytes so semantic tests reach their own guards."""
     options = {"input_sha256": batch.audit["input_sha256"],
-               "prompt_sha256": batch.audit["prompt_sha256"], "repo": batch.repo}
+               "prompt_sha256": batch.audit["prompt_sha256"],
+               "verdicts_sha256": mf.sha256_file(batch.verdict_file), "repo": batch.repo}
     options.update(kwargs)
     return review.ingest(batch.out, batch.plan, batch.sources, batch.verdict_file,
                          batch.result, **options)
@@ -200,6 +201,7 @@ def test_review_records_original_overrides_and_distinct_denominators(batch):
     assert rows[0]["override"] == override and rows[0]["effective"]["verdict"] == "wrong"
     assert (batch.result / "original-verdicts.jsonl").read_bytes() == original
     assert record["verdicts_sha256"] == score.build.digest(original)
+    assert record["deposited_verdicts_sha256"] == score.build.digest(original)
     assert mf.verify_tree(manifest, batch.result) == []
     before = (batch.result / "review.json").read_bytes()
     with pytest.raises(ValueError, match="output directory or manifest already exists"):
@@ -275,6 +277,32 @@ def test_review_submitted_input_pins_are_checked(batch, key):
     with pytest.raises(ValueError, match="^" + message + "$"):
         ingest(batch, **{key: "changed"})
     assert_failed(batch, message)
+
+
+@pytest.mark.parametrize("change", ["valid", "malformed", "whitespace"])
+def test_review_deposited_verdict_hash_rejects_changed_bytes(batch, change):
+    """REWRITE-REVIEW: check the deposit pin before parsing or mapping verdicts."""
+    deposited = mf.sha256_file(batch.verdict_file)
+    if change == "valid":
+        batch.verdicts[0].update(verdict="wrong", defects=[{
+            "source_quote": "Use", "rewrite_quote": "", "reason": "Fixture omission"}])
+        raw = score.jsonl_bytes(batch.verdicts)
+    elif change == "malformed":
+        raw = b"not JSON\n"
+    else:
+        raw = batch.verdict_file.read_bytes() + b"\n"
+    batch.verdict_file.write_bytes(raw)
+    message = "REWRITE-REVIEW: verdict file hash differs from deposited hash"
+    with pytest.raises(ValueError, match="^" + message + "$"):
+        ingest(batch, verdicts_sha256=deposited)
+    assert_failed(batch, message)
+    record = json.loads((batch.result / "review.json").read_bytes())
+    assert record["deposited_verdicts_sha256"] == deposited
+    assert record["verdicts_sha256"] == score.build.digest(raw) != deposited
+    assert (batch.result / "original-verdicts.jsonl").read_bytes() == raw
+    assert record["completed_ids"] == []
+    assert record["pending_review_ids"] == [row["review_id"] for row in batch.audit["sequence"]]
+    assert not (batch.result / "verdicts.jsonl").exists()
 
 
 @pytest.mark.parametrize("change, message", [
@@ -362,7 +390,30 @@ def test_review_cli_uses_only_local_files(batch, capsys):
     assert review.main(["ingest", *args, "--out", str(batch.result),
         "--batch", str(batch.out), "--verdicts", str(batch.verdict_file),
         "--input-sha256", batch.audit["input_sha256"],
-        "--prompt-sha256", batch.audit["prompt_sha256"]], repo=batch.repo) == 0
+        "--prompt-sha256", batch.audit["prompt_sha256"],
+        "--verdicts-sha256", mf.sha256_file(batch.verdict_file)], repo=batch.repo) == 0
+
+
+@pytest.mark.parametrize("supplied", [False, True])
+def test_review_cli_requires_deposited_verdict_hash(batch, capsys, supplied):
+    """REWRITE-REVIEW: the CLI requires and forwards the deposit's verdict pin."""
+    args = ["ingest", "--plan", str(batch.plan), "--run", str(batch.evidence.first),
+            "--out", str(batch.result), "--batch", str(batch.out),
+            "--verdicts", str(batch.verdict_file),
+            "--input-sha256", batch.audit["input_sha256"],
+            "--prompt-sha256", batch.audit["prompt_sha256"]]
+    if not supplied:
+        with pytest.raises(SystemExit) as exc:
+            review.main(args, repo=batch.repo)
+        assert exc.value.code == 2
+        assert "the following arguments are required: --verdicts-sha256" in capsys.readouterr().err
+        assert not batch.result.exists()
+    else:
+        message = "REWRITE-REVIEW: verdict file hash differs from deposited hash"
+        assert review.main(args + ["--verdicts-sha256", "0" * 64], repo=batch.repo) == 2
+        assert capsys.readouterr().err == "review: stopped: " + message + "\n"
+        assert_failed(batch, message)
+        assert (batch.result / "original-verdicts.jsonl").read_bytes() == batch.verdict_file.read_bytes()
 
 
 @pytest.mark.parametrize("verdict", review.VERDICTS)
