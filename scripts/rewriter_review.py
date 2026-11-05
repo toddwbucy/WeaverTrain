@@ -40,8 +40,10 @@ def read_sources(plan_dir, sources, repo):
     identities = [run["record"]["run_id"] for run in runs]
     require(len(set(identities)) == len(identities),
             "REWRITE-REVIEW: score identity repeats")
-    runs.sort(key=lambda run: (run["record"]["procedure"], run["record"]["epoch"],
-                              run["record"]["created_at"], run["record"]["run_id"]))
+    cohorts = [(run["record"]["procedure"], run["record"]["epoch"]) for run in runs]
+    require(len(set(cohorts)) == len(cohorts),
+            "REWRITE-REVIEW: procedure and epoch repeat")
+    runs.sort(key=lambda run: (run["record"]["procedure"], run["record"]["epoch"]))
     return bundle, prompt, runs
 
 
@@ -85,7 +87,7 @@ def sequence(bundle, runs, batch_id):
                           "rewrite": score.ste_convert.unmask(masked, source["codes"]),
                           "masked_source": source["text"], "masked_rewrite": masked,
                           "codes": source["codes"]})
-    # Stable equal-key order uses the verified run time and identity from read_sources.
+    # REWRITE-REVIEW: sort the compared procedures before the fixed shuffle.
     items.sort(key=lambda item: (item["procedure"], item["epoch"], item["source_id"]))
     random.Random(2032).shuffle(items)
     blind, mapping = [], []
@@ -209,6 +211,8 @@ def validate_verdict(value, item):
                 all(isinstance(text, str) for text in defect.values()) and
                 bool(defect["reason"].strip()),
                 "REWRITE-REVIEW: invalid defect fields")
+        require(bool(defect["source_quote"].strip()),
+                "REWRITE-REVIEW: source quote is empty")
         require(defect["source_quote"] in item["source"] and
                 defect["rewrite_quote"] in item["rewrite"],
                 "REWRITE-REVIEW: defect quote differs from reviewed text")

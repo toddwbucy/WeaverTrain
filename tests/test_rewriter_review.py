@@ -11,8 +11,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import rewriter_review as review
-from tests.test_rewriter_report import evidence
-from tests.test_rewriter_run_command import command, tokenizer, world
+from tests.test_rewriter_report import candidate, evidence
+from tests.test_rewriter_run_command import command, tokenizer, trained, world
 
 score = review.score
 mf = review.mf
@@ -23,7 +23,7 @@ def batch(evidence):
     """REWRITE-REVIEW: use verified synthetic runs with missing first outputs."""
     c = evidence.command
     out = evidence.first.parent / "batch"
-    sources = [(evidence.first, None, None), (evidence.second, None, None)]
+    sources = [(evidence.first, None, None)]
     record, manifest = review.prepare(c.plan, sources, out, repo=c.repo)
     audit = json.loads((out / "private.json").read_bytes())
     verdict_file = out.parent / "external-verdicts.jsonl"
@@ -65,16 +65,12 @@ def test_review_blind_sequence_restoration_and_new_identity(batch):
     assert all(set(row) == {"review_id", "source", "rewrite"} for row in blind)
     assert sorted(p.name for p in (batch.out / "reviewer").iterdir()) == ["input.jsonl", "prompt.md"]
     assert audit["sample"] == random.Random(2031).sample([f"t{n:03d}" for n in range(100)], 30)
-    expected = []
-    for index, path in enumerate([batch.evidence.first, batch.evidence.second]):
-        r = json.loads((path / "run.json").read_bytes())
-        expected.extend((r["run_id"], key) for key in sorted(audit["sample"])
-                        if int(key[1:]) >= 10 + index)
-    expected.sort(key=lambda row: row[1])
+    r = json.loads((batch.evidence.first / "run.json").read_bytes())
+    expected = [(r["run_id"], key) for key in sorted(audit["sample"]) if int(key[1:]) >= 10]
     random.Random(2032).shuffle(expected)
     assert [(row["run_id"], row["source_id"]) for row in audit["sequence"]] == expected
     assert all(row["source_id"] in audit["sample"] for row in audit["unreviewed"])
-    assert len(audit["sequence"]) + len(audit["unreviewed"]) == 60
+    assert len(audit["sequence"]) + len(audit["unreviewed"]) == 30
     assert all(row["source"].strip() == row["rewrite"] for row in blind)
     assert any("`item`" in row["rewrite"] for row in blind)
     assert all("[[C1]]" not in row["rewrite"] for row in blind)
@@ -185,8 +181,8 @@ def test_review_records_original_overrides_and_distinct_denominators(batch):
     original = batch.verdict_file.read_bytes()
     row = batch.audit["sequence"][0]
     override = {"review_id": row["review_id"], "verdict": "wrong", "defects": [
-        {"source_quote": "", "rewrite_quote": "", "reason": "First distinct fixture defect"},
-        {"source_quote": "", "rewrite_quote": "", "reason": "Second distinct fixture defect"}],
+        {"source_quote": "Use", "rewrite_quote": "", "reason": "First distinct fixture defect"},
+        {"source_quote": "Use", "rewrite_quote": "", "reason": "Second distinct fixture defect"}],
         "operator": "Fixture operator", "date": "2026-11-04"}
     overrides = batch.out.parent / "overrides.jsonl"
     overrides.write_bytes(score.jsonl_bytes([override]))
@@ -237,7 +233,7 @@ def test_review_undefined_rates_and_rejected_checker_results():
 def test_review_invalid_external_verdicts_keep_failure_and_raw_bytes(batch, change, message):
     """REWRITE-REVIEW: a malformed or incomplete review cannot become a success."""
     rows = batch.verdicts
-    defect = {"source_quote": "", "rewrite_quote": "", "reason": "Fixture defect"}
+    defect = {"source_quote": "Use", "rewrite_quote": "", "reason": "Fixture defect"}
     if change == "missing":
         rows.pop()
     elif change == "duplicate":
@@ -352,11 +348,17 @@ def test_review_ingestion_window_changes_keep_failure(batch, monkeypatch, target
     assert_failed(batch, message)
 
 
-def test_review_cli_uses_only_local_files(batch):
+def test_review_cli_uses_only_local_files(batch, capsys):
     """REWRITE-REVIEW: exercise both public commands without a reviewer call."""
-    args = ["--plan", str(batch.plan), "--run", str(batch.evidence.first),
-            "--run", str(batch.evidence.second)]
+    args = ["--plan", str(batch.plan), "--run", str(batch.evidence.first)]
     assert review.main(["prepare", *args, "--out", str(batch.out)], repo=batch.repo) == 2
+    fresh = batch.out.with_name("cli-batch")
+    capsys.readouterr()
+    assert review.main(["prepare", *args, "--out", str(fresh)], repo=batch.repo) == 0
+    output = json.loads(capsys.readouterr().out.splitlines()[-1])
+    manifest = mf.load_tree(fresh.with_name(fresh.name + ".manifest.json"))
+    assert output == {"status": "completed", "tree_hash": manifest.tree_hash}
+    assert mf.verify_tree(manifest, fresh) == []
     assert review.main(["ingest", *args, "--out", str(batch.result),
         "--batch", str(batch.out), "--verdicts", str(batch.verdict_file),
         "--input-sha256", batch.audit["input_sha256"],
@@ -375,6 +377,8 @@ def test_review_accepts_each_defined_verdict(verdict):
 def test_review_sort_uses_procedure_then_epoch_then_source(batch):
     """REWRITE-REVIEW: distinct procedures and epochs precede the seeded shuffle."""
     bundle, _, runs = review.read_sources(batch.plan, batch.sources, batch.repo)
+    runs.append(copy.deepcopy(runs[0]))
+    runs[1]["record"]["run_id"] = "second"
     runs[0]["record"].update(procedure="r1", epoch=2)
     runs[1]["record"].update(procedure="r1", epoch=1)
     third = copy.deepcopy(runs[0])
@@ -387,3 +391,87 @@ def test_review_sort_uses_procedure_then_epoch_then_source(batch):
     expected.sort()
     random.Random(2032).shuffle(expected)
     assert [(row["procedure"], row["epoch"], row["source_id"]) for row in mapping] == expected
+
+
+def test_review_rejects_second_r0_pass(batch):
+    """REWRITE-REVIEW, REWRITE-SPREAD: the spread repeat cannot double the sample."""
+    out = batch.out.with_name("duplicate-r0")
+    sources = [*batch.sources, (batch.evidence.second, None, None)]
+    message = "REWRITE-REVIEW: procedure and epoch repeat"
+    with pytest.raises(ValueError, match="^" + message + "$"):
+        review.prepare(batch.plan, sources, out, repo=batch.repo)
+    record = json.loads((out / "batch.json").read_bytes())
+    assert record["status"] == "failed" and record["failure"]["message"] == message
+    assert not out.with_name(out.name + ".manifest.json").exists()
+
+
+@pytest.mark.parametrize("keys, duplicate", [
+    ([("r0", 0), ("r0", 0)], True),
+    ([("r1", 1), ("r1", 1)], True),
+    ([("r1", 2), ("r1", 2)], True),
+    ([("r2", 1), ("r2", 1)], True),
+    ([("r2", 2), ("r2", 2)], True),
+    ([("r0", 0), ("r1", 1)], False),
+    ([("r1", 1), ("r1", 2)], False),
+    ([("r1", 1), ("r2", 1)], False),
+])
+def test_review_cohort_identity(batch, monkeypatch, keys, duplicate):
+    """REWRITE-REVIEW: procedure and epoch jointly identify a compared result."""
+    bundle, _, runs = review.read_sources(batch.plan, batch.sources, batch.repo)
+    runs.append(review.report.read_score(batch.evidence.second, bundle, repo=batch.repo))
+    for run, (procedure, epoch) in zip(runs, keys):
+        run["record"].update(procedure=procedure, epoch=epoch)
+    supplied = iter(runs)
+    monkeypatch.setattr(review.report, "read_score", lambda *a, **kw: next(supplied))
+    sources = [*batch.sources, (batch.evidence.second, None, None)]
+    if duplicate:
+        with pytest.raises(ValueError, match="^REWRITE-REVIEW: procedure and epoch repeat$"):
+            review.read_sources(batch.plan, sources, batch.repo)
+    else:
+        _, _, accepted = review.read_sources(batch.plan, sources, batch.repo)
+        assert len(accepted) == 2
+
+
+def test_review_includes_distinct_verified_adapter_procedure(batch, trained):
+    """REWRITE-REVIEW: the first R0 and a verified epoch share one blind sequence."""
+    item = candidate(batch.evidence, trained)
+    out = batch.out.with_name("r0-and-r1")
+    review.prepare(batch.plan, [*batch.sources, item], out, repo=batch.repo)
+    audit = json.loads((out / "private.json").read_bytes())
+    assert len(audit["sequence"]) + len(audit["unreviewed"]) == 60
+    assert {(row["procedure"], row["epoch"]) for row in audit["sequence"]} == {
+        ("r0", 0), ("r1", 1)}
+    assert len({(row["procedure"], row["epoch"], row["source_id"])
+                for row in audit["sequence"]}) == len(audit["sequence"])
+
+
+@pytest.mark.parametrize("quote", ["", " "])
+@pytest.mark.parametrize("target", ["external", "override"])
+def test_review_requires_nonempty_source_quote(batch, quote, target):
+    """REWRITE-REVIEW: both original and override defects need a source anchor."""
+    verdict = {"review_id": batch.verdicts[0]["review_id"], "verdict": "wrong", "defects": [
+        {"source_quote": quote, "rewrite_quote": "", "reason": "Fixture omission"}]}
+    options = {}
+    if target == "external":
+        batch.verdicts[0] = verdict
+        batch.verdict_file.write_bytes(score.jsonl_bytes(batch.verdicts))
+    else:
+        verdict.update(operator="Fixture operator", date="2026-11-05")
+        overrides = batch.out.parent / "empty-source-override.jsonl"
+        overrides.write_bytes(score.jsonl_bytes([verdict]))
+        options["overrides"] = overrides
+    message = "REWRITE-REVIEW: source quote is empty"
+    with pytest.raises(ValueError, match="^" + message + "$"):
+        ingest(batch, **options)
+    assert_failed(batch, message)
+
+
+@pytest.mark.parametrize("kind", ["addition", "omission"])
+def test_review_source_anchors_allow_added_and_omitted_content(kind):
+    """REWRITE-REVIEW: quote source context for additions and an empty rewrite for omissions."""
+    item = {"review_id": "opaque", "source": "Use the item.",
+            "rewrite": "Use the item. Remove the log." if kind == "addition" else "Use."}
+    defect = {"source_quote": "Use the item.",
+              "rewrite_quote": "Remove the log." if kind == "addition" else "",
+              "reason": "An action was added." if kind == "addition" else "The object was omitted."}
+    review.validate_verdict({"review_id": "opaque", "verdict": "wrong", "defects": [defect]}, item)

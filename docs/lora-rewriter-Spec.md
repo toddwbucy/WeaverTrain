@@ -375,6 +375,8 @@ Select 30 source IDs with seed 2031 before R0.
 Use `random.Random(2031).sample` on the source IDs in alphabetic sequence.
 Keep the same IDs for every procedure.
 Put available first rewrites from the compared procedures in one sequence.
+Use one result for each procedure and epoch.
+For R0, use only the first result.
 First sort by procedure, epoch and source ID.
 Use `random.Random(2032).shuffle` and give the results opaque review IDs.
 Keep the procedure map outside the reviewer input.

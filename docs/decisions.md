@@ -3,6 +3,27 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: approve the separate meaning-review grader session
+
+The operator approved the separate grader route and made the session ready.
+The [recorded ruling][rewriter-grader-route] corrects the earlier proposal label.
+The invocation route is approved. PR 33 must merge before production preparation.
+
+Use a separate Claude Code session with fresh context and model `claude-opus-5-5`.
+The grader is neither the executor nor the review seat.
+Its working directory holds only `reviewer/prompt.md` and `reviewer/input.jsonl`
+from a completed preparation batch.
+It reads no repository file, issue, plan, pass record or deposit.
+It writes one verdicts file in the pinned prompt's JSON line shape.
+
+Keep the model ID, invocation and UTC start and end times in the run deposit.
+Keep the prompt, input and verdicts hashes and the session transcript there too.
+The ingest command verifies hashes, order and fields before mapping verdicts back.
+This route needs no API key in the run environment.
+Production preparation still waits for the review code to merge.
+
+[rewriter-grader-route]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6646130753
+
 ## 2026-11-04: continue R0 with the observed torchao warning
 
 The operator directed the executor to proceed with R0 as planned.
