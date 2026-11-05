@@ -3,6 +3,60 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-05: approve adapter reuse and keep trial text in the deposit
+
+The [operator ruling on issue 36][rewriter-trial-ruling] settles both open trial questions.
+The trial may use the unchanged R1 epoch 2 adapter with the provenance correction in [PR 38][rewriter-trial-correction].
+Its tree is `05c86cd2d18faa5480836140c36a62f524fc418c6d7f24f27b53dc218e88d030`.
+This permits the recorded difference between the original producer and training-data commits for that saved adapter.
+Keep both identities and the old evidence unchanged.
+New trial procedures still require imports from their run checkout and the proposed module-hash and clean-commit checks.
+
+Keep the side-by-side source, base rewrite and adapter rewrite only in the bulk-store deposit.
+The result note in `reports/` contains measurements, limits and hashes under unchanged REWRITE-RECORD.
+Remove the proposed source-text exception and per-row license and notice requirements from REWRITE-TRIAL.
+No notice retrieval or new download is authorized.
+
+The Spec must merge before trial code.
+Post the plan hash and obtain the review seat's grade before the first generation.
+No meaning verdict, loop use, training or R2 is authorized. Other trial limits are unchanged.
+
+[rewriter-trial-ruling]: https://github.com/toddwbucy/WeaverTrain/issues/36#issuecomment-6664629876
+[rewriter-trial-correction]: https://github.com/toddwbucy/WeaverTrain/pull/38
+
+## 2026-11-05: test the R1 epoch 2 adapter on new conversion segments
+
+The operator authorized the Python trial in [issue 36][rewriter-trial].
+Compare the untrained base and the R1 epoch 2 adapter on about 20 new segments.
+Use narration and final reports from the pinned `nemotron-swe-v1` dataset.
+Exclude whole trajectories from both conversion batches and both held-out kits.
+Each candidate must pass the contamination filter against both frozen benchmark snapshots.
+Freeze the selection, seed, method and hashes before generation.
+The proposed plan defines exact JSON bytes and posts the file SHA256 separately from its manifest tree hash.
+
+The current Spec has no clause for this trial. This docs PR proposes REWRITE-TRIAL to close that gap.
+Its selection proposal uses 20 distinct trajectories, seed 2033, two final reports and 18 narration segments.
+The source bins contain 7, 6 and 7 segments under the existing balance rule.
+New trial code follows the Spec merge. The review seat grades the plan, code and result note.
+
+Use the existing `python-hf` path in bf16, with the approved folded prompt and one first output per input.
+The exact adapter tree, checks, budget, environment gate and stop rules are in REWRITE-TRIAL.
+Keep all reference weights and saved adapters unchanged.
+This trial uses the existing R1 training build and its original commit.
+Keep those identities and the producer commit separate from the new merged trial commit in the trial plan.
+Do not rebuild or edit the old training evidence to give it the trial commit.
+The proposed trial must import repository modules from its run checkout and record their file hashes.
+It must reject a new record with a dirty commit or a commit that differs from its launch.
+
+The trial gives no meaning verdict and does not authorize loop use.
+Blind batch `2847c781` remains the meaning gate.
+REWRITE-RECONCILE, the seed record and deferred finding E still gate loop use.
+No training, R2, repair, harness work or new download is authorized.
+The earlier proposal to test about 100 training examples stays on hold.
+Post each trial event on issue 36 and monitor that issue and each related PR for review updates.
+
+[rewriter-trial]: https://github.com/toddwbucy/WeaverTrain/issues/36
+
 ## 2026-11-05: publish R0 and authorize R1 without repair conversations
 
 The operator directed publication of the unchanged R0 report after the expected digest was corrected.
