@@ -317,7 +317,40 @@ Use the recorded R0 decode difference for both comparisons.
 Keep the old producer identity and its recorded correction unchanged.
 The old discrepancy gives no exception for a new R1-E4 producer.
 Keep each epoch's outputs for the fixed 30-source sample from seed 2031.
-No review of the sense is part of R1-E4.
+Review their sense under REWRITE-R1-E4-REVIEW after all four held-out scores are complete.
+
+**REWRITE-R1-E4-REVIEW.** The [operator decision][r1-four-review] gives approval for a blind review of all four R1-E4 epochs.
+Use each epoch's saved first outputs for the fixed 30-source sample from seed 2031.
+Do not make a new rewrite for this review.
+Apply REWRITE-REVIEW without changes to its rules.
+Keep one result for each procedure and epoch.
+Check placeholders and literals before code spans are put back.
+Keep unavailable items in the record without replacements.
+Use the same four verdicts and calculate defect rates only on reviewed items that the checker accepted.
+
+Use the unchanged `config/ste-rewrite-review-prompt.md`.
+Its SHA256 is `c18b9dea736f81fea6225d1e096e54a1d6d8840805085fb542c62b4a32f9e112`.
+Use the [approved grader procedure][r1-four-grader] in a different `claude-opus-5-5` session with fresh context.
+Its new directory initially holds only `prompt.md` and `input.jsonl`.
+Keep the procedure map and other records outside that directory.
+
+The [operator's division of work][r1-four-review-seats] gives batch preparation and the `ingest` command to the executor.
+The review seat checks the prepared grader directory and its hashes.
+The review seat gives the grader its instruction and any format correction directly.
+It checks the verdict file before its hash is recorded and audits the transcript for blindness.
+It records each message between the review seat and grader on issue 21.
+It posts the grader record there for the executor's `ingest` command.
+That record holds the model ID, invocation, UTC start and end times, transcript and all corrections.
+It also holds the prompt, input and verdict file hashes.
+The executor uses `--input-sha256`, `--prompt-sha256` and `--verdicts-sha256` for ingest under REWRITE-REVIEW.
+
+Extend the review code to accept epochs 1 through 4 for R1-E4.
+Check all four distinct epochs and their saved score and producer identities.
+Reject an absent, duplicate or different epoch and a different procedure or producer.
+Keep the checks for earlier procedures unchanged.
+Keep this batch and its verdicts different from the earlier R1 batch.
+Report the verdict counts for each epoch beside its STE scores, with the reviewed denominator and defect rates.
+Report numbers only, with no cause label or recommendation.
 
 **REWRITE-R1-E4-TRAIN-SCORES.** The [operator amendment][r1-four-loss] adds one frozen sample of 50 training pairs.
 Start with the approved 200 pairs in their PAIR-BALANCE sequence.
@@ -340,6 +373,7 @@ For each epoch, report the arithmetic mean of its logged optimizer-step losses a
 Put each loss and learning-rate record together by step identity.
 Stop on an absent, duplicate or non-finite value.
 Report all four held-out scores, training-sample scores and paired comparisons.
+Include the review counts under REWRITE-R1-E4-REVIEW before the final report.
 Report wall time and peak memory on each GPU for training and each score procedure.
 Report the numbers without a cause label or recommendation.
 The learning rate decreases to zero under the cosine schedule.
@@ -606,6 +640,14 @@ another bin.
 - **REWRITE-R1-E4-REPORT:** Check step identities, complete loss and learning-rate records, the steps in each epoch and arithmetic means.
   Reject absent, duplicate and non-finite values with specific reasons.
 - **REWRITE-R1-E4-EXPERTS:** Check full module names, dimensions, rank-16 counts and exclusion of current targets.
+- **REWRITE-R1-E4-REVIEW:** Check batch preparation and the `ingest` command for all four R1-E4 epochs.
+  Check the fixed sample, saved first outputs, blind sequence, prompt pin and all three hashes for the `ingest` command.
+  Check placeholder and literal checks before restoration, unavailable items, four verdict counts and checker-accepted defect denominators.
+  Reject an absent, duplicate or different epoch and a different procedure or producer.
+  Keep the earlier procedure checks and verdicts unchanged.
+  For each new rejection check, remove that check for a mutation test.
+  With that check absent, the test must not be satisfactory.
+  Each rejection test checks the specific reason, with other checks satisfactory.
 - **REWRITE-TRIAL-INPUTS, REWRITE-TRIAL-PLAN:** Check whole-trajectory exclusions, source hashes, snapshot checks, seed repeatability and plan hashes.
   A different row number must not hide a forbidden UUID.
   Check all four contamination keys against each frozen snapshot.
@@ -656,6 +698,9 @@ Use repair conversations only after a Spec change for masks, counts and costs.
 [r1-go]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6658527439
 [r1-four]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668124199
 [r1-four-loss]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668140899
+[r1-four-review]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668437190
+[r1-four-review-seats]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668462707
+[r1-four-grader]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6646130753
 
 **Loop capture and conversion.** Open for the joint work with WeaverAgent.
 The operator reviewed the folded file on 2026-11-03.

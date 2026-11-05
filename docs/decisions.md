@@ -9,6 +9,8 @@ The operator directed one new four-epoch run named R1-E4 before R2.
 The [exact task receipt on issue 21][rewriter-r1-four] records the instruction.
 The [later amendment][rewriter-r1-four-loss] replaces step 4 with descriptive training measurements.
 The [experiment-list ruling][rewriter-pre-r2-series] makes R1-E4 run 1, the reference for the planned sequence below.
+The [meaning-review ruling][rewriter-r1-four-review] adds a blind review of all four R1-E4 epochs.
+The [division-of-work ruling][rewriter-r1-four-review-seats] gives management of the grader to the review seat.
 This repeat takes priority over the pending issue 36 conversion trial.
 
 Use the same 200 pairs, their ordered-ID pin, seed 0 and approved folded prompt.
@@ -21,7 +23,22 @@ It does not continue the old adapter or reproduce the old two-epoch schedule.
 Save and verify all four epoch adapters, and score each on the frozen 100-segment plan.
 Report accepted counts by kind and source-length bin, failures by rule, placeholders, empty outputs and token limits.
 Compare each epoch against R0 pass 1 and original R1 epoch 2 under unchanged RUN-MARGIN.
-Keep each epoch's outputs for the fixed 30-source sample, seed 2031. No meaning review occurs in this act.
+Keep each epoch's outputs for the fixed 30-source sample, seed 2031.
+After the four held-out scores, review those retained first outputs for meaning without new rewrite generation.
+Apply REWRITE-REVIEW unchanged, including placeholder and literal checks before restoration and its four verdicts.
+Use checker-accepted reviewed items for defect rates and retain unavailable items without replacements.
+The review prompt remains `c18b9dea736f81fea6225d1e096e54a1d6d8840805085fb542c62b4a32f9e112`.
+Use the approved separate `claude-opus-5-5` session and a fresh directory with only the prompt and blind input at preparation.
+
+The executor prepares the batch and ingests the verdicts with the input, prompt and verdict SHA256 arguments.
+The review seat checks the grader directory and its hashes, then gives the grader its instruction directly.
+The review seat sends any format correction, checks the verdict file before its hash is recorded and audits the transcript.
+It records each message with the grader on issue 21 and posts the grader record there for ingest.
+That record retains the model ID, invocation, UTC times, transcript, corrections and all three file hashes.
+Extend the review code for R1-E4 epochs 1 through 4, with tests and mutations for new rejection checks.
+Report each epoch's verdict counts beside its STE scores, with the reviewed denominator and defect rates.
+This review does not change the earlier R1 batch or its verdicts.
+Ingest of the graded R1 batch `2847c781` remains separately authorized under REWRITE-REVIEW.
 
 Record the full per-step loss curve, learning rate at each step and mean loss for each epoch.
 Use one fixed 50-pair sample from the same 200 training pairs, with seed 2034.
@@ -87,11 +104,14 @@ After run 1's report, the operator decides which later runs to authorize and the
 This planned sequence authorizes none of runs 2 through 4.
 Each later run needs its own Spec text merged before it starts.
 R2 remains unauthorized until the operator reads the results and gives an instruction.
-Meaning review follows R1's approved separate-grader route only on the operator's instruction.
+R1-E4 meaning review is authorized above and uses R1's approved separate-grader route.
+Meaning review for later runs still requires the operator's instruction.
 
 [rewriter-r1-four]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668124199
 [rewriter-r1-four-loss]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668140899
 [rewriter-pre-r2-series]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668296129
+[rewriter-r1-four-review]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668437190
+[rewriter-r1-four-review-seats]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668462707
 
 ## 2026-11-05: approve adapter reuse and keep trial text in the deposit
 
