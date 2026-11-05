@@ -3,6 +3,28 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-05: approve adapter reuse and keep trial text in the deposit
+
+The [operator ruling on issue 36][rewriter-trial-ruling] settles both open trial questions.
+The trial may use the unchanged R1 epoch 2 adapter with the provenance correction in [PR 38][rewriter-trial-correction].
+Its tree is `05c86cd2d18faa5480836140c36a62f524fc418c6d7f24f27b53dc218e88d030`.
+This permits the recorded difference between the original producer and training-data commits for that saved adapter.
+Keep both identities and the old evidence unchanged.
+New trial procedures still require imports from their run checkout and the proposed module-hash and clean-commit checks.
+
+Keep the side-by-side source, base rewrite and adapter rewrite only in the bulk-store deposit.
+The result note in `reports/` contains measurements, limits and hashes under unchanged REWRITE-RECORD.
+Remove the proposed source-text exception and per-row license and notice requirements from REWRITE-TRIAL.
+No notice retrieval or new download is authorized.
+This replaces the public-text proposal in the earlier entry below, which remains as history.
+
+The Spec must merge before trial code.
+Post the plan hash and obtain the review seat's grade before the first generation.
+No meaning verdict, loop use, training or R2 is authorized. Other trial limits are unchanged.
+
+[rewriter-trial-ruling]: https://github.com/toddwbucy/WeaverTrain/issues/36#issuecomment-6664629876
+[rewriter-trial-correction]: https://github.com/toddwbucy/WeaverTrain/pull/38
+
 ## 2026-11-05: test the R1 epoch 2 adapter on new conversion segments
 
 The operator authorized the Python trial in [issue 36][rewriter-trial].

@@ -417,10 +417,9 @@ Keep their later results in a different record.
 Use a new deposit in `weaver-testing/` with a README and `SHA256SUMS`.
 Keep inputs, accepted pairs, repair records, plans, outputs, adapters and logs outside
 git.
-The repository report contains measurements, limits and hashes only, except under REWRITE-TRIAL-RECORD.
+The repository report contains measurements, limits and hashes only.
 Post its link and deposit identity on the rewriter run-log issue.
-Do not commit machine paths, host names or prompt text from the standard.
-Source text stays outside git except under REWRITE-TRIAL-RECORD.
+Do not commit machine paths, host names, source text or prompt text from the standard.
 
 ## 8. The joint token check
 
@@ -508,8 +507,7 @@ another bin.
   A different row number must not hide a forbidden UUID.
   Check all four contamination keys against each frozen snapshot.
   Reject changed plans, code maps, counts, text with placeholders and source identities before model loading.
-  Check the exact plan bytes and each selected source's license record.
-  Reject absent or ambiguous license records and notices.
+  Check the exact plan bytes.
 - **REWRITE-TRIAL-RUN, REWRITE-TRIAL-RECORD:** Check both paths with the same frozen inputs and the pinned epoch 2 adapter.
   Check device pins, full tree checks, first outputs, the reply budget and the denominator of 20.
   Reject repository imports from another checkout and new records with a dirty or different launch commit.
@@ -654,9 +652,6 @@ Record each exclusion reason and the dataset and snapshot identities.
 Use the unchanged masker and `split_ws` from PAIR-TARGET.
 Keep the raw source, outer whitespace, text with placeholders, code map, UUID and locator.
 Use only sources that contain prose outside their placeholders.
-Read each selected row's `license` field and the dataset card from the verified pinned archive.
-Keep the applicable license and all supplied copyright, license and disclaimer notices, with their source identities.
-Stop if the license or a required notice is absent or ambiguous. Do not select a substitute.
 
 **REWRITE-TRIAL-PLAN.** Select one segment per trajectory with seed 2033.
 Use the PAIR-BALANCE length bins and weights. The counts are 7, 6 and 7.
@@ -677,6 +672,8 @@ The trial commit has its own field.
 Check the training data commit against the saved R1 plan.
 The trial plan must have the new merged trial commit.
 If the producer and training data commits are different, get the operator's decision before model use.
+The operator [approved this saved R1 adapter][trial-ruling] with the provenance correction in [PR 38][trial-correction].
+Record that decision with the original R1 identities in the trial plan.
 Do not change a stored training data record or producer record to give it the trial commit.
 Keep each source ID, bin, kind, locator, code map and outer whitespace in the frozen input.
 Check every prompt and reply budget against the unchanged context limit before generation.
@@ -687,7 +684,6 @@ Check the plan and frozen input again before each procedure.
 Write `plan.json` as UTF-8 JSON with `ensure_ascii=True`, `sort_keys=True` and `separators=(",", ":")`.
 Add one final LF. Calculate SHA256 over those exact file bytes.
 The plan holds the selected IDs in sequence, method, seed, exclusions, input identities, procedure values, commits and tree identities.
-It also holds each selected source's license record and notices.
 For each frozen input file, record its relative name, byte count and SHA256 in the plan.
 Post the file digest as `plan_sha256` on issue 36 before the first generation.
 Post the manifest's `tree_hash` as `plan_tree_hash` in a different field.
@@ -732,18 +728,13 @@ The plan must also have a run record and tree manifest.
 Deposit the records under REWRITE-RECORD with a README and `SHA256SUMS`.
 Post each procedure start, result or stop on issue 36.
 Keep the issue body current with the status and links.
-The result note in `reports/` shows each source, base rewrite and adapter rewrite side by side.
-Show each output's checker result and whether its code spans were put back.
-This trial note alone can contain those source and output texts under REWRITE-RECORD.
-Give credit to NVIDIA for the dataset, with a link to its pinned revision.
-Name the dataset and its revision in the note.
-Give the applicable license for each source, with a license link and all required notices.
-Use each row's frozen license record. Do not apply the dataset's general license to every row.
-The pinned card names [CC BY 4.0][trial-license] with [BSD-3-Clause][trial-bsd-license] exceptions.
-Stop publication if a source's license and required notices cannot be given in the note.
-Record that the sources used placeholders during generation and that the rewrites are model outputs.
-Check all text against the public repository rules before publication.
-If text does not satisfy that check, stop publication and get the operator's instruction.
+The deposit shows each source, base rewrite and adapter rewrite side by side.
+Show each output's checker result and whether its code spans were put back in that deposit.
+Keep all source and rewrite text outside git under REWRITE-RECORD.
+The result note in `reports/` contains measurements, limits and hashes only.
+Name the dataset, its revision and the deposit in the note.
+The [operator decision][trial-ruling] gives authority for this layout.
+No license-notice retrieval or new download is authorized.
 Keep the frozen selection and outputs unchanged.
 Report counts by source bin and kind, failures by rule, empty outputs and outputs stopped by the token limit.
 Report wall times and peak memory on each GPU for both procedures.
@@ -751,8 +742,8 @@ Do not pool these results with another engine or the frozen scores.
 The review seat grades the result note. A checker result is not a verdict on the sense.
 
 [trial]: https://github.com/toddwbucy/WeaverTrain/issues/36
-[trial-license]: https://creativecommons.org/licenses/by/4.0/
-[trial-bsd-license]: https://opensource.org/license/bsd-3-clause
+[trial-ruling]: https://github.com/toddwbucy/WeaverTrain/issues/36#issuecomment-6664629876
+[trial-correction]: https://github.com/toddwbucy/WeaverTrain/pull/38
 
 [ruling]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6605286044
 [answers]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6608618052
