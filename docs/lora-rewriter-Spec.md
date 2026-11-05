@@ -26,6 +26,7 @@ Do not compare its scores with the scores of this series.
 **REWRITE-FILES.** This Spec gives approval for new code only after its merge.
 The pair builder is `scripts/rewriter_build.py`.
 The score command is `scripts/rewriter_score.py`.
+The review command is `scripts/rewriter_review.py`.
 Tests and procedure configuration go in new files in `tests/` and `config/`.
 Use the current trainer without changes to its code.
 Each new piece of code cites the clause that gives it authority.

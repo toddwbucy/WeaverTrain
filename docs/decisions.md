@@ -3,6 +3,26 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: continue R0 with the observed torchao warning
+
+The operator directed the executor to proceed with R0 as planned.
+The [continuation receipt][rewriter-torchao-go] records the instruction.
+The operator assigned further investigation to Claude.
+The [review seat's inspection][rewriter-torchao-inspection] identifies torchao as
+the source of the skipped-extension warning.
+That inspection does not prove that generation never uses torchao code.
+
+Permit only the exact warning retained in the continuation receipt.
+Keep it in the procedure log and retain the interrupted attempt unchanged.
+This exception permits no dependency, kernel or precision change.
+Other compatibility warnings, fallback warnings and failures still stop the procedure.
+Repeat environment and GPU checks before each pass.
+Use the unchanged clean run commit and verified plan, with fresh output directories.
+R1 training still needs the operator's go after the complete R0 report.
+
+[rewriter-torchao-go]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6645458811
+[rewriter-torchao-inspection]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6645329767
+
 ## 2026-11-04: diagnose the first rewriter R0 failure before a retry
 
 The first R0 invocation stopped during GPU setup before model loading.
