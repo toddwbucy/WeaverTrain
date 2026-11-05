@@ -45,6 +45,7 @@ def verify_snapshot(directory, identity):
 def read_score(directory, plan_bundle, *, adapter=None, training_build=None, repo=REPO):
     """REWRITE-ORDER, REWRITE-SPREAD: bind score and producer identities to the plan."""
     plan, kit, entries, folded, plan_tree, plan_sha = plan_bundle
+    count = plan["denominator"]
     root, manifest, manifest_sha = score.artifact(directory)
     require(manifest.kind == "evaluation" and manifest.name == "ste-rewriter-run",
             "REWRITE-RECORD: expected a rewriter score manifest")
@@ -64,7 +65,7 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
             "REWRITE-SPREAD: score identities differ from the frozen plan")
     ids = [entry["id"] for entry in entries]
     require(record["completed_ids"] == ids and record["exclusions"] == [],
-            "REWRITE-KIT: the score must cover all 100 frozen inputs")
+            f"REWRITE-KIT: the score must cover all {count} frozen inputs")
     require(isinstance(record["run_id"], str) and record["run_id"],
             "REWRITE-RECORD: a score run identity is required")
     created = datetime.fromisoformat(record["created_at"])
@@ -90,10 +91,21 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
         require(epoch == 0 and record["adapter"] is None and adapter is None and
                 training_build is None, "REWRITE-SPREAD: R0 must be untrained")
     else:
-        require(procedure in ("r1", "r2") and epoch in (1, 2) and
+        require(procedure in ("r1", "r2", "r1-e4") and
+                epoch in ((1, 2, 3, 4) if procedure == "r1-e4" else (1, 2)) and
                 adapter is not None and training_build is not None,
                 "REWRITE-SPREAD: adapter comparisons need the producer artifacts")
         verify_adapter(record, adapter, training_build, plan, repo)
+    require((count == 100 or procedure == "r1-e4") and
+            (plan.get("procedure") != "r1-e4" or procedure == "r1-e4"),
+            "REWRITE-R1-E4: score procedure differs")
+    if procedure == "r1-e4":
+        import rewriter_r1_e4 as e4
+        import rewriter_provenance as provenance
+
+        proof = record["adapter"]["producer"]
+        e4.verify_score_proof(proof, plan_bundle, record["experiment"])
+        provenance.verify_pair(record, repo, plan["commit"])
     segment_bytes = score.captured_file(root, manifest, "segments.jsonl")
     require(score.build.digest(segment_bytes) == record["segments_sha256"],
             "REWRITE-RECORD: segment hash differs from score record")
@@ -111,7 +123,8 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
     # REWRITE-CHECK: rerun the frozen checker with explicit input and prompt files.
     with tempfile.TemporaryDirectory(prefix="weaver-rewriter-rescore-") as scratch:
         verified = Path(scratch) / "checks"
-        summary, checks = score.check_outputs(kit, outputs, verified, repo=repo)
+        summary, checks = score.check_outputs(kit, outputs, verified, repo=repo,
+                                              expected_count=count)
         require(all((verified / name).read_bytes() == raw
                     for name, raw in captured.items()),
                 "REWRITE-CHECK: retained checks differ from the frozen scorer")
@@ -119,7 +132,7 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
                 "tokens": row["output_tokens"]} for row in checks]
     require(record["checks"] == summary and record["output_lengths"] == lengths,
             "REWRITE-RECORD: run summary differs from retained checker records")
-    score.rewrite_outcomes(ids, checks)
+    score.rewrite_outcomes(ids, checks, expected_count=count)
     identity = {"run_id": record["run_id"], "tree_hash": manifest.tree_hash,
                 "manifest_sha256": manifest_sha,
                 "run_sha256": score.build.digest(run_bytes),

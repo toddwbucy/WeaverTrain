@@ -118,6 +118,50 @@ def test_build_command_without_seed_writes_trainer_compatible_data(command):
     assert checked["assistant_tokens"] == record["counts"]["final_target_tokens"]
 
 
+def test_four_epoch_build_preserves_r1_training_bytes(command):
+    """REWRITE-R1-E4: only procedure metadata and epoch token records change."""
+    from tests.test_rewriter_run_command import commit_fixture
+
+    commit_fixture(command.repo)
+    assert invoke(command) == 0
+    original = (command.out / "train.jsonl").read_bytes()
+    old = json.loads((command.out / "build.json").read_bytes())
+    out = command.out.with_name("four-epoch-build")
+    assert build.main(["build", "--pairs", str(command.pairs), "--folded-prompt",
+        str(command.folded), "--selection", "r1-e4", "--out", str(out)], repo=command.repo) == 0
+    record = json.loads((out / "build.json").read_bytes())
+    assert (out / "train.jsonl").read_bytes() == original
+    assert record["selection"] == old["selection"] and record["counts"] == old["counts"]
+    assert record["procedure"] == "r1-e4" and record["commit"]["dirty"] is False
+    assert record["tokens_per_epoch"] == [dict(epoch=n, **record["counts"]) for n in (1, 2, 3, 4)]
+
+
+@pytest.mark.parametrize("change", ["unknown", "dirty", "during"])
+def test_four_epoch_build_requires_unchanged_clean_checkout(command, capsys, monkeypatch, change):
+    """REWRITE-R1-E4: a dirty, absent or changing launch cannot seal a new build."""
+    from tests.test_rewriter_run_command import commit_fixture
+
+    if change != "unknown":
+        commit_fixture(command.repo)
+    if change == "dirty":
+        (command.repo / "change.txt").write_text("changed\n")
+    if change == "during":
+        render = build.render_pair
+
+        def changed(*args, **kwargs):
+            value = render(*args, **kwargs)
+            (command.repo / "change.txt").write_text("changed\n")
+            return value
+
+        monkeypatch.setattr(build, "render_pair", changed)
+    assert build.main(["build", "--pairs", str(command.pairs), "--folded-prompt",
+        str(command.folded), "--selection", "r1-e4", "--out", str(command.out)], repo=command.repo) == 2
+    expected = ("checkout changed during the training build" if change == "during"
+                else "a known clean checkout is required for the training build")
+    assert expected in capsys.readouterr().err
+    assert not command.out.with_name("build.manifest.json").exists()
+
+
 @pytest.mark.parametrize("source", ["pairs", "manifest", "folded", "model"])
 def test_build_command_rejects_changed_bytes_before_output(command, source):
     """RENDER-SEED, RENDER-OUTPUT: valid JSON edits still fail their digests."""

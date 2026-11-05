@@ -266,15 +266,16 @@ def test_train_tokenized_rejects_malformed_records_before_load(
 
 
 @pytest.mark.gpu
-def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp_path, monkeypatch):
-    """Section 9: inspect labels at the real GPU loss and verify two epoch adapters."""
+@pytest.mark.parametrize("epochs", [2, 4])
+def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp_path, monkeypatch, epochs):
+    """Section 9, REWRITE-R1-E4: inspect GPU loss labels and every saved epoch adapter."""
     import torch
     model_dir, manifest_path = tiny_model
     path, ids, mask = make_tokenized(tmp_path, mf.load_tree(manifest_path).tree_hash)
     build_digest = mf.sha256_file(path.with_name("build.json"))
     data_digest = mf.sha256_file(path)
     config_path.write_text(CONFIG.replace('format = "text"', 'format = "tokenized"')
-                          .replace('max_steps = 2', 'num_train_epochs = 2'))
+                          .replace('max_steps = 2', f'num_train_epochs = {epochs}'))
     checked_class = trainer.checked_trainer_class
     observed = []
 
@@ -306,16 +307,18 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
     out = tmp_path / "tokenized-run"
     record = trainer.train(model_dir, manifest_path, path, config_path, out)
     expected = [[value if keep else -100 for value, keep in zip(ids, mask)]]
-    assert len(observed) == 4
+    assert len(observed) == 2 * epochs
     assert all(seen_ids == [ids] and labels == expected for seen_ids, labels in observed)
-    for name in ("adapter-epoch-1", "adapter-epoch-2", "adapter"):
+    assert [entry["epoch"] for entry in record.results["epoch_adapters"]] == list(range(1, epochs + 1))
+    for name in [f"adapter-epoch-{n}" for n in range(1, epochs + 1)] + ["adapter"]:
         trainer.check_adapter_only(out / name)
+        mf.require_tree(mf.load_tree(out / f"{name}.manifest.json"), out / name)
     assert record.dataset["build_sha256"] == build_digest
     assert record.dataset["sha256"] == data_digest
     assert record.dataset["sha256"] != mf.sha256_file(path)
     assert record.dataset["rows"] == 2 and record.dataset["assistant_tokens"] == 8
-    assert record.results["epochs"] == 2 and record.results["global_step"] == 4
-    assert len(record.results["step_seconds"]) == 4
+    assert record.results["epochs"] == epochs and record.results["global_step"] == 2 * epochs
+    assert len(record.results["step_seconds"]) == 2 * epochs
     assert all(step["seconds"] > 0 for step in record.results["step_seconds"])
     assert record.results["wall_seconds"] > sum(step["seconds"] for step in record.results["step_seconds"])
     assert record.results["loss_history"] and record.results["last_loss"] >= 0
