@@ -3,6 +3,56 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-05: measure R1-E4 before R2
+
+The operator directed one new four-epoch run named R1-E4 before R2.
+The [exact task receipt on issue 21][rewriter-r1-four] records the instruction.
+The [later amendment][rewriter-r1-four-loss] replaces step 4 with descriptive training measurements.
+This repeat takes priority over the pending issue 36 conversion trial.
+
+Use the same 200 pairs, their ordered-ID pin, seed 0 and approved folded prompt.
+Start from the base model with a new adapter, as REWRITE-CONFIG requires.
+Keep repair conversations outside training.
+Only the epoch count changes from 2 to 4. All other training values stay unchanged.
+The cosine schedule spans four epochs from the start, so this is a new curve.
+It does not continue the old adapter or reproduce the old two-epoch schedule.
+
+Save and verify all four epoch adapters, and score each on the frozen 100-segment plan.
+Report accepted counts by kind and source-length bin, failures by rule, placeholders, empty outputs and token limits.
+Compare each epoch against R0 pass 1 and original R1 epoch 2 under unchanged RUN-MARGIN.
+Keep each epoch's outputs for the fixed 30-source sample, seed 2031. No meaning review occurs in this act.
+
+Record the full per-step loss curve, learning rate at each step and mean loss for each epoch.
+Use one fixed 50-pair sample from the same 200 training pairs, with seed 2034.
+Freeze its IDs, sequence and hash before training, and score every epoch on the same sample.
+Show each training-sample STE rate beside its held-out score, with the gap in percentage points.
+These training scores are a diagnostic, not an independent evaluation.
+Do not label a cause. The cosine schedule decays to zero, so a flat final loss does not identify a cause.
+Report the numbers and recommend nothing.
+
+Inspect the pinned 30B read-only for each MoE layer's shared-expert MLP module names and dimensions.
+Report the additional trainable parameter count if those linear modules received rank-16 LoRA adapters.
+Count only added targets, without duplicates. This does not authorize that training test.
+
+Report wall time and peak memory on each GPU, then stop.
+Keep the earlier R1 curve and all original evidence unchanged in their existing deposits.
+Use a new deposit and result note for the repeat, with events on issue 21.
+
+Amend the Spec before the dependent configuration change and procedure.
+Use a clean merged main commit for the new build, plan, training and scores.
+Verify the same selected IDs, token counts and training bytes against the completed R1 build.
+Apply the import-location, module-hash and clean-record checks to the new procedures.
+Keep the trainer unchanged and finding E deferred.
+The earlier producer discrepancy and its approval remain specific to the original adapter.
+
+Fresh environment checks, GPU selection and stop rules still apply before each model procedure.
+Only the existing graphics allocation and exact torchao-warning exceptions remain.
+R2, loop use, new data and new downloads are outside this approval.
+The earlier proposal for a test on about 100 training examples stays on hold.
+
+[rewriter-r1-four]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668124199
+[rewriter-r1-four-loss]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668140899
+
 ## 2026-11-05: approve adapter reuse and keep trial text in the deposit
 
 The [operator ruling on issue 36][rewriter-trial-ruling] settles both open trial questions.
