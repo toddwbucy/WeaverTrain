@@ -3,6 +3,116 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-05: measure R1-E4 before R2
+
+The operator directed one new four-epoch run named R1-E4 before R2.
+The [exact task receipt on issue 21][rewriter-r1-four] records the instruction.
+The [later amendment][rewriter-r1-four-loss] replaces step 4 with descriptive training measurements.
+The [experiment-list ruling][rewriter-pre-r2-series] makes R1-E4 run 1, the reference for the planned sequence below.
+The [meaning-review ruling][rewriter-r1-four-review] adds a blind review of all four R1-E4 epochs.
+The [division-of-work ruling][rewriter-r1-four-review-seats] gives management of the grader to the review seat.
+This repeat takes priority over the pending issue 36 conversion trial.
+
+Use the same 200 pairs, their ordered-ID pin, seed 0 and approved folded prompt.
+Start from the base model with a new adapter, as REWRITE-CONFIG requires.
+Keep repair conversations outside training.
+Only the epoch count changes from 2 to 4. All other training values stay unchanged.
+The cosine schedule spans four epochs from the start, so this is a new curve.
+It does not continue the old adapter or reproduce the old two-epoch schedule.
+
+Save and verify all four epoch adapters, and score each on the frozen 100-segment plan.
+Report accepted counts by kind and source-length bin, failures by rule, placeholders, empty outputs and token limits.
+Compare each epoch against R0 pass 1 and original R1 epoch 2 under unchanged RUN-MARGIN.
+Keep each epoch's outputs for the fixed 30-source sample, seed 2031.
+After the four held-out scores, review those retained first outputs for meaning without new rewrite generation.
+Apply REWRITE-REVIEW unchanged, including placeholder and literal checks before restoration and its four verdicts.
+Use checker-accepted reviewed items for defect rates and retain unavailable items without replacements.
+The review prompt remains `c18b9dea736f81fea6225d1e096e54a1d6d8840805085fb542c62b4a32f9e112`.
+Use the approved separate `claude-opus-5-5` session and a fresh directory with only the prompt and blind input at preparation.
+
+The executor prepares the batch and ingests the verdicts with the input, prompt and verdict SHA256 arguments.
+The review seat checks the grader directory and its hashes, then gives the grader its instruction directly.
+The review seat sends any format correction, checks the verdict file before its hash is recorded and audits the transcript.
+It records each message with the grader on issue 21 and posts the grader record there for ingest.
+That record retains the model ID, invocation, UTC times, transcript, corrections and all three file hashes.
+Extend the review code for R1-E4 epochs 1 through 4, with tests and mutations for new rejection checks.
+Report each epoch's verdict counts beside its STE scores, with the reviewed denominator and defect rates.
+This review does not change the earlier R1 batch or its verdicts.
+Ingest of the graded R1 batch `2847c781` remains separately authorized under REWRITE-REVIEW.
+
+Record the full per-step loss curve, learning rate at each step and mean loss for each epoch.
+Use one fixed 50-pair sample from the same 200 training pairs, with seed 2034.
+Freeze its IDs, sequence and hash before training, and score every epoch on the same sample.
+Show each training-sample STE rate beside its held-out score, with the gap in percentage points.
+These training scores are a diagnostic, not an independent evaluation.
+Do not label a cause. The cosine schedule decays to zero, so a flat final loss does not identify a cause.
+Report the numbers and recommend nothing.
+
+Inspect the pinned 30B read-only for each MoE layer's shared-expert MLP module names and dimensions.
+Report the additional trainable parameter count if those linear modules received rank-16 LoRA adapters.
+Count only added targets, without duplicates. This does not authorize that training test.
+
+Report wall time and peak memory on each GPU, then stop.
+Keep the earlier R1 curve and all original evidence unchanged in their existing deposits.
+Use a new deposit and result note for the repeat, with events on issue 21.
+
+Amend the Spec before the dependent configuration change and procedure.
+Use a clean merged main commit for the new build, plan, training and scores.
+Verify the same selected IDs, token counts and training bytes against the completed R1 build.
+Apply the import-location, module-hash and clean-record checks to the new procedures.
+Keep the trainer unchanged and finding E deferred.
+The earlier producer discrepancy and its approval remain specific to the original adapter.
+
+Fresh environment checks, GPU selection and stop rules still apply before each model procedure.
+Only the existing graphics allocation and exact torchao-warning exceptions remain.
+R2, loop use, new data and new downloads are outside this approval.
+The earlier proposal for a test on about 100 training examples stays on hold.
+
+Each later run changes one factor against run 1, under the designs below.
+The planned sequence before R2 is:
+
+1. Run 1, R1-E4, is the reference. It uses 200 pairs, four epochs and accumulation 8, for 100 optimizer steps.
+   It starts from the base with a new adapter and retains the R1 targets and all other R1 values.
+   Run 1 is authorized after PR 39 merges, subject to the implementation and procedure gates above.
+2. Run 2, capacity, is not authorized. Its only change from run 1 would add the shared expert's MLP modules to LoRA.
+   Use run 1's read-only module list and parameter count.
+   Repeat REWRITE-MEMORY before this run because the trainable parameters change.
+   The routed experts stay without adapters.
+3. Run 3, data, is not authorized. It would use 400 pairs for two epochs, also 100 optimizer steps.
+   Include every R1 pair and select the other 200 from the 3,383-pair set.
+   The planned total length-bin counts are about 148, 120 and 132, at the kit's mix.
+   Its Spec must state the selection rule and seed before the run.
+   Each pair is seen twice instead of four times. Report that difference as part of the design.
+4. Run 4, optimizer, is optional and not authorized. Its only change from run 1 would be the learning rate.
+   The operator must set that value if this run is authorized.
+
+Each authorized later run uses the same measurements as R1-E4.
+Score every epoch on the frozen 100 segments, with counts by kind and source-length bin and failures by rule.
+Include placeholder and token-limit failures.
+Use a fixed 50-pair sample of that run's own training pairs, seed 2034, beside its held-out score.
+For run 3, select that sample from all 400 pairs and state the rule in its Spec.
+Keep per-step loss and learning rate, epoch mean losses, wall time and peak memory on each GPU.
+Keep each epoch's outputs for the fixed 30-source review sample, seed 2031.
+
+Compare later runs with run 1 at the same epoch under unchanged paired comparisons and RUN-MARGIN.
+Report the numbers only, with no cause label or recommendation.
+Do not claim a difference if the interval does not separate it from zero.
+A few percentage points can be noise with 100 test segments.
+Run 1 keeps the comparisons against R0 pass 1 and original R1 epoch 2 specified above.
+
+After run 1's report, the operator decides which later runs to authorize and their order.
+This planned sequence authorizes none of runs 2 through 4.
+Each later run needs its own Spec text merged before it starts.
+R2 remains unauthorized until the operator reads the results and gives an instruction.
+R1-E4 meaning review is authorized above and uses R1's approved separate-grader route.
+Meaning review for later runs still requires the operator's instruction.
+
+[rewriter-r1-four]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668124199
+[rewriter-r1-four-loss]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668140899
+[rewriter-pre-r2-series]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668296129
+[rewriter-r1-four-review]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668437190
+[rewriter-r1-four-review-seats]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668462707
+
 ## 2026-11-05: approve adapter reuse and keep trial text in the deposit
 
 The [operator ruling on issue 36][rewriter-trial-ruling] settles both open trial questions.

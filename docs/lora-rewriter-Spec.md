@@ -1,8 +1,8 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Approved in PR 26. Section 12 is proposed for issue 36.
+**Status:** Approved in PRs 26 and 37. REWRITE-R1-E4 is proposed for issue 21.
 
-**Version:** 0.3 **Date:** 2026-11-05 **Parent:** `docs/decisions.md`
+**Version:** 0.4 **Date:** 2026-11-05 **Parent:** `docs/decisions.md`
 
 **Language:** STE100. Use `ste/` at `ab63a918b569e5b8673dc2e78e66575ee9df1bd7`.
 Add no words to that tree. Use `scripts/ste_check.py` with limits of 20 and 25 words.
@@ -28,6 +28,7 @@ The pair builder is `scripts/rewriter_build.py`.
 The score command is `scripts/rewriter_score.py`.
 The review command is `scripts/rewriter_review.py`.
 The trial command is `scripts/rewriter_trial.py`, under section 12.
+The R1-E4 command is `scripts/rewriter_r1_e4.py`, under section 4.
 Tests and procedure configuration go in new files in `tests/` and `config/`.
 Use the current trainer without changes to its code.
 Each new piece of code cites the clause that gives it authority.
@@ -262,12 +263,132 @@ Use LoRA rank 16, alpha 32 and dropout 0.0.
 Targets are `q_proj`, `k_proj`, `v_proj`, `o_proj` and Mamba `in_proj`.
 Do not attach adapters to MoE experts.
 Use learning rate `1e-4`, a cosine schedule and 10 warmup steps.
-Use batch size 1, gradient accumulation 8, two epochs and seed 0.
+Use batch size 1, gradient accumulation 8 and seed 0.
+Use two epochs unless REWRITE-R1-E4 applies.
 Keep Unsloth `gradient_checkpointing="unsloth"` and the verified placement on the two
 GPUs.
 Do not put pairs together in one sequence.
 Start each training procedure from the base model with a new adapter.
 Save and score the adapter from each epoch.
+
+**REWRITE-R1-E4.** The [operator decision of 2026-11-05][r1-four] gives approval for one new procedure named R1-E4.
+Use four epochs with the same 200 pairs, their sequence, seed 0 and prompt A as the completed R1.
+Prompt A is the approved folded prompt in section 11.
+Use the `r1_ordered_ids` pin from `config/rewriter-inputs.toml`.
+Keep repair conversations outside training.
+Start from the base model with a new adapter under REWRITE-CONFIG.
+Use a copy of `config/rewriter-train.toml` named `config/rewriter-r1-e4.toml`.
+Change only `train.num_train_epochs` from 2 to 4.
+All other training values stay unchanged.
+The cosine schedule uses the four-epoch step count from the start.
+Keep the earlier R1 records, adapters and report unchanged.
+
+Use one clean merged main commit for the new training data record, plan, training and scores.
+Make a new training data record and plan at that commit under REWRITE-RECORD.
+Check the selected IDs, token counts and `train.jsonl` hash against the completed R1 training data record.
+Stop if any value is different.
+Record the new training data, plan and configuration hashes before training.
+Save an adapter at the end of each epoch and check it against its manifest.
+
+Before each model procedure, apply REWRITE-MEMORY and do environment verification again.
+Only the approved graphics allocation and exact torchao warning are exceptions.
+Other failures and fallback warnings still stop the procedure.
+Before training or generation, check that repository modules come from the clean procedure checkout.
+Record `weaver_train.__file__` and the SHA256 of each imported repository module in the local record.
+Check the import locations and file hashes again after each procedure.
+Each new procedure record must name the clean launch commit.
+Check the training producer commit before the first score and after each score.
+A dirty, absent or different commit stops the procedure.
+Keep the trainer code unchanged.
+
+**REWRITE-R1-E4-SCORES.** Score each epoch adapter on the frozen 100-segment plan as for R1.
+Use REWRITE-DECODE and REWRITE-CHECK without repairs or output selection.
+Keep the same input IDs, text with placeholders, code maps, token IDs and prompt bytes.
+Keep the same model, environment, template, checker and decode values.
+Record any different value and stop before generation.
+Each new plan has its own clean commit, configuration and training data record.
+Each saved score must satisfy the checks against its own plan, configuration and producer.
+These record identities can be different, but the frozen evaluation inputs and values must be equal.
+
+For each epoch, report accepted results out of 100, by kind and by each source-length bin.
+Report failures by rule, placeholder failures, empty outputs and token-limit outputs.
+Compare each epoch against the first R0 procedure and the original R1 epoch 2 under unchanged RUN-MARGIN.
+Use the recorded R0 decode difference for both comparisons.
+Keep the old producer identity and its recorded correction unchanged.
+The old discrepancy gives no exception for a new R1-E4 producer.
+Keep each epoch's outputs for the fixed 30-source sample from seed 2031.
+Review their sense under REWRITE-R1-E4-REVIEW after all four held-out scores are complete.
+
+**REWRITE-R1-E4-REVIEW.** The [operator decision][r1-four-review] gives approval for a blind review of all four R1-E4 epochs.
+Use each epoch's saved first outputs for the fixed 30-source sample from seed 2031.
+Do not make a new rewrite for this review.
+Apply REWRITE-REVIEW without changes to its rules.
+Keep one result for each procedure and epoch.
+Check placeholders and literals before code spans are put back.
+Keep unavailable items in the record without replacements.
+Use the same four verdicts and calculate defect rates only on reviewed items that the checker accepted.
+
+Use the unchanged `config/ste-rewrite-review-prompt.md`.
+Its SHA256 is `c18b9dea736f81fea6225d1e096e54a1d6d8840805085fb542c62b4a32f9e112`.
+Use the [approved grader procedure][r1-four-grader] in a different `claude-opus-5-5` session with fresh context.
+Its new directory initially holds only `prompt.md` and `input.jsonl`.
+Keep the procedure map and other records outside that directory.
+
+The [operator's division of work][r1-four-review-seats] gives batch preparation and the `ingest` command to the executor.
+The review seat checks the prepared grader directory and its hashes.
+The review seat gives the grader its instruction and any format correction directly.
+It checks the verdict file before its hash is recorded and audits the transcript for blindness.
+It records each message between the review seat and grader on issue 21.
+It posts the grader record there for the executor's `ingest` command.
+That record holds the model ID, invocation, UTC start and end times, transcript and all corrections.
+It also holds the prompt, input and verdict file hashes.
+The executor uses `--input-sha256`, `--prompt-sha256` and `--verdicts-sha256` for ingest under REWRITE-REVIEW.
+
+Extend the review code to accept epochs 1 through 4 for R1-E4.
+Check all four distinct epochs and their saved score and producer identities.
+Reject an absent, duplicate or different epoch and a different procedure or producer.
+Keep the checks for earlier procedures unchanged.
+Keep this batch and its verdicts different from the earlier R1 batch.
+Report the verdict counts for each epoch beside its STE scores, with the reviewed denominator and defect rates.
+Report numbers only, with no cause label or recommendation.
+
+**REWRITE-R1-E4-TRAIN-SCORES.** The [operator amendment][r1-four-loss] adds one frozen sample of 50 training pairs.
+Start with the approved 200 pairs in their PAIR-BALANCE sequence.
+Use `random.Random(2034).sample` to select 50 pairs without replacement.
+Keep the returned sequence for all four epoch adapters.
+Before training, freeze the selected `[batch, segment_id]` values and their hash under the PAIR-BALANCE JSON rule.
+Freeze each source input, its code map and the same prompt and decode values in a different plan.
+Use the original source with placeholders as the request, as in RENDER-LAYOUT.
+Do not give the target text to the model.
+Use REWRITE-DECODE and the frozen checker, with a denominator of 50 for this sample.
+An absent, empty or token-limit output is a failure out of 50.
+Keep the four procedures and their records different from the 100-segment scores.
+For each epoch, report the training-sample STE rate beside its held-out STE rate.
+The gap is the training-sample rate minus the held-out rate, in percentage points.
+These training pairs are not an independent evaluation set.
+
+**REWRITE-R1-E4-REPORT.** Keep the full per-step loss curve and the recorded learning rate for each step.
+Use the current trainer's records without a new learning-rate calculation.
+For each epoch, report the arithmetic mean of its logged optimizer-step losses and the quantity of those steps.
+Put each loss and learning-rate record together by step identity.
+Stop on an absent, duplicate or non-finite value.
+Report all four held-out scores, training-sample scores and paired comparisons.
+Include the review counts under REWRITE-R1-E4-REVIEW before the final report.
+Report wall time and peak memory on each GPU for training and each score procedure.
+Report the numbers without a cause label or recommendation.
+The learning rate decreases to zero under the cosine schedule.
+A flat final loss does not identify a data or capacity limit.
+Use a new deposit and result note under REWRITE-RECORD, and post each event on issue 21.
+Stop after the report. R2 and loop use are outside this approval.
+
+**REWRITE-R1-E4-EXPERTS.** Examine the pinned 30B model without changes to its files or training.
+For each MoE layer, list the full module names and matrix dimensions of the shared expert's MLP.
+For each linear module, calculate the extra LoRA parameters at rank 16 as `16 * (in_features + out_features)`.
+Report the count for each module, each layer and the complete model.
+Do not count a parameter twice or include current targets in the added count.
+Keep the model, configuration and implementation hashes with the list.
+Check the reference tree against its manifest before and after this examination.
+This count gives no approval for a change to the LoRA targets or another training test.
 
 ## 5. Procedure sequence and cost
 
@@ -279,13 +400,13 @@ The decision on repair data follows the complete R0 report, as section 10 tells.
 Do not use the emitter's R0 or R1 as a rewriter baseline.
 
 1. R0 uses the untrained 30B model on the frozen 100-segment rewrite kit, twice.
-2. R1 uses 200 pairs for two epochs, then stops.
+2. The first R1 uses 200 pairs for two epochs, then stops.
+   REWRITE-R1-E4 gives approval for one new four-epoch R1 procedure before R2.
 3. R2 uses 3,383 pairs for two epochs, only on the operator's instruction.
 
 Complete R0 and its review of the sense before R1.
 The operator then gives a decision on the open cell for repair data.
-Report R1 wall time, maximum memory on each GPU, the complete loss curve and both epoch
-scores.
+Report R1 wall time, maximum memory on each GPU, the complete loss curve and each epoch score.
 The executor stops after that report and does not start R2.
 There is no R3 in this series.
 
@@ -503,6 +624,30 @@ another bin.
   code spans put back, missing cases, defect denominators and override records.
 - **REWRITE-RECORD:** A procedure with a failure keeps its records and cannot overwrite
   a completed directory.
+- **REWRITE-R1-E4:** Check four saved epoch adapters with the small model.
+  Check the unchanged R1 selection, training tokens and all training values except the epoch count.
+  Reject repository imports from another checkout and changed module hashes.
+  Reject a new record with an absent, dirty or different launch commit.
+  For each new rejection check, remove that check for a mutation test.
+  With that check absent, the test must not be satisfactory.
+  Each rejection test checks the specific reason, with other checks satisfactory.
+- **REWRITE-R1-E4-SCORES:** Check all four epochs against both frozen references and unchanged RUN-MARGIN.
+  Reject a changed input, prompt, checker, model, environment or decode value between plans.
+  A different plan commit must not hide a change to an evaluation input.
+- **REWRITE-R1-E4-TRAIN-SCORES:** Check the seed, 50 distinct pairs, selection hash and unchanged sequence across epochs.
+  Keep target text outside generation requests and check the denominator of 50.
+  Check missing, empty and token-limit failures, and the reported gap in percentage points.
+- **REWRITE-R1-E4-REPORT:** Check step identities, complete loss and learning-rate records, the steps in each epoch and arithmetic means.
+  Reject absent, duplicate and non-finite values with specific reasons.
+- **REWRITE-R1-E4-EXPERTS:** Check full module names, dimensions, rank-16 counts and exclusion of current targets.
+- **REWRITE-R1-E4-REVIEW:** Check batch preparation and the `ingest` command for all four R1-E4 epochs.
+  Check the fixed sample, saved first outputs, blind sequence, prompt pin and all three hashes for the `ingest` command.
+  Check placeholder and literal checks before restoration, unavailable items, four verdict counts and checker-accepted defect denominators.
+  Reject an absent, duplicate or different epoch and a different procedure or producer.
+  Keep the earlier procedure checks and verdicts unchanged.
+  For each new rejection check, remove that check for a mutation test.
+  With that check absent, the test must not be satisfactory.
+  Each rejection test checks the specific reason, with other checks satisfactory.
 - **REWRITE-TRIAL-INPUTS, REWRITE-TRIAL-PLAN:** Check whole-trajectory exclusions, source hashes, snapshot checks, seed repeatability and plan hashes.
   A different row number must not hide a forbidden UUID.
   Check all four contamination keys against each frozen snapshot.
@@ -537,8 +682,9 @@ Use original input with placeholders to final accepted target and the 37/30/33 m
 PAIR-BALANCE gives seed 0 and the exact integer counts.
 
 **Procedure sizes.** Approved by the [operator decision of 2026-11-03][approvals].
-R1 uses 200 pairs and two epochs. R2 uses 3,383 pairs and two epochs.
+The first R1 uses 200 pairs and two epochs. R2 uses 3,383 pairs and two epochs.
 Both use seed 0 and the costs in section 5.
+The [decision of 2026-11-05][r1-four] gives approval for R1-E4 under section 4.
 The size approval does not start R2.
 The operator must give the instruction for R2 after the R1 report.
 
@@ -550,6 +696,11 @@ Start R2 only on the operator's later instruction.
 Use repair conversations only after a Spec change for masks, counts and costs.
 
 [r1-go]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6658527439
+[r1-four]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668124199
+[r1-four-loss]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668140899
+[r1-four-review]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668437190
+[r1-four-review-seats]: https://github.com/toddwbucy/WeaverTrain/pull/39#issuecomment-6668462707
+[r1-four-grader]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6646130753
 
 **Loop capture and conversion.** Open for the joint work with WeaverAgent.
 The operator reviewed the folded file on 2026-11-03.
