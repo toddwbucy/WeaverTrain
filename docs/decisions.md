@@ -16,7 +16,6 @@ Keep the side-by-side source, base rewrite and adapter rewrite only in the bulk-
 The result note in `reports/` contains measurements, limits and hashes under unchanged REWRITE-RECORD.
 Remove the proposed source-text exception and per-row license and notice requirements from REWRITE-TRIAL.
 No notice retrieval or new download is authorized.
-This replaces the public-text proposal in the earlier entry below, which remains as history.
 
 The Spec must merge before trial code.
 Post the plan hash and obtain the review seat's grade before the first generation.
@@ -45,19 +44,9 @@ The exact adapter tree, checks, budget, environment gate and stop rules are in R
 Keep all reference weights and saved adapters unchanged.
 This trial uses the existing R1 training build and its original commit.
 Keep those identities and the producer commit separate from the new merged trial commit in the trial plan.
-The proposal requires an operator decision before model use if the producer and training data commits differ.
 Do not rebuild or edit the old training evidence to give it the trial commit.
 The proposed trial must import repository modules from its run checkout and record their file hashes.
 It must reject a new record with a dirty commit or a commit that differs from its launch.
-The report must show each source and both rewrites beside their checker results.
-REWRITE-TRIAL-RECORD proposes that narrow exception to the ban on source text in reports.
-The public repository rules still apply to every quoted text.
-The note must credit NVIDIA and name the pinned dataset with a source link.
-It must use each selected row's license metadata from the verified pinned archive.
-The pinned dataset card names CC BY 4.0 with BSD-3-Clause exceptions.
-Freeze the applicable license and notices in the plan, then give each source's license link and required notices in the note.
-Stop if a required license or notice is absent or ambiguous. Do not select a substitute.
-It must state that the sources used placeholders and that the rewrites are model outputs.
 
 The trial gives no meaning verdict and does not authorize loop use.
 Blind batch `2847c781` remains the meaning gate.
