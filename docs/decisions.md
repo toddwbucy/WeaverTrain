@@ -11,6 +11,7 @@ Use narration and final reports from the pinned `nemotron-swe-v1` dataset.
 Exclude whole trajectories from both conversion batches and both held-out kits.
 Each candidate must pass the contamination filter against both frozen benchmark snapshots.
 Freeze the selection, seed, method and hashes before generation.
+The proposed plan defines exact JSON bytes and posts the file SHA256 separately from its manifest tree hash.
 
 The current Spec has no clause for this trial. This docs PR proposes REWRITE-TRIAL to close that gap.
 Its selection proposal uses 20 distinct trajectories, seed 2033, two final reports and 18 narration segments.
@@ -29,7 +30,11 @@ It must reject a new record with a dirty commit or a commit that differs from it
 The report must show each source and both rewrites beside their checker results.
 REWRITE-TRIAL-RECORD proposes that narrow exception to the ban on source text in reports.
 The public repository rules still apply to every quoted text.
-The note must credit NVIDIA, name the pinned dataset and link its CC BY 4.0 license.
+The note must credit NVIDIA and name the pinned dataset with a source link.
+It must use each selected row's license metadata from the verified pinned archive.
+The pinned dataset card names CC BY 4.0 with BSD-3-Clause exceptions.
+Freeze the applicable license and notices in the plan, then give each source's license link and required notices in the note.
+Stop if a required license or notice is absent or ambiguous. Do not select a substitute.
 It must state that the sources used placeholders and that the rewrites are model outputs.
 
 The trial gives no meaning verdict and does not authorize loop use.
