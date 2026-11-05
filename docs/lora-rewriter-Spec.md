@@ -529,12 +529,14 @@ Both use seed 0 and the costs in section 5.
 The size approval does not start R2.
 The operator must give the instruction for R2 after the R1 report.
 
-**Repair training in R1.** Open until the new R0 report.
-The operator gives a decision about whether R1 also trains on repair conversations.
-The decision can move that work to R2.
-This Spec keeps those conversations outside training.
-A decision to use them must have a Spec change for masks, counts and costs before
-implementation.
+**Repair training in R1.** Closed for R1 by the [operator decision of 2026-11-05][r1-go].
+R1 does not train on repair conversations.
+The decision on repair training moves to R2.
+R1 can start after the R0 report is on main.
+Start R2 only on the operator's later instruction.
+Use repair conversations only after a Spec change for masks, counts and costs.
+
+[r1-go]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6658527439
 
 **Loop capture and conversion.** Open for the joint work with WeaverAgent.
 The operator reviewed the folded file on 2026-11-03.

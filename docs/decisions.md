@@ -3,6 +3,30 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-05: publish R0 and authorize R1 without repair conversations
+
+The operator directed publication of the unchanged R0 report after the expected digest was corrected.
+The [recorded ruling][rewriter-r1-go] permits only that transcription correction.
+The report bytes and tested tree must match the values in the ruling.
+
+R1 does not train on repair conversations. This closes that open cell for R1.
+The decision on repair training moves to R2. R2 is not authorized.
+The existing training rules already keep repair conversations outside training.
+
+R1 is authorized after the R0 report is on main.
+Use the approved 200 pairs, two epochs and seed 0.
+Keep 2,938,741 tokens and 25,637 loss tokens per epoch and the approved ordered-ID pin.
+No training value or data pin changes.
+
+Repeat environment verification before each procedure.
+Only the existing graphics and exact torchao-warning exceptions apply.
+Other failures and fallback warnings still stop the procedure.
+Under REWRITE-MEMORY, repeat the check if the environment, model, placement or training path changed.
+Report wall time, peak memory on each GPU, the complete loss curve and both epoch scores.
+Then stop. Finding E stays deferred and the trainer stays unchanged.
+
+[rewriter-r1-go]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6658527439
+
 ## 2026-11-04: approve the separate meaning-review grader session
 
 The operator approved the separate grader route and made the session ready.
