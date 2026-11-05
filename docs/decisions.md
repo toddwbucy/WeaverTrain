@@ -3,6 +3,48 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-04: approve the separate meaning-review grader session
+
+The operator approved the separate grader route and made the session ready.
+The [recorded ruling][rewriter-grader-route] corrects the earlier proposal label.
+The invocation route is approved. PR 33 must merge before production preparation.
+
+Use a separate Claude Code session with fresh context and model `claude-opus-5-5`.
+The grader is neither the executor nor the review seat.
+Its working directory holds only `reviewer/prompt.md` and `reviewer/input.jsonl`
+from a completed preparation batch.
+It reads no repository file, issue, plan, pass record or deposit.
+It writes one verdicts file in the pinned prompt's JSON line shape.
+
+Keep the model ID, invocation and UTC start and end times in the run deposit.
+Keep the prompt, input and verdicts hashes and the session transcript there too.
+The ingest command verifies the prompt, input and verdict hashes from the deposit.
+It checks order and fields before mapping verdicts back.
+This route needs no API key in the run environment.
+Production preparation still waits for the review code to merge.
+
+[rewriter-grader-route]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6646130753
+
+## 2026-11-04: continue R0 with the observed torchao warning
+
+The operator directed the executor to proceed with R0 as planned.
+The [continuation receipt][rewriter-torchao-go] records the instruction.
+The operator assigned further investigation to Claude.
+The [review seat's inspection][rewriter-torchao-inspection] identifies torchao as
+the source of the skipped-extension warning.
+That inspection does not prove that generation never uses torchao code.
+
+Permit only the exact warning retained in the continuation receipt.
+Keep it in the procedure log and retain the interrupted attempt unchanged.
+This exception permits no dependency, kernel or precision change.
+Other compatibility warnings, fallback warnings and failures still stop the procedure.
+Repeat environment and GPU checks before each pass.
+Use the unchanged clean run commit and verified plan, with fresh output directories.
+R1 training still needs the operator's go after the complete R0 report.
+
+[rewriter-torchao-go]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6645458811
+[rewriter-torchao-inspection]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6645329767
+
 ## 2026-11-04: diagnose the first rewriter R0 failure before a retry
 
 The first R0 invocation stopped during GPU setup before model loading.

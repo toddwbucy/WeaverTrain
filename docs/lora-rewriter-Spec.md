@@ -26,6 +26,7 @@ Do not compare its scores with the scores of this series.
 **REWRITE-FILES.** This Spec gives approval for new code only after its merge.
 The pair builder is `scripts/rewriter_build.py`.
 The score command is `scripts/rewriter_score.py`.
+The review command is `scripts/rewriter_review.py`.
 Tests and procedure configuration go in new files in `tests/` and `config/`.
 Use the current trainer without changes to its code.
 Each new piece of code cites the clause that gives it authority.
@@ -374,11 +375,15 @@ Select 30 source IDs with seed 2031 before R0.
 Use `random.Random(2031).sample` on the source IDs in alphabetic sequence.
 Keep the same IDs for every procedure.
 Put available first rewrites from the compared procedures in one sequence.
+Use one result for each procedure and epoch.
+For R0, use only the first result.
 First sort by procedure, epoch and source ID.
 Use `random.Random(2032).shuffle` and give the results opaque review IDs.
 Keep the procedure map outside the reviewer input.
 Record the exact sequence and its hash.
 Each review batch gets a new identity and keeps the earlier verdicts.
+Before you map verdicts, check the prompt, input and verdict file hashes against
+the deposit.
 
 The reviewer reads the original source and the rewrite with its code spans put back.
 Put code spans back only with that source's frozen map.
@@ -493,8 +498,8 @@ another bin.
   reads it.
 - **REWRITE-SPREAD:** Check paired comparisons against the first R0 procedure and the
   recorded decode difference.
-- **REWRITE-REVIEW:** Check the prompt hash, blind sequence, code spans put back,
-  missing cases, defect denominators and override records.
+- **REWRITE-REVIEW:** Check the prompt, input and verdict hashes, blind sequence,
+  code spans put back, missing cases, defect denominators and override records.
 - **REWRITE-RECORD:** A procedure with a failure keeps its records and cannot overwrite
   a completed directory.
 - **REWRITE-RECONCILE:** Record the two real token sequences and compare them in the
