@@ -3,6 +3,36 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-05: test the R1 epoch 2 adapter on new conversion segments
+
+The operator authorized the Python trial in [issue 36][rewriter-trial].
+Compare the untrained base and the R1 epoch 2 adapter on about 20 new segments.
+Use narration and final reports from the pinned `nemotron-swe-v1` dataset.
+Exclude whole trajectories from both conversion batches and both held-out kits.
+Each candidate must pass the contamination filter against both frozen benchmark snapshots.
+Freeze the selection, seed, method and hashes before generation.
+
+The current Spec has no clause for this trial. This docs PR proposes REWRITE-TRIAL to close that gap.
+Its selection proposal uses 20 distinct trajectories, seed 2033, two final reports and 18 narration segments.
+The source bins contain 7, 6 and 7 segments under the existing balance rule.
+New trial code follows the Spec merge. The review seat grades the plan, code and result note.
+
+Use the existing `python-hf` path in bf16, with the approved folded prompt and one first output per input.
+The exact adapter tree, checks, budget, environment gate and stop rules are in REWRITE-TRIAL.
+Keep all reference weights and saved adapters unchanged.
+The report must show each source and both rewrites beside their checker results.
+REWRITE-TRIAL-RECORD proposes that narrow exception to the ban on source text in reports.
+The public repository rules still apply to every quoted text.
+
+The trial gives no meaning verdict and does not authorize loop use.
+Blind batch `2847c781` remains the meaning gate.
+REWRITE-RECONCILE, the seed record and deferred finding E still gate loop use.
+No training, R2, repair, harness work or new download is authorized.
+The earlier proposal to test about 100 training examples stays on hold.
+Post each trial event on issue 36 and monitor that issue and each related PR for review updates.
+
+[rewriter-trial]: https://github.com/toddwbucy/WeaverTrain/issues/36
+
 ## 2026-11-05: publish R0 and authorize R1 without repair conversations
 
 The operator directed publication of the unchanged R0 report after the expected digest was corrected.

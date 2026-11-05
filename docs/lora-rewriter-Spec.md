@@ -1,8 +1,8 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Approved in PR 26. The procedure sizes keep their approval.
+**Status:** Approved in PR 26. Section 12 is proposed for issue 36.
 
-**Version:** 0.2 **Date:** 2026-11-04 **Parent:** `docs/decisions.md`
+**Version:** 0.3 **Date:** 2026-11-05 **Parent:** `docs/decisions.md`
 
 **Language:** STE100. Use `ste/` at `ab63a918b569e5b8673dc2e78e66575ee9df1bd7`.
 Add no words to that tree. Use `scripts/ste_check.py` with limits of 20 and 25 words.
@@ -27,6 +27,7 @@ Do not compare its scores with the scores of this series.
 The pair builder is `scripts/rewriter_build.py`.
 The score command is `scripts/rewriter_score.py`.
 The review command is `scripts/rewriter_review.py`.
+The trial command is `scripts/rewriter_trial.py`, under section 12.
 Tests and procedure configuration go in new files in `tests/` and `config/`.
 Use the current trainer without changes to its code.
 Each new piece of code cites the clause that gives it authority.
@@ -416,9 +417,10 @@ Keep their later results in a different record.
 Use a new deposit in `weaver-testing/` with a README and `SHA256SUMS`.
 Keep inputs, accepted pairs, repair records, plans, outputs, adapters and logs outside
 git.
-The repository report contains measurements, limits and hashes only.
+The repository report contains measurements, limits and hashes only, except under REWRITE-TRIAL-RECORD.
 Post its link and deposit identity on the rewriter run-log issue.
-Do not commit machine paths, host names, source text or prompt text from the standard.
+Do not commit machine paths, host names or prompt text from the standard.
+Source text stays outside git except under REWRITE-TRIAL-RECORD.
 
 ## 8. The joint token check
 
@@ -502,6 +504,16 @@ another bin.
   code spans put back, missing cases, defect denominators and override records.
 - **REWRITE-RECORD:** A procedure with a failure keeps its records and cannot overwrite
   a completed directory.
+- **REWRITE-TRIAL-INPUTS, REWRITE-TRIAL-PLAN:** Check whole-trajectory exclusions, source hashes, snapshot checks, seed repeatability and plan hashes.
+  A different row number must not hide a forbidden UUID.
+  Check all four contamination keys against each frozen snapshot.
+  Reject changed plans, code maps, counts, text with placeholders and source identities before model loading.
+- **REWRITE-TRIAL-RUN, REWRITE-TRIAL-RECORD:** Check both paths with the same frozen inputs and the pinned epoch 2 adapter.
+  Check device pins, full tree checks, first outputs, the reply budget and the denominator of 20.
+  Check missing outputs, token limits, placeholder checks, literal checks and unchanged scorer results.
+  For each new rejection check, remove that check for a mutation test.
+  With that check absent, the test must not be satisfactory.
+  Each rejection test checks the specific reason, with other checks satisfactory.
 - **REWRITE-RECONCILE:** Record the two real token sequences and compare them in the
   joint check.
   Stop loop use if the seed record is absent, incomplete or has a different prompt hash.
@@ -611,6 +623,105 @@ r1_ordered_ids
 r2_ordered_ids
 8cde3c1cbd5c8cb5c8cb288d24fe9d9f038fece32e2983f81c9edada380c9a21
 ```
+
+## 12. Trial on new conversion segments
+
+**REWRITE-TRIAL.** The [operator instruction for issue 36][trial] gives authority for this trial after this clause merges.
+Use 20 new segments with the base model and the R1 epoch 2 adapter.
+This trial does not change REWRITE-MEASURE, REWRITE-KIT or REWRITE-SPREAD.
+Its denominator is 20. It does not replace the frozen 100-segment scores.
+It gives no verdict on the sense and no approval for loop use.
+The review batch `2847c781` still holds the review of the sense.
+REWRITE-RECONCILE, the seed record and deferred item E still gate loop use.
+No training, R2, repair, harness work or new download is authorized.
+No trial output enters training data.
+
+**REWRITE-TRIAL-INPUTS.** Use `nemotron-swe-v1` at its revision in `config/datasets.toml`.
+Check its full tree against the committed manifest before selection.
+Use only narration and final reports under PAIR-TARGET.
+Do not use any trajectory from batches `200` and `200-2`, with or without accepted targets.
+Do not use any trajectory from the 100-segment or 500-segment kits.
+Check the four source hashes in section 11 before the exclusion check.
+Compare UUIDs, as in PAIR-HELDOUT. Do not compare only row numbers or segment locators.
+Reject ambiguous UUIDs or locators.
+Check each candidate's whole trajectory with `scripts/contamination.py` against both frozen snapshots in `config/snapshots.toml`.
+Check both snapshot trees against their committed manifests first.
+Remove a trajectory if any of the four contamination keys matches either snapshot.
+Record each exclusion reason and the dataset and snapshot identities.
+Use the unchanged masker and `split_ws` from PAIR-TARGET.
+Keep the raw source, outer whitespace, text with placeholders, code map, UUID and locator.
+Use only sources that contain prose outside their placeholders.
+
+**REWRITE-TRIAL-PLAN.** Select one segment per trajectory with seed 2033.
+Use the PAIR-BALANCE length bins and weights. The counts are 7, 6 and 7.
+Select two final reports and 18 narration segments.
+For each candidate, hash a JSON list of `[2033, uuid, locator]` with SHA256.
+Use UTF-8, `ensure_ascii=True`, `sort_keys=True`, `separators=(",", ":")` and no final LF.
+Sort candidates by this hash, then by the same JSON bytes for equal hashes.
+First select two final reports in that sequence, within the bin counts and with different UUIDs.
+Then select narration segments in that sequence to fill each bin, without a repeated UUID.
+Sort the selected segments by the same key for the output sequence.
+Stop if the eligible pool cannot fill these counts. Do not change the seed or counts to continue.
+
+Freeze the segment list, exact selection method and seed in a plan before generation.
+Keep their hashes, source file hashes, exclusion record and all procedure values in that plan.
+Record the model, adapter, producer record, environment, prompt, template, checker and snapshot identities.
+Keep each source ID, bin, kind, locator, code map and outer whitespace in the frozen input.
+Check every prompt and reply budget against the unchanged context limit before generation.
+Stop if any selected segment does not fit. Do not select a substitute.
+Use a clean, merged commit for the plan and both model procedures.
+Record that full commit and a tree manifest for the plan.
+Check the plan and frozen input again before each procedure.
+Post the plan hash on issue 36 before the first generation.
+The review seat grades the plan and code, with mutation tests, before generation.
+
+**REWRITE-TRIAL-RUN.** Do the base procedure once, then the R1 epoch 2 adapter procedure once, on the same 20 inputs.
+Use REWRITE-LIMITS, RENDER-SEED and REWRITE-DECODE, with the unchanged loader and `pin_layer_devices`.
+Use the epoch 2 adapter tree below from the completed R1 deposit.
+
+```text
+05c86cd2d18faa5480836140c36a62f524fc418c6d7f24f27b53dc218e88d030
+```
+
+Check the adapter manifest and producer record before and after its procedure.
+Check the full reference tree before and after each model procedure.
+Keep the reference weights and both saved R1 epoch adapters unchanged.
+Use the approved folded prompt, greedy decode, code spans with placeholders and reference reply budget.
+Record one first output per segment, with no repair, retry or output selection.
+
+Before each model procedure, use `scripts/setup-env.sh --only verify --reverify` again.
+Record its commit, UTC time and result on issue 36.
+Only the approved 4 MiB graphics allocation on each selected GPU is permitted before the procedure.
+Only the exact torchao warning from the decision of 2026-11-04 is exempt.
+Keep that warning in the log if it occurs.
+Stop and report any other failure or fallback. Do not change libraries, kernels, precision or procedure values.
+Keep the failed record and completed outputs. A retry must have a new operator instruction.
+
+**REWRITE-TRIAL-RECORD.** Apply REWRITE-CHECK to each first output, with a denominator of 20 for this trial.
+Use the frozen checker with explicit input and prompt files.
+Keep missing and token-limit outputs as failures.
+Record every checker rule, placeholder check and literal check for each source ID.
+Put code spans back only when both the placeholder and literal checks are satisfactory.
+Keep other outputs with placeholders and mark them as unrestored.
+Keep raw tokens, raw text, finish reasons and output hashes in the deposit.
+
+Keep a run record and tree manifest for each procedure.
+The plan must also have a run record and tree manifest.
+Deposit the records under REWRITE-RECORD with a README and `SHA256SUMS`.
+Post each procedure start, result or stop on issue 36.
+Keep the issue body current with the status and links.
+The result note in `reports/` shows each source, base rewrite and adapter rewrite side by side.
+Show each output's checker result and whether its code spans were put back.
+This trial note alone can contain those source and output texts under REWRITE-RECORD.
+Check all text against the public repository rules before publication.
+If text does not satisfy that check, stop publication and get the operator's instruction.
+Keep the frozen selection and outputs unchanged.
+Report counts by source bin and kind, failures by rule, empty outputs and outputs stopped by the token limit.
+Report wall times and peak memory on each GPU for both procedures.
+Do not pool these results with another engine or the frozen scores.
+The review seat grades the result note. A checker result is not a verdict on the sense.
+
+[trial]: https://github.com/toddwbucy/WeaverTrain/issues/36
 
 [ruling]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6605286044
 [answers]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6608618052
