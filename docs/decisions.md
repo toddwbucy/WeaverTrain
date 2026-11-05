@@ -8,6 +8,7 @@ date, the decision and its reasoning as stated.
 The operator directed one new four-epoch run named R1-E4 before R2.
 The [exact task receipt on issue 21][rewriter-r1-four] records the instruction.
 The [later amendment][rewriter-r1-four-loss] replaces step 4 with descriptive training measurements.
+The [experiment-list ruling][rewriter-pre-r2-series] makes R1-E4 run 1, the reference for the planned sequence below.
 This repeat takes priority over the pending issue 36 conversion trial.
 
 Use the same 200 pairs, their ordered-ID pin, seed 0 and approved folded prompt.
@@ -50,8 +51,47 @@ Only the existing graphics allocation and exact torchao-warning exceptions remai
 R2, loop use, new data and new downloads are outside this approval.
 The earlier proposal for a test on about 100 training examples stays on hold.
 
+Each later run changes one factor against run 1, under the designs below.
+The planned sequence before R2 is:
+
+1. Run 1, R1-E4, is the reference. It uses 200 pairs, four epochs and accumulation 8, for 100 optimizer steps.
+   It starts from the base with a new adapter and retains the R1 targets and all other R1 values.
+   Run 1 is authorized after PR 39 merges, subject to the implementation and procedure gates above.
+2. Run 2, capacity, is not authorized. Its only change from run 1 would add the shared expert's MLP modules to LoRA.
+   Use run 1's read-only module list and parameter count.
+   Repeat REWRITE-MEMORY before this run because the trainable parameters change.
+   The routed experts stay without adapters.
+3. Run 3, data, is not authorized. It would use 400 pairs for two epochs, also 100 optimizer steps.
+   Include every R1 pair and select the other 200 from the 3,383-pair set.
+   The planned total length-bin counts are about 148, 120 and 132, at the kit's mix.
+   Its Spec must state the selection rule and seed before the run.
+   Each pair is seen twice instead of four times. Report that difference as part of the design.
+4. Run 4, optimizer, is optional and not authorized. Its only change from run 1 would be the learning rate.
+   The operator must set that value if this run is authorized.
+
+Each authorized later run uses the same measurements as R1-E4.
+Score every epoch on the frozen 100 segments, with counts by kind and source-length bin and failures by rule.
+Include placeholder and token-limit failures.
+Use a fixed 50-pair sample of that run's own training pairs, seed 2034, beside its held-out score.
+For run 3, select that sample from all 400 pairs and state the rule in its Spec.
+Keep per-step loss and learning rate, epoch mean losses, wall time and peak memory on each GPU.
+Keep each epoch's outputs for the fixed 30-source review sample, seed 2031.
+
+Compare later runs with run 1 at the same epoch under unchanged paired comparisons and RUN-MARGIN.
+Report the numbers only, with no cause label or recommendation.
+Do not claim a difference if the interval does not separate it from zero.
+A few percentage points can be noise with 100 test segments.
+Run 1 keeps the comparisons against R0 pass 1 and original R1 epoch 2 specified above.
+
+After run 1's report, the operator decides which later runs to authorize and their order.
+This planned sequence authorizes none of runs 2 through 4.
+Each later run needs its own Spec text merged before it starts.
+R2 remains unauthorized until the operator reads the results and gives an instruction.
+Meaning review follows R1's approved separate-grader route only on the operator's instruction.
+
 [rewriter-r1-four]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668124199
 [rewriter-r1-four-loss]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668140899
+[rewriter-pre-r2-series]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6668296129
 
 ## 2026-11-05: approve adapter reuse and keep trial text in the deposit
 
