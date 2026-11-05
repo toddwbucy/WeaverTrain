@@ -36,6 +36,9 @@ def read_sources(plan_dir, sources, repo):
             "REWRITE-REVIEW: review prompt bytes differ")
     runs = [report.read_score(path, bundle, adapter=adapter,
             training_build=training, repo=repo) for path, adapter, training in sources]
+    if bundle[0].get("procedure") == "r1-e4" or any(
+            run["record"]["procedure"] == "r1-e4" for run in runs):
+        four_epoch_sources(bundle, runs)
     require(bool(runs), "REWRITE-REVIEW: at least one score is required")
     identities = [run["record"]["run_id"] for run in runs]
     require(len(set(identities)) == len(identities),
@@ -45,6 +48,25 @@ def read_sources(plan_dir, sources, repo):
             "REWRITE-REVIEW: procedure and epoch repeat")
     runs.sort(key=lambda run: (run["record"]["procedure"], run["record"]["epoch"]))
     return bundle, prompt, runs
+
+
+def four_epoch_sources(bundle, runs):
+    """REWRITE-R1-E4-REVIEW: accept the four held-out epochs from one producer."""
+    require(bundle[0]["denominator"] == 100,
+            "REWRITE-R1-E4-REVIEW: held-out scores are required")
+    require(all(run["record"]["procedure"] == "r1-e4" for run in runs),
+            "REWRITE-R1-E4-REVIEW: different procedure in the review batch")
+    epochs = [run["record"]["epoch"] for run in runs]
+    require(all(type(epoch) is int and epoch in (1, 2, 3, 4) for epoch in epochs),
+            "REWRITE-R1-E4-REVIEW: epoch is outside the four-epoch procedure")
+    require(len(epochs) == len(set(epochs)),
+            "REWRITE-R1-E4-REVIEW: duplicate epoch in the review batch")
+    require(len(epochs) == 4,
+            "REWRITE-R1-E4-REVIEW: all four epochs are required")
+    producers = [{key: value for key, value in run["record"]["adapter"]["producer"].items()
+                  if key != "epoch"} for run in runs]
+    require(all(producer == producers[0] for producer in producers[1:]),
+            "REWRITE-R1-E4-REVIEW: different training producer in the review batch")
 
 
 def sequence(bundle, runs, batch_id):

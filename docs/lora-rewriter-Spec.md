@@ -1,6 +1,6 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Approved in PRs 26 and 37. REWRITE-R1-E4 is proposed for issue 21.
+**Status:** Approved in PRs 26, 37 and 39.
 
 **Version:** 0.4 **Date:** 2026-11-05 **Parent:** `docs/decisions.md`
 

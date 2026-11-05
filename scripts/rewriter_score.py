@@ -89,7 +89,18 @@ def reply_budget(masked_input):
     return min(8192, len(masked_input) // 2 + 256)
 
 
-def preflight(tokenizer, kit, folded: bytes, *, repo=REPO):
+def input_count(kit, expected_count=100):
+    """REWRITE-KIT, REWRITE-R1-E4-TRAIN-SCORES: keep each denominator explicit."""
+    require(type(expected_count) is int and expected_count in (50, 100),
+            "REWRITE-KIT: unsupported input count")
+    clause = "REWRITE-KIT" if expected_count == 100 else "REWRITE-R1-E4-TRAIN-SCORES"
+    require(len(kit["rows"]) == expected_count and
+            len({row["id"] for row in kit["rows"]}) == expected_count,
+            f"{clause}: expected {expected_count} distinct inputs")
+    return expected_count
+
+
+def preflight(tokenizer, kit, folded: bytes, *, repo=REPO, expected_count=100):
     """REWRITE-DECODE, RENDER-LAYOUT: check all 100 prompts before any generation.
 
     This returns an in-memory plan only. A matching file hash does not establish
@@ -99,8 +110,7 @@ def preflight(tokenizer, kit, folded: bytes, *, repo=REPO):
     require(build.digest(folded) == pins["folded_prompt"],
             "RENDER-SEED: folded prompt sha256 differs")
     system = folded.decode("utf-8")
-    require(len(kit["rows"]) == 100 and len({r["id"] for r in kit["rows"]}) == 100,
-            "REWRITE-KIT: expected 100 distinct inputs")
+    input_count(kit, expected_count)
     plan = []
     for row in kit["rows"]:
         messages = build.initial_messages(system, row["text"])
@@ -117,7 +127,7 @@ def preflight(tokenizer, kit, folded: bytes, *, repo=REPO):
     return plan
 
 
-def decode_outputs(loaded, kit, folded: bytes, *, repo=REPO):
+def decode_outputs(loaded, kit, folded: bytes, *, repo=REPO, expected_count=100):
     """REWRITE-DECODE, REWRITE-LIMITS: yield each first rewrite without a retry.
 
     The caller must use the current loader to verify and load the model, verify
@@ -129,7 +139,7 @@ def decode_outputs(loaded, kit, folded: bytes, *, repo=REPO):
     from transformers import GenerationConfig
 
     model, tokenizer = loaded.model, loaded.tokenizer
-    plan = preflight(tokenizer, kit, folded, repo=repo)
+    plan = preflight(tokenizer, kit, folded, repo=repo, expected_count=expected_count)
     end = tokenizer.convert_tokens_to_ids("<|im_end|>")
     require(type(end) is int and end >= 0 and end != tokenizer.unk_token_id,
             "REWRITE-DECODE: end-of-turn token is unavailable")
@@ -174,11 +184,10 @@ def decode_outputs(loaded, kit, folded: bytes, *, repo=REPO):
                "wall_seconds": time.monotonic() - started}
 
 
-def prepare_outputs(kit, outputs):
+def prepare_outputs(kit, outputs, *, expected_count=100):
     """REWRITE-CHECK: reject repeated or unknown IDs before the reference scorer."""
     ids = [row["id"] for row in kit["rows"]]
-    require(len(ids) == 100 and len(set(ids)) == 100,
-            "REWRITE-KIT: expected 100 distinct inputs")
+    input_count(kit, expected_count)
     indexed = {}
     for raw in outputs:
         key = raw["id"]
@@ -227,13 +236,13 @@ def checker_inputs(repo):
     return prompt, prompt_bytes, evidence
 
 
-def check_outputs(kit, outputs, out_dir, *, repo=REPO):
+def check_outputs(kit, outputs, out_dir, *, repo=REPO, expected_count=100):
     """REWRITE-CHECK, REWRITE-RECORD: retain raw outputs and a fresh checker artifact.
 
     The frozen scorer determines STE acceptance. Literal failures are recorded
     separately for the code-restoration guard in REWRITE-REVIEW.
     """
-    retained, scorer_rows = prepare_outputs(kit, outputs)
+    retained, scorer_rows = prepare_outputs(kit, outputs, expected_count=expected_count)
     prompt, prompt_bytes, evidence = checker_inputs(repo)
     out = Path(out_dir).resolve()
     manifest_path = out.with_name(out.name + ".manifest.json")
@@ -287,15 +296,15 @@ def check_outputs(kit, outputs, out_dir, *, repo=REPO):
         headline = re.fullmatch(r"(\d+)/(\d+) pass\..*", lines[2]) if len(lines) > 2 else None
         require(headline is not None, "REWRITE-CHECK: reference headline is missing")
         passed, total = map(int, headline.groups())
-        require(total == 100 and passed == sum(row["check"]["ok"] for row in checks),
+        require(total == expected_count and passed == sum(row["check"]["ok"] for row in checks),
                 "REWRITE-CHECK: per-ID results differ from the reference scorer")
-        summary = {"schema": "weaver-train/rewriter-check/v1", "denominator": 100,
+        summary = {"schema": "weaver-train/rewriter-check/v1", "denominator": expected_count,
                    "passed": passed,
                    "empty_outputs": sum(row["output"] == "" for row in retained),
                    "scorer_outputs": len(scorer_rows), "checker_inputs": evidence.files,
                    "kit_inputs": kit["inputs"], "input_sha256": kit["input_sha256"],
                    "literal_failure_segments": sum(bool(r["literal_failures"]) for r in checks)}
-        summary["rate"] = summary["passed"] / 100
+        summary["rate"] = summary["passed"] / expected_count
         # REWRITE-SPREAD: breakdowns keep missing and truncated outputs in each total.
         for field, values in (("kind", ("narration", "final")), ("bin", (0, 1, 2))):
             summary["by_" + field] = {str(value): {
@@ -319,12 +328,14 @@ def check_outputs(kit, outputs, out_dir, *, repo=REPO):
     return summary, checks
 
 
-def rewrite_outcomes(source_ids, checks):
+def rewrite_outcomes(source_ids, checks, *, expected_count=100):
     """REWRITE-KIT, REWRITE-SPREAD: align exactly 100 boolean results by source ID."""
-    require(len(source_ids) == 100 and all(type(key) is str and key for key in source_ids),
-            "REWRITE-KIT: comparisons require 100 source IDs")
+    require(type(expected_count) is int and expected_count in (50, 100),
+            "REWRITE-KIT: unsupported outcome count")
+    require(len(source_ids) == expected_count and all(type(key) is str and key for key in source_ids),
+            f"REWRITE-KIT: comparisons require {expected_count} source IDs")
     expected = set(source_ids)
-    require(len(expected) == 100, "REWRITE-KIT: comparison source IDs repeat")
+    require(len(expected) == expected_count, "REWRITE-KIT: comparison source IDs repeat")
     indexed = {}
     for row in checks:
         key = row.get("id")
@@ -479,6 +490,8 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
                         "reply_budget": "min(8192, len(masked_input) // 2 + 256)"},
             "loop_checks": {"seed_check_complete": False,
                             "joint_token_check_complete": False}}
+    if record["procedure"] == "r1-e4":
+        plan["procedure"] = "r1-e4"
     evidence.verify()
     mf.require_tree(model_manifest, model_dir)
     require(mf.git_commit(repo) == commit,
@@ -502,6 +515,10 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
 def read_plan(plan_dir, *, repo=REPO):
     """REWRITE-KIT, REWRITE-RECORD: check frozen sources, settings and identities."""
     directory, manifest, manifest_sha = artifact(plan_dir)
+    if manifest.name == "ste-rewriter-training-plan":
+        from rewriter_r1_e4 import read_training_plan
+
+        return read_training_plan(directory, manifest, manifest_sha, repo)
     require(manifest.kind == "evaluation" and manifest.name == "ste-rewriter-plan",
             "REWRITE-RECORD: expected a frozen rewriter plan")
     raw = {name: captured_file(directory, manifest, name) for name in
@@ -536,14 +553,14 @@ def read_plan(plan_dir, *, repo=REPO):
     return plan, kit, entries, raw["folded.txt"], manifest.tree_hash, manifest_sha
 
 
-def validate_loaded_plan(plan, kit, entries, folded, loaded, *, repo):
+def validate_loaded_plan(plan, kit, entries, folded, loaded, *, repo, expected_count=100):
     """REWRITE-DECODE: compare the complete loaded render before the first output."""
     tok = loaded.tokenizer
     expected = {"tree_hash": loaded.tree_hash,
                 "template_hash": build.digest(tok.get_chat_template().encode()),
                 "tools": False, "enable_thinking": False, "max_seq_length": 49152}
     require_fields(plan, expected)
-    require(entries == preflight(tok, kit, folded, repo=repo),
+    require(entries == preflight(tok, kit, folded, repo=repo, expected_count=expected_count),
             "REWRITE-DECODE: frozen prompt tokens or reply budgets differ")
     end = tok.convert_tokens_to_ids("<|im_end|>")
     require(type(end) is int and end >= 0 and end != tok.unk_token_id,
@@ -582,9 +599,10 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
             record["prompt_provenance"] == plan["prompt_provenance"],
             "RENDER-SEED: adapter training prompt differs")
     pins = tomllib.loads((repo / "config/rewriter-inputs.toml").read_text())
-    require(record["counts"]["pairs"] == build.PROCEDURES[procedure] and
+    selection_name = "r1" if procedure == "r1-e4" else procedure
+    require(record["counts"]["pairs"] == build.PROCEDURES[selection_name] and
             record["selection"]["ordered_ids_sha256"] ==
-            pins[f"{procedure}_ordered_ids"],
+            pins[f"{selection_name}_ordered_ids"],
             "PAIR-BALANCE: adapter training selection differs")
     train_sha = build.digest(captured_file(directory, data_manifest, "train.jsonl"))
     expected_data = {"sha256": train_sha, "build_sha256": build.digest(build_bytes),
@@ -594,7 +612,15 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
             all(producer.dataset.get(key) == value
                 for key, value in expected_data.items()),
             "REWRITE-RECORD: adapter producer used a different training build")
-    config_bytes = (repo / "config/rewriter-train.toml").read_bytes()
+    extra = {}
+    config_path = "config/rewriter-train.toml"
+    if procedure == "r1-e4":
+        import rewriter_r1_e4 as e4
+
+        e4.configuration(repo)
+        extra = e4.producer_proof(adapter.parent, producer, plan, repo)
+        config_path = e4.CONFIG
+    config_bytes = (repo / config_path).read_bytes()
     config = tomllib.loads(config_bytes.decode())
     require(producer.config == config and producer.seed == config["train"]["seed"],
             "REWRITE-CONFIG: adapter training values differ")
@@ -606,7 +632,7 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
             "build_tree_hash": data_manifest.tree_hash,
             "build_manifest_sha256": data_sha, **expected_data,
             "config_sha256": build.digest(config_bytes),
-            "procedure": procedure, "epoch": epoch}
+            "procedure": procedure, "epoch": epoch, **extra}
 
 
 def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
@@ -617,10 +643,23 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
     started = time.monotonic()
     require((procedure == "r0" and adapter is None and epoch == 0 and
              training_build is None) or
-            (procedure in ("r1", "r2") and adapter is not None and epoch in (1, 2)
+            (procedure in ("r1", "r2", "r1-e4") and adapter is not None and
+             type(epoch) is int and epoch in ((1, 2, 3, 4) if procedure == "r1-e4" else (1, 2))
              and training_build is not None),
             "REWRITE-ORDER: adapter scores need an epoch and its training build")
-    plan, kit, entries, folded, plan_tree, plan_sha = read_plan(plan_dir, repo=repo)
+    bundle = read_plan(plan_dir, repo=repo)
+    plan, kit, entries, folded, plan_tree, plan_sha = bundle
+    count = plan["denominator"]
+    require(plan.get("procedure") != "r1-e4" or procedure == "r1-e4",
+            "REWRITE-R1-E4: experiment plan requires the four-epoch procedure")
+    require(count == 100 or procedure == "r1-e4",
+            "REWRITE-R1-E4-TRAIN-SCORES: training sample requires R1-E4")
+    experiment = None
+    if procedure == "r1-e4":
+        import rewriter_r1_e4 as e4
+        import rewriter_provenance as provenance
+
+        experiment = e4.score_plan(plan_dir, bundle, repo)
     commit = mf.git_commit(repo)
     model_manifest_path = loader.manifest_path_for(build.MODEL)
     model_manifest = mf.load_tree(model_manifest_path)
@@ -657,6 +696,8 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
               "loop_checks": {"seed_check_complete": False,
                               "joint_token_check_complete": False}}
     out.mkdir(parents=True, exist_ok=False)
+    if experiment is not None:
+        record["experiment"] = experiment
 
     def save_record():
         """REWRITE-RECORD: keep this invocation's status beside its outputs."""
@@ -668,6 +709,8 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
     try:
         require(commit == plan["commit"],
                 "REWRITE-RECORD: checkout commit differs from frozen plan")
+        if experiment is not None:
+            record["imports_before"] = provenance.capture(repo)
         require(torch.cuda.is_available() and torch.cuda.device_count() == 2,
                 "REWRITE-LIMITS: exactly two selected GPUs are required")
         # REWRITE-RECORD: the allocator must exist before peak counters are reset.
@@ -690,9 +733,12 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
                                  "producer": adapter_producer(
                                      adapter_path, adapter_manifest, training_build,
                                      procedure, epoch, plan, repo)}
+            if experiment is not None:
+                e4.verify_score_proof(record["adapter"]["producer"], bundle, experiment)
         loaded = loader.load(build.MODEL, path=model_dir,
                              manifest_path=model_manifest_path, device_map="balanced")
-        validate_loaded_plan(plan, kit, entries, folded, loaded, repo=repo)
+        validate_loaded_plan(plan, kit, entries, folded, loaded, repo=repo,
+                             expected_count=count)
         if adapter_path is not None:
             from peft import PeftModel
 
@@ -703,17 +749,21 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
         placement = {parameter.device for parameter in loaded.model.parameters()}
         require(placement == {torch.device("cuda:0"), torch.device("cuda:1")},
                 "REWRITE-LIMITS: all parameters must span the two selected GPUs")
+        if experiment is not None:
+            record["imports_before"] = provenance.capture(
+                repo, previous=record["imports_before"])
         outputs = []
         with (out / "segments.jsonl").open("xb") as stream:
-            for row in decode_outputs(loaded, kit, folded, repo=repo):
+            for row in decode_outputs(loaded, kit, folded, repo=repo, expected_count=count):
                 stream.write(jsonl_bytes([row]))
                 stream.flush()
                 outputs.append(row)
                 record["completed_ids"].append(row["id"])
-                print(f"rewritten {len(outputs)}/100: {row['id']}", flush=True)
+                print(f"rewritten {len(outputs)}/{count}: {row['id']}", flush=True)
         require(record["completed_ids"] == [entry["id"] for entry in entries],
                 "REWRITE-DECODE: first outputs do not cover the frozen plan")
-        summary, checks = check_outputs(kit, outputs, out / "checks", repo=repo)
+        summary, checks = check_outputs(kit, outputs, out / "checks", repo=repo,
+                                       expected_count=count)
         record["checks"] = summary
         record["output_lengths"] = [{"id": row["id"],
             "characters": row["output_characters"], "tokens": row["output_tokens"]}
@@ -734,6 +784,11 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
                     "REWRITE-RECORD: adapter producer changed during generation")
         require(mf.git_commit(repo) == plan["commit"],
                 "REWRITE-RECORD: checkout changed during generation")
+        if experiment is not None:
+            require(e4.score_plan(plan_dir, final_plan, repo) == experiment,
+                    "REWRITE-R1-E4: experiment changed during generation")
+            record["imports_after"] = provenance.capture(
+                repo, previous=record["imports_before"])
         record["segments_sha256"] = mf.sha256_file(out / "segments.jsonl")
         record["status"] = "completed"
     except BaseException as exc:
@@ -769,10 +824,10 @@ def main(argv=None, *, repo=REPO):
     plan.add_argument("--build", type=Path, required=True)
     plan.add_argument("--folded-prompt", type=Path, required=True)
     plan.add_argument("--out", type=Path, required=True)
-    run = commands.add_parser("run", help="record the first rewrite for all 100 inputs")
+    run = commands.add_parser("run", help="record one first rewrite per frozen input")
     run.add_argument("--plan", type=Path, required=True)
     run.add_argument("--out", type=Path, required=True)
-    run.add_argument("--procedure", choices=("r0", "r1", "r2"), required=True)
+    run.add_argument("--procedure", choices=("r0", "r1", "r2", "r1-e4"), required=True)
     run.add_argument("--epoch", type=int, default=0)
     run.add_argument("--adapter", type=Path)
     run.add_argument("--training-build", type=Path)

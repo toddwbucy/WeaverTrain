@@ -611,7 +611,14 @@ def fresh_build_output(out_dir, repo):
 
 def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     """RENDER clauses: write the approved selection, masks and immutable identities."""
-    require(procedure in PROCEDURES, "RENDER-OUTPUT: unknown procedure selection")
+    require(procedure in (*PROCEDURES, "r1-e4"), "RENDER-OUTPUT: unknown procedure selection")
+    # REWRITE-R1-E4: reuse the approved R1 selection without changing the pair pool.
+    selection_name = "r1" if procedure == "r1-e4" else procedure
+    if procedure == "r1-e4":
+        commit = mf.git_commit(repo)
+        require(isinstance(commit["rev"], str) and bool(commit["rev"]) and
+                commit["dirty"] is False,
+                "REWRITE-R1-E4: a known clean checkout is required for the training build")
     out, manifest_path = fresh_build_output(out_dir, repo)
     pair_root = Path(pair_dir).resolve()
     require(out != pair_root and pair_root not in out.parents and
@@ -623,9 +630,9 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     system = folded_system(folded, pins["folded_prompt"])
     indexed, removed, pairs, pair_manifest, pair_manifest_sha = read_pair_directory(
         pair_root, evidence, pins)
-    selection = pairs["balance"]["selections"][procedure]
-    require(selection["available"] and selection["count"] == PROCEDURES[procedure]
-            and selection["ordered_ids_sha256"] == pins[f"{procedure}_ordered_ids"],
+    selection = pairs["balance"]["selections"][selection_name]
+    require(selection["available"] and selection["count"] == PROCEDURES[selection_name]
+            and selection["ordered_ids_sha256"] == pins[f"{selection_name}_ordered_ids"],
             "PAIR-BALANCE: selection needs an operator decision")
     tokenizer, model_manifest, model_dir, model_hash = build_tokenizer(evidence)
     # REWRITE-LIMITS: never create build files inside or around the reference tree.
@@ -681,8 +688,12 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
         require(digest(tokenizer.get_chat_template().encode()) == template_hash,
                 "RENDER-LAYOUT: tokenizer template changed during build")
         mf.require_tree(model_manifest, model_dir)
+        epoch_numbers = (1, 2, 3, 4) if procedure == "r1-e4" else (1, 2)
         record["tokens_per_epoch"] = [
-            {"epoch": epoch, **record["counts"]} for epoch in (1, 2)]
+            {"epoch": epoch, **record["counts"]} for epoch in epoch_numbers]
+        if procedure == "r1-e4":
+            require(mf.git_commit(repo) == commit,
+                    "REWRITE-R1-E4: checkout changed during the training build")
         record["status"] = "completed"
         save_record()
         manifest = mf.build_tree(out, "dataset", "ste-rewriter-build",
@@ -706,7 +717,7 @@ def main(argv=None, *, repo=REPO):
     build = commands.add_parser("build", help="render an approved pair selection")
     build.add_argument("--pairs", type=Path, required=True)
     build.add_argument("--folded-prompt", type=Path, required=True)
-    build.add_argument("--selection", choices=tuple(PROCEDURES), required=True)
+    build.add_argument("--selection", choices=(*PROCEDURES, "r1-e4"), required=True)
     build.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:

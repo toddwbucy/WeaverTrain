@@ -1,11 +1,16 @@
 import json
+import sys
 import textwrap
+from pathlib import Path
 
 import pytest
 
 from tests.conftest import NAME
 from weaver_train import manifest as mf
 from weaver_train import trainer
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from rewriter_r1_e4_report import loss_curve
 
 CONFIG = textwrap.dedent("""
     [lora]
@@ -193,13 +198,13 @@ def test_train_tokenized_and_epochs_config_errors(change, error):
         trainer.parse_config(tomllib.loads(change(CONFIG)))
 
 
-def make_tokenized(tmp_path, model_hash, *, render_only=False, length=64):
+def make_tokenized(tmp_path, model_hash, *, render_only=False, length=64, row_count=2):
     """TRAIN-TOKENIZED: tiny synthetic IDs for kernel tests, never adapter training data."""
     dest = tmp_path / "built"
     dest.mkdir()
     values = [4, 5, 6, 7, 8, 9, 10, 11]
     mask = [0, 0, 1, 1, 0, 0, 1, 1]
-    rows = [{"input_ids": values, "assistant_masks": mask, "row": i} for i in range(2)]
+    rows = [{"input_ids": values, "assistant_masks": mask, "row": i} for i in range(row_count)]
     (dest / "train.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
     (dest / "build.json").write_text(json.dumps({"tree_hash": model_hash, "max_seq_length": length,
                                                "render_only": render_only}))
@@ -266,15 +271,24 @@ def test_train_tokenized_rejects_malformed_records_before_load(
 
 
 @pytest.mark.gpu
-def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp_path, monkeypatch):
-    """Section 9: inspect labels at the real GPU loss and verify two epoch adapters."""
+@pytest.mark.parametrize("epochs", [2, 4])
+def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp_path, monkeypatch, epochs):
+    """Section 9, REWRITE-R1-E4: check GPU labels, adapters and real 100-step loss logs."""
     import torch
     model_dir, manifest_path = tiny_model
-    path, ids, mask = make_tokenized(tmp_path, mf.load_tree(manifest_path).tree_hash)
+    row_count = 25 if epochs == 4 else 2
+    path, ids, mask = make_tokenized(tmp_path, mf.load_tree(manifest_path).tree_hash,
+                                    row_count=row_count)
     build_digest = mf.sha256_file(path.with_name("build.json"))
     data_digest = mf.sha256_file(path)
-    config_path.write_text(CONFIG.replace('format = "text"', 'format = "tokenized"')
-                          .replace('max_steps = 2', 'num_train_epochs = 2'))
+    config = CONFIG.replace('format = "text"', 'format = "tokenized"').replace(
+        'max_steps = 2', f'num_train_epochs = {epochs}')
+    if epochs == 4:
+        config = config.replace('learning_rate = 1e-3', 'learning_rate = 1e-4').replace(
+            'warmup_steps = 0', 'warmup_steps = 10').replace(
+            'lr_scheduler = "constant"', 'lr_scheduler = "cosine"').replace(
+            '[train]', '[train]\nlogging_steps = 1')
+    config_path.write_text(config)
     checked_class = trainer.checked_trainer_class
     observed = []
 
@@ -306,20 +320,38 @@ def test_train_mask_reaches_loss_and_epoch_adapters(tiny_model, config_path, tmp
     out = tmp_path / "tokenized-run"
     record = trainer.train(model_dir, manifest_path, path, config_path, out)
     expected = [[value if keep else -100 for value, keep in zip(ids, mask)]]
-    assert len(observed) == 4
+    assert len(observed) == row_count * epochs
     assert all(seen_ids == [ids] and labels == expected for seen_ids, labels in observed)
-    for name in ("adapter-epoch-1", "adapter-epoch-2", "adapter"):
+    assert [entry["epoch"] for entry in record.results["epoch_adapters"]] == list(range(1, epochs + 1))
+    for name in [f"adapter-epoch-{n}" for n in range(1, epochs + 1)] + ["adapter"]:
         trainer.check_adapter_only(out / name)
+        mf.require_tree(mf.load_tree(out / f"{name}.manifest.json"), out / name)
     assert record.dataset["build_sha256"] == build_digest
     assert record.dataset["sha256"] == data_digest
     assert record.dataset["sha256"] != mf.sha256_file(path)
-    assert record.dataset["rows"] == 2 and record.dataset["assistant_tokens"] == 8
-    assert record.results["epochs"] == 2 and record.results["global_step"] == 4
-    assert len(record.results["step_seconds"]) == 4
+    assert record.dataset["rows"] == row_count
+    assert record.dataset["assistant_tokens"] == row_count * sum(mask)
+    assert record.results["epochs"] == epochs and record.results["global_step"] == row_count * epochs
+    assert len(record.results["step_seconds"]) == row_count * epochs
     assert all(step["seconds"] > 0 for step in record.results["step_seconds"])
     assert record.results["wall_seconds"] > sum(step["seconds"] for step in record.results["step_seconds"])
     assert record.results["loss_history"] and record.results["last_loss"] >= 0
     assert len(record.results["peak_vram_gib"]) == torch.cuda.device_count()
+    if epochs == 4:
+        logs = json.loads((out / "trainer/log_history.json").read_bytes())
+        curve = loss_curve(record, logs)
+        assert [row["step"] for row in curve["steps"]] == list(range(1, 101))
+        assert [row["steps"] for row in curve["epochs"]] == [25, 25, 25, 25]
+        assert [row["loss"] for row in curve["steps"]] == [
+            row["loss"] for row in record.results["loss_history"]]
+        recorded_rates = {row["step"]: row["learning_rate"] for row in logs
+                          if "learning_rate" in row}
+        assert [row["learning_rate"] for row in curve["steps"]] == [
+            recorded_rates[step] for step in range(1, 101)]
+        for epoch in range(1, 5):
+            values = [row["loss"] for row in record.results["loss_history"]
+                      if epoch - 1 < row["epoch"] <= epoch]
+            assert curve["epochs"][epoch - 1]["mean_loss"] == pytest.approx(sum(values) / 25)
 
 
 @pytest.mark.parametrize("failure, reason", [
