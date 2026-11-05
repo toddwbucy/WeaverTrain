@@ -20,9 +20,17 @@ New trial code follows the Spec merge. The review seat grades the plan, code and
 Use the existing `python-hf` path in bf16, with the approved folded prompt and one first output per input.
 The exact adapter tree, checks, budget, environment gate and stop rules are in REWRITE-TRIAL.
 Keep all reference weights and saved adapters unchanged.
+This trial uses the existing R1 training build and its original commit.
+Keep those identities and the producer commit separate from the new merged trial commit in the trial plan.
+The proposal requires an operator decision before model use if the producer and training data commits differ.
+Do not rebuild or edit the old training evidence to give it the trial commit.
+The proposed trial must import repository modules from its run checkout and record their file hashes.
+It must reject a new record with a dirty commit or a commit that differs from its launch.
 The report must show each source and both rewrites beside their checker results.
 REWRITE-TRIAL-RECORD proposes that narrow exception to the ban on source text in reports.
 The public repository rules still apply to every quoted text.
+The note must credit NVIDIA, name the pinned dataset and link its CC BY 4.0 license.
+It must state that the sources used placeholders and that the rewrites are model outputs.
 
 The trial gives no meaning verdict and does not authorize loop use.
 Blind batch `2847c781` remains the meaning gate.

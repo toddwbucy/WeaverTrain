@@ -510,6 +510,7 @@ another bin.
   Reject changed plans, code maps, counts, text with placeholders and source identities before model loading.
 - **REWRITE-TRIAL-RUN, REWRITE-TRIAL-RECORD:** Check both paths with the same frozen inputs and the pinned epoch 2 adapter.
   Check device pins, full tree checks, first outputs, the reply budget and the denominator of 20.
+  Reject repository imports from another checkout and new records with a dirty or different launch commit.
   Check missing outputs, token limits, placeholder checks, literal checks and unchanged scorer results.
   For each new rejection check, remove that check for a mutation test.
   With that check absent, the test must not be satisfactory.
@@ -666,6 +667,12 @@ Stop if the eligible pool cannot fill these counts. Do not change the seed or co
 Freeze the segment list, exact selection method and seed in a plan before generation.
 Keep their hashes, source file hashes, exclusion record and all procedure values in that plan.
 Record the model, adapter, producer record, environment, prompt, template, checker and snapshot identities.
+Record the original R1 training data commit and producer commit in different fields.
+The trial commit has its own field.
+Check the training data commit against the saved R1 plan.
+The trial plan must have the new merged trial commit.
+If the producer and training data commits are different, get the operator's decision before model use.
+Do not change a stored training data record or producer record to give it the trial commit.
 Keep each source ID, bin, kind, locator, code map and outer whitespace in the frozen input.
 Check every prompt and reply budget against the unchanged context limit before generation.
 Stop if any selected segment does not fit. Do not select a substitute.
@@ -677,6 +684,10 @@ The review seat grades the plan and code, with mutation tests, before generation
 
 **REWRITE-TRIAL-RUN.** Do the base procedure once, then the R1 epoch 2 adapter procedure once, on the same 20 inputs.
 Use REWRITE-LIMITS, RENDER-SEED and REWRITE-DECODE, with the unchanged loader and `pin_layer_devices`.
+Load each repository module from the run checkout.
+Keep `weaver_train.__file__` and the SHA256 of each imported repository module in the local procedure record.
+Before generation, check that the new record's commit is equal to the clean launch commit.
+Stop if the commits are different or either checkout is dirty.
 Use the epoch 2 adapter tree below from the completed R1 deposit.
 
 ```text
@@ -713,6 +724,10 @@ Keep the issue body current with the status and links.
 The result note in `reports/` shows each source, base rewrite and adapter rewrite side by side.
 Show each output's checker result and whether its code spans were put back.
 This trial note alone can contain those source and output texts under REWRITE-RECORD.
+Give credit to NVIDIA for the dataset, with a link to its pinned revision.
+Name the dataset, its revision and the [CC BY 4.0 license][trial-license] in the note.
+Include the license link.
+Record that the sources used placeholders during generation and that the rewrites are model outputs.
 Check all text against the public repository rules before publication.
 If text does not satisfy that check, stop publication and get the operator's instruction.
 Keep the frozen selection and outputs unchanged.
@@ -722,6 +737,7 @@ Do not pool these results with another engine or the frozen scores.
 The review seat grades the result note. A checker result is not a verdict on the sense.
 
 [trial]: https://github.com/toddwbucy/WeaverTrain/issues/36
+[trial-license]: https://creativecommons.org/licenses/by/4.0/
 
 [ruling]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6605286044
 [answers]: https://github.com/toddwbucy/WeaverTrain/issues/17#issuecomment-6608618052
