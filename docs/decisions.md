@@ -3,6 +3,34 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-06: Granite uses rank 16 on attention and MLP projections
+
+The [operator target ruling][granite-targets] selects rank 16 on q/k/v/o and gate/up/down for Granite.
+Use `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj` and `down_proj`.
+Keep alpha 32 and dropout 0, with the same remaining recipe as Nemotron R1-E4.
+The operator requested the same measurement after the completed Nemotron R1-E4 run.
+Use four fresh epochs, the same 200 pair IDs and prompt A, with a cosine schedule across all four epochs.
+Save and score each epoch on the frozen 100 sources and the fixed 50 training pairs.
+Keep the fixed 30-source blind review, loss and learning-rate records, wall time and GPU peaks.
+Granite has its own R0 before R1. Each model keeps its own tokens and results.
+
+The target rule matches rank and recipe, not the trainable parameter count.
+The full dense set calculates to 140,509,184 parameters at rank 16 from the pinned dimensions.
+Check that count against the adapted model before training. This estimate is not a memory measurement.
+Nemotron R1-E4 measured 6,648,832 trainable parameters. Its records stay unchanged.
+Section 13 of `docs/lora-rewriter-Spec.md` records the Granite procedure before dependent code.
+
+The [series ruling of 2026-11-05][granite-series] opened dense Granite beside Nemotron and approved its download.
+Use `ibm-granite/granite-4.2-30b` at revision `9e668ce1c538387ef24d3644e9b0606647762636` in bf16.
+Verify the downloaded tree against publisher digests, make a manifest and keep reference files read-only.
+The loader, trainer, targets and thinking-off rendering need checks with a small dense model.
+A LoRA memory probe at 49,152 tokens must pass before training.
+Nemotron remains the only hybrid family under test and stays on the cutover path.
+This opens no smaller Granite model, quantized model, new dataset, R2, shared-expert test or loop procedure.
+
+[granite-targets]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6689076884
+[granite-series]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6669853774
+
 ## 2026-11-06: continue R1-E4 after the driver-query SIGPIPE stop
 
 The [operator ruling](https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6674307434) permits the unchanged verification to run again at the frozen R1-E4 commit.
@@ -675,6 +703,9 @@ The rewriting step serves the model with vLLM from a separate environment
 transformers pins never touch the training environment's verified builds.
 
 ## 2026-10-31: Nemotron 3 Nano 30B only; Granite dropped
+
+Historical scope: the [2026-11-05 ruling][granite-series] later added dense Granite 4.2 30B.
+The retired Granite 4.0 hybrid below remains retired.
 
 weaver-train now targets `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` only.
 `ibm-granite/granite-4.0-h-small` is dropped from active configs and tests. Its bf16

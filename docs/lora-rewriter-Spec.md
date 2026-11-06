@@ -1,8 +1,8 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Approved in PRs 26, 37 and 39.
+**Status:** Granite clauses await approval. Nemotron clauses are approved in PRs 26, 37 and 39.
 
-**Version:** 0.4 **Date:** 2026-11-05 **Parent:** `docs/decisions.md`
+**Version:** 0.5 **Date:** 2026-11-06 **Parent:** `docs/decisions.md`
 
 **Language:** STE100. Use `ste/` at `ab63a918b569e5b8673dc2e78e66575ee9df1bd7`.
 Add no words to that tree. Use `scripts/ste_check.py` with limits of 20 and 25 words.
@@ -30,7 +30,7 @@ The review command is `scripts/rewriter_review.py`.
 The trial command is `scripts/rewriter_trial.py`, under section 12.
 The R1-E4 command is `scripts/rewriter_r1_e4.py`, under section 4.
 Tests and procedure configuration go in new files in `tests/` and `config/`.
-Use the current trainer without changes to its code.
+Use the current trainer without changes to its code, except under GRANITE-FILES for the separate Granite series.
 Each new piece of code cites the clause that gives it authority.
 
 The reference freeze for issue 15 continues until that procedure is complete.
@@ -42,6 +42,7 @@ This document and the decision entry are the first change.
 The pair code follows the merge of this document.
 
 **REWRITE-LIMITS.** Use the pinned Nemotron 30B A3B model in bf16 on the two A6000s.
+Section 13 gives the model and procedure rules for the separate Granite series.
 The engine label is `python-hf`.
 Keep the reference weights unchanged.
 Use `pin_layer_devices` on every path that puts the model on two GPUs.
@@ -891,6 +892,222 @@ Report counts by source bin and kind, failures by rule, empty outputs and output
 Report wall times and peak memory on each GPU for both procedures.
 Do not pool these results with another engine or the frozen scores.
 The review seat grades the result note. A checker result is not a verdict on the sense.
+
+## 13. Dense Granite rewriter
+
+**GRANITE-SCOPE.** The [operator decision of 2026-11-05][granite-series] opens a separate dense rewriter series after Nemotron R1-E4.
+The [target decision of 2026-11-06][granite-targets] selects the full attention and MLP target set at rank 16.
+Compare the completed rewriters on the same task, pairs, prompt, checker and source samples.
+Keep different procedure names, identities, records and results for each model.
+The model, earlier training, tokenizer, template and adapter size can be different.
+Do not give architecture alone as the cause of a difference.
+Nemotron stays on the cutover path. The retired Granite 4.0 hybrid stays retired.
+No R2, shared-expert training, smaller model, quantized model, new dataset or loop procedure has approval here.
+
+Section 13 supplies the Granite exceptions to REWRITE-LIMITS, REWRITE-CONFIG, REWRITE-ORDER and REWRITE-MEMORY.
+Its rules for model identity, tokens and references replace the Nemotron identities for this series only.
+All other rules for pairs, token labels, checker, review and records still apply.
+Keep all Nemotron procedures, deposits, adapters and reports unchanged.
+The trial on issue 36 is a different task with its own approval.
+
+**GRANITE-FILES.** This section gives authority for dependent code only after its merge.
+The review seat must grade the code before any Granite model procedure.
+Use model configuration fields in the current builder, scorer, review and report commands where possible.
+Add Granite procedure files, configuration and tests where the current commands cannot express its records.
+Each new behavior cites its clause. Keep the public commands and records for Nemotron compatible.
+Loader and trainer changes have authority only for Granite support, target checks, placement and procedure records.
+Keep the current loss, optimizer, schedule and label behavior unchanged.
+Do not import another repository or change its files.
+The files frozen by REWRITE-FILES stay frozen.
+
+**GRANITE-MODEL.** Use `ibm-granite/granite-4.2-30b` at `9e668ce1c538387ef24d3644e9b0606647762636` in bf16.
+Use model key `granite-4.2-30b` and directory name `ibm-granite--granite-4.2-30b` in `config/models.toml`.
+Check the download against publisher file digests at that revision through the models stage.
+Write its manifest in `manifests/models/`, make reference files read-only and check the fast-load copy.
+Check full reference trees before and after every model procedure.
+Do not use the review seat's file-size check as a hash check.
+Use `GraniteForCausalLM`, with `model_type="granite"`, and the installed native implementation.
+Do not use remote model code.
+Keep `engine="python-hf"` and the model identity in every record.
+Keep results from other engines in different records.
+
+Read the pinned model card and its data disclosure before setup.
+Use the [model card at the pinned revision][granite-card] and [IBM's data disclosure][granite-disclosure].
+Record their revisions and hashes, and the limits of their source metadata.
+The disclosure lists public and nonpublic sources and synthetic data.
+It does not show that the held-out sources were absent from the model's earlier training.
+Do not add a dataset or a new training target from that disclosure.
+
+**GRANITE-VERIFY.** Load `.env` before every procedure and use `uv run --no-sync`.
+Use `CUDA_DEVICE_ORDER=PCI_BUS_ID` and the two GPUs selected by `.env`.
+Use `scripts/setup-env.sh --only verify --reverify` before each model procedure.
+Record its UTC times, commit and result before the procedure starts.
+Add checks for the dense native and Unsloth paths with a small Granite model.
+Record the actual attention implementation and device placement.
+Use `pin_layer_devices` on every path that puts the model on two GPUs.
+Model weights must stay in bf16 on the selected GPUs, with no CPU or disk offload.
+Keep the approved Unsloth checkpoint policy. It is not permission for weight offload.
+
+Only the approved graphics allocation and exact torchao warning are exceptions.
+The permission to do R1-E4 verification again does not apply to Granite.
+Stop and report every other failure or fallback, with the failed record kept unchanged.
+Do not change libraries, kernels, precision, context length or procedure values to continue.
+The operator must give a new instruction before a retry.
+
+**GRANITE-TARGETS.** Use LoRA rank 16, alpha 32 and dropout 0.0.
+Target `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj` and `down_proj` in every decoder layer.
+Do not adapt embeddings or the output head.
+Keep bias and other parameter training off.
+Record every target module's full name and matrix dimensions before adapters are attached.
+Check every intended module after attachment and reject a missing adapter or a trainable parameter outside this set.
+For a target with no adapter, stop with `TargetCoverageError`.
+Record the actual trainable parameter count and component coverage.
+For each linear module, rank 16 adds `16 * (in_features + out_features)` parameters.
+The pinned dimensions give 448 modules in 64 layers and 140,509,184 trainable parameters.
+Check these counts against the adapted model before the memory check and training.
+Stop on a difference. Do not change targets to get Nemotron's parameter count.
+
+**GRANITE-DATA.** Use the same 200 accepted pairs and PAIR-BALANCE sequence as Nemotron R1-E4.
+Keep every batch ID, segment ID, source, target, code map and outer whitespace unchanged.
+Apply PAIR-INPUTS, PAIR-HELDOUT and PAIR-TARGET to the verified source records.
+The ordered-ID SHA256 must equal `r1_ordered_ids` in section 11.
+Keep the source-bin counts 74, 60 and 66. No repair conversation enters training.
+Use prompt A with the exact `folded_prompt` bytes from section 11.
+Keep all four examples in the system text and the same user wrapper as RENDER-LAYOUT.
+Use no tools and set `enable_thinking=False` for both training and scores.
+
+Use Granite's pinned tokenizer and its unchanged chat template.
+The `chat_template.jinja` SHA256 is `f0ba43f79b3cabca5e5a7584c77aec92f49feae45cdf7779c87d9fc54cd90258`.
+The `tokenizer_config.json` SHA256 is `2007f26df166ed10a2d6fa881c1c8f3cdd151e451469f59b274897f14449835f`.
+Check these bytes against the manifest before use.
+Freeze the template hash, message-list hashes, token IDs and stop-token ID in a new Granite plan.
+The assistant header with `enable_thinking=False` has the empty `<think></think>` markers.
+This header is part of the prompt prefix.
+Its exact suffix is `"<|im_start|>assistant\n<think></think>"`, with no final LF.
+The end-of-turn token is `<|im_end|>`, ID `100257`.
+The complete assistant message ends with `"<|im_end|>\n"`.
+Check the token ID against the tokenizer and its configuration before generation.
+Give those header tokens no loss. This prefix is outside the model's new output tokens.
+Check the exact prefix relation required by RENDER-MASK with this template.
+Give loss only to the added final target, end-of-turn token and final LF.
+Stop if the prefix, stop token or final LF does not agree with the pinned template.
+Do not repair the layout or remove `<think>` text from new outputs.
+Do not change the template to continue.
+
+Keep `max_seq_length=49152`, with no truncation or shorter prompt.
+Count tokens with Granite before any generation or training.
+Check each training sequence and each prompt plus reply budget against the limit.
+Stop if any selected input does not fit. Do not replace it.
+Make a new training data record and plans with Granite token totals and all five RECONCILE-FIELDS.
+Check each artifact against its manifest before use.
+Nemotron token counts, token hashes and `train.jsonl` hashes are not Granite pins.
+Source pair identities and prompt bytes must still agree across the two series.
+Publish the new training data, plan, configuration and input hashes before R0.
+
+**GRANITE-MEMORY.** Before R0 or R1, do one LoRA step at 49,152 tokens on the pinned Granite model.
+Use the complete target set, bf16, Unsloth checkpoint policy and training placement on both GPUs.
+Check finite loss and gradients.
+Record seconds for each optimizer step and peak memory on each GPU.
+Post the memory and time record on issue 21 before R0 for the operator to set the procedure schedule.
+Check the reference tree after the memory check. Keep its adapter in a different record from R1.
+Do not use its weights or optimizer values for R1.
+Do not use Nemotron's memory record as this check.
+The shorter-context alternatives in RUN-MEMORY do not apply to Granite.
+Stop on failure. Training cannot start until this exact memory check is satisfactory.
+Do the memory check again before training if the model, environment, placement or training path changes.
+
+**GRANITE-R0.** Freeze the same 100 held-out source IDs, text, code maps, kinds and bins as REWRITE-KIT.
+Use Granite's new token plan for two procedures without an adapter.
+Keep model, environment, template, inputs and decode values identical across both R0 procedures.
+Apply REWRITE-DECODE, REWRITE-CHECK and REWRITE-SPREAD without changes to the checker or decode rule.
+Use greedy decode, one beam and `min(8192, len(masked_input) // 2 + 256)` reply tokens.
+Keep this approved task decode rule if the model card gives different suggested values.
+Keep first outputs without repair, retry or selection.
+Keep the same 30 source IDs from seed 2031 for review of the first R0 procedure.
+Complete the R0 report and its blind review before Granite R1.
+Publish that report through a draft PR before training.
+
+**GRANITE-R1.** Start from the base Granite model with a fresh adapter for four epochs.
+Use the exact 200-pair selection under GRANITE-DATA and the targets under GRANITE-TARGETS.
+Use learning rate `1e-4`, cosine schedule, 10 warmup steps and seed 0.
+Use batch size 1 and gradient accumulation 8.
+Keep `gradient_checkpointing="unsloth"`, `logging_steps=1`, `device_map="balanced"` and `data.format="tokenized"`.
+Use a separate configuration with these values.
+All remaining trainer values follow `config/rewriter-r1-e4.toml` at `ce869065b2f7581893b97d55c8d09ba4bf08c023`.
+The cosine schedule spans the complete four-epoch procedure from its start.
+With 200 pairs, record 25 optimizer steps per epoch and 100 steps in total.
+Do not put pairs together in one sequence or continue another adapter.
+Apply TRAIN-TOKENIZED, TRAIN-MASK-REACHES-LOSS, TRAIN-EPOCH-ADAPTERS, TRAIN-RECORD and TRAIN-STOP.
+Save one adapter at the end of each epoch and check it against its manifest.
+
+**GRANITE-SCORES.** Score all four epoch adapters on the same frozen Granite held-out plan.
+Apply the same decode, checker, placeholder and literal checks as GRANITE-R0.
+Report accepted results out of 100, by kind and by the three source-length bins.
+Report failures by rule, placeholders, literals, missing and empty outputs, and token-limit outputs.
+Compare each epoch with the first Granite R0 procedure under unchanged RUN-MARGIN.
+Use the absolute rate difference of Granite's two R0 procedures as its decode margin.
+Keep Nemotron scores in a separate comparison table with the model and procedure identities visible.
+Do not use Nemotron's R0 or two-epoch R1 as Granite's reference.
+This series has no earlier two-epoch Granite R1 procedure.
+Do not pool the samples or use a cross-model score difference to change RUN-MARGIN.
+
+Before training, freeze the 50-pair sample from the same pair sequence with seed 2034.
+Apply REWRITE-R1-E4-TRAIN-SCORES, with a new Granite token plan and denominator 50.
+The selected pair identities and sequence must equal the Nemotron R1-E4 training sample.
+Give each source request no target text. Score every epoch once on this plan.
+Report each training rate beside its held-out rate and their difference in percentage points.
+Keep this training diagnostic in a different record from the held-out evaluation.
+
+**GRANITE-REVIEW.** Apply REWRITE-REVIEW with the same 30 source IDs from seed 2031 and the pinned review prompt.
+Use the first R0 procedure and each saved epoch's first outputs.
+Prepare a new R0 batch and a new four-epoch batch, with opaque IDs and the seed-2032 shuffle.
+Keep model, procedure and epoch identities outside the grader's input and its directory.
+Do not use Nemotron verdicts or put them in the new grader's context.
+Check placeholders and literals before code spans are put back.
+Keep unavailable items without replacements and give no invented verdict.
+Report the four verdict counts and reviewed denominator for each procedure and epoch.
+Calculate defect rates only on reviewed outputs that the STE checker accepted.
+The executor prepares the batches and uses the `ingest` command with all three pinned hashes.
+The review seat manages the separate `claude-opus-5-5` session under REWRITE-R1-E4-REVIEW.
+The operator opens each grader session. The review seat gives its instruction and any format correction.
+Keep the transcript, UTC times, model ID, invocation, messages, corrections and final verdict hash.
+No review text or verdict enters training data.
+
+**GRANITE-RECORD.** Use one clean merged commit for the memory check, training data, plans, R0, R1 and scores.
+The producer commit must equal the launch commit in every new record.
+Check that repository modules come from that checkout before and after every procedure.
+Keep their file hashes and `weaver_train.__file__` in the local record.
+Check the training producer before the first score and after every score.
+Stop on an absent, dirty or different producer or import identity.
+Keep the model, environment, template, input, checker, adapter and configuration identities with each result.
+Keep complete per-step loss and recorded learning rate.
+Put these records together by step identity.
+For each epoch, report the arithmetic mean of its logged optimizer-step losses and the quantity of those steps.
+Report wall time for every model procedure.
+Record peak memory for each GPU with `max_memory_allocated` and `max_memory_reserved`.
+Use new deposits under REWRITE-RECORD, with verified manifests, README and SHA256SUMS.
+Post each start, result or stop on issue 21 and keep its status pane current.
+Keep source, target, rewrite and grader text outside git.
+Report the numbers and limits without a cause label or recommendation.
+Stop after the four-epoch report. R2 and loop use are outside this approval.
+
+**GRANITE-TESTS.** Check the exact template output and token-label boundary with the pinned tokenizer before a model procedure.
+Use a small dense Granite model for native load, Unsloth, bf16 and split-GPU tests.
+Check all seven targets in every layer and reject missing coverage or extra trainable parameters.
+Check four saved adapters, finite losses and complete step and learning-rate records.
+Reject wrong model, tokenizer, template, source, sample, producer or adapter identities.
+Test that Granite and Nemotron artifacts cannot be used as each other's references.
+Check both R0 procedures, unchanged RUN-MARGIN, the 100-source and 50-pair denominators, and unavailable review items.
+Check review preparation and the `ingest` command for the Granite baseline and all four distinct epochs.
+For each new rejection check, remove that check for a mutation test.
+With that check absent, the test must not be satisfactory.
+Each rejection test checks the specific reason, with other checks satisfactory.
+Keep the full Nemotron test suite, with GPU tests, satisfactory.
+
+[granite-series]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6669853774
+[granite-targets]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6689076884
+[granite-card]: https://huggingface.co/ibm-granite/granite-4.2-30b/blob/9e668ce1c538387ef24d3644e9b0606647762636/README.md
+[granite-disclosure]: https://github.com/ibm-granite/granite-4.2-language-models/blob/75355e6ef8c17d72a7b3736654ab525352f5e0b8/disclosures/granite_4.2_30b_disclosure.json
 
 [trial]: https://github.com/toddwbucy/WeaverTrain/issues/36
 [trial-ruling]: https://github.com/toddwbucy/WeaverTrain/issues/36#issuecomment-6664629876

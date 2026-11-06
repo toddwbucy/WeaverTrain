@@ -14,8 +14,9 @@ commands do not.
 
 Goal: LoRA fine-tune `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16` (pinned in
 `config/models.toml`) in bf16 and benchmark it untrained versus trained, for WeaverTools
-loop work. Granite was dropped on 2026-10-31; why, and every other ruling, is in
-`docs/decisions.md`. Hardware: 2x RTX A6000, NVLinked, the model split across both.
+loop work. The 2026-11-05 ruling adds dense Granite 4.2 30B as a separate rewriter series.
+The retired Granite 4.0 hybrid stays retired. See `docs/decisions.md` and section 13 of
+`docs/lora-rewriter-Spec.md`. Hardware: 2x RTX A6000, NVLinked, the model split across both.
 
 **Training data is chosen by an evaluation the operator has laid out**
 (`docs/decisions.md`): candidates come from NVIDIA's own sets
