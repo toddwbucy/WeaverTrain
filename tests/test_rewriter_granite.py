@@ -673,6 +673,42 @@ def test_probe_positive_record(probe_world):
     assert mf.require_tree(manifest, c.out) == manifest.tree_hash
 
 
+@pytest.mark.parametrize("procedure", ["probe", "train"])
+def test_model_verification_failure_is_recorded(baseline, monkeypatch, procedure):
+    """GRANITE-RECORD: a changed reference leaves failure evidence before model work."""
+    import rewriter_granite_probe as probe
+
+    c = baseline
+    manifest = mf.load_tree(c.model_manifest)
+    mf.require_tree(manifest, c.model)
+    (c.model / "weights.bin").write_bytes(b"changed fixture weights")
+
+    def check_tree(tree, directory):
+        """GRANITE-MODEL: exercise the real manifest check on synthetic reference files."""
+        initial = json.loads((c.out / "procedure.json").read_bytes())
+        assert initial["status"] == "started"
+        mf.require_tree(tree, directory)
+
+    monkeypatch.setattr(profile, "verify_model_files", check_tree)
+    monkeypatch.setattr(granite, "verify_environment",
+                        lambda *args: pytest.fail("invalid model reached environment verification"))
+    with pytest.raises(mf.ManifestError, match="tree does not match manifest.*weights.bin"):
+        if procedure == "probe":
+            probe.probe(c.out, repo=c.repo)
+        else:
+            granite.train(c.dense_experiment, c.granite_build, c.out, baseline=c.baseline, repo=c.repo)
+    failed = json.loads((c.out / "procedure.json").read_bytes())
+    assert failed["status"] == "failed"
+    assert failed["failure"]["type"] == "ManifestError"
+    assert "weights.bin" in failed["failure"]["message"]
+    assert failed["wall_seconds"] >= 0
+    assert "verification" not in failed
+    assert not c.out.with_name(c.out.name + ".manifest.json").exists()
+    assert not (c.out / "adapter").exists() and not (c.out / "train").exists()
+    if procedure == "probe":
+        assert failed["peak_memory_bytes"] == {}
+
+
 def test_builder_rejects_unknown_model(command, monkeypatch):
     c = command
     with pytest.raises(ValueError, match="unknown rendering model"):

@@ -26,7 +26,6 @@ def probe(out_dir, *, repo=granite.REPO):
     manifest_path = score.loader.manifest_path_for(profile.MODEL)
     manifest = mf.load_tree(manifest_path)
     directory = score.loader.resolve_dir(manifest)
-    profile.verify_model_files(manifest, directory)
     out, _ = score.fresh_score_output(out_dir, repo=repo, inputs=(directory,))
     out.mkdir(parents=True)
     record = {"schema": "weaver-train/rewriter-granite-probe/v1", "status": "started",
@@ -36,6 +35,7 @@ def probe(out_dir, *, repo=granite.REPO):
     started, devices = time.monotonic(), []
     try:
         (out / "procedure.json").write_bytes(e4.json_bytes(record))
+        profile.verify_model_files(manifest, directory)
         record["verification"] = granite.verify_environment(out, repo)
         import unsloth
         import torch

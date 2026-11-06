@@ -266,7 +266,6 @@ def train(experiment_dir, build_dir, out_dir, *, baseline, repo=REPO):
     manifest = mf.load_tree(path)
     directory = score.loader.resolve_dir(manifest)
     memory, _ = probe_record(experiment["memory_directory"], commit, data["tree_hash"], repo)
-    profile.verify_model_files(manifest, directory)
     out, _ = score.fresh_score_output(out_dir, repo=repo,
                                      inputs=(experiment_dir, build_dir, directory, baseline))
     out.mkdir(parents=True)
@@ -280,6 +279,7 @@ def train(experiment_dir, build_dir, out_dir, *, baseline, repo=REPO):
     started = time.monotonic()
     try:
         (out / "procedure.json").write_bytes(e4.json_bytes(record))
+        profile.verify_model_files(manifest, directory)
         record["verification"] = verify_environment(out, repo)
         require(torch.cuda.is_available() and torch.cuda.device_count() == 2,
                 "GRANITE-VERIFY: exactly two selected GPUs are required")
