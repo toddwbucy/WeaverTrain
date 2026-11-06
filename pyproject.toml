@@ -59,6 +59,7 @@ causal-conv1d = { url = "https://github.com/Dao-AILab/causal-conv1d/releases/dow
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "scripts"]
 markers = [
     "gpu: needs a CUDA GPU",
     "multigpu: needs two CUDA GPUs",

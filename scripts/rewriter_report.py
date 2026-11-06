@@ -46,6 +46,8 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
     """REWRITE-ORDER, REWRITE-SPREAD: bind score and producer identities to the plan."""
     plan, kit, entries, folded, plan_tree, plan_sha = plan_bundle
     count = plan["denominator"]
+    model_name = score.granite.model_for(plan)
+    dense = model_name == score.granite.MODEL
     root, manifest, manifest_sha = score.artifact(directory)
     require(manifest.kind == "evaluation" and manifest.name == "ste-rewriter-run",
             "REWRITE-RECORD: expected a rewriter score manifest")
@@ -56,7 +58,7 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
             "REWRITE-RECORD: comparisons require completed score records")
     score.require_fields(record, plan)
     expected = {"engine": "python-hf", "precision": "bf16",
-                "model": score.build.MODEL, "device_map": "balanced",
+                "model": model_name, "device_map": "balanced",
                 "commit": plan["commit"],
                 "plan_tree_hash": plan_tree, "plan_manifest_sha256": plan_sha,
                 **{key: plan[key] for key in ("environment_sha256", "build_sha256",
@@ -86,17 +88,23 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
             "sample": plan["review_sample"]},
             "REWRITE-REVIEW: frozen review selection differs")
     procedure, epoch = record["procedure"], record["epoch"]
+    require(score.granite.model_for(record) == model_name and
+            dense == (procedure in (score.granite.R0, score.granite.R1)),
+            "GRANITE-SCOPE: score and plan series differ")
     require(type(epoch) is int, "REWRITE-CONFIG: integer epoch required")
-    if procedure == "r0":
+    if procedure in ("r0", score.granite.R0):
+        if dense:
+            require(type(record.get("r0_pass")) is int and record["r0_pass"] in (1, 2),
+                    "GRANITE-R0: the untrained score must identify its pass")
         require(epoch == 0 and record["adapter"] is None and adapter is None and
                 training_build is None, "REWRITE-SPREAD: R0 must be untrained")
     else:
-        require(procedure in ("r1", "r2", "r1-e4") and
-                epoch in ((1, 2, 3, 4) if procedure == "r1-e4" else (1, 2)) and
+        require(procedure in ("r1", "r2", "r1-e4", score.granite.R1) and
+                epoch in ((1, 2, 3, 4) if procedure in ("r1-e4", score.granite.R1) else (1, 2)) and
                 adapter is not None and training_build is not None,
                 "REWRITE-SPREAD: adapter comparisons need the producer artifacts")
         verify_adapter(record, adapter, training_build, plan, repo)
-    require((count == 100 or procedure == "r1-e4") and
+    require((count == 100 or procedure in ("r1-e4", score.granite.R1)) and
             (plan.get("procedure") != "r1-e4" or procedure == "r1-e4"),
             "REWRITE-R1-E4: score procedure differs")
     if procedure == "r1-e4":
@@ -106,6 +114,12 @@ def read_score(directory, plan_bundle, *, adapter=None, training_build=None, rep
         proof = record["adapter"]["producer"]
         e4.verify_score_proof(proof, plan_bundle, record["experiment"])
         provenance.verify_pair(record, repo, plan["commit"])
+    elif dense:
+        import rewriter_granite as granite
+
+        granite.provenance.verify_pair(record, repo, plan["commit"])
+        if procedure == score.granite.R1:
+            granite.verify_score_proof(record["adapter"]["producer"], plan_bundle, record["experiment"])
     segment_bytes = score.captured_file(root, manifest, "segments.jsonl")
     require(score.build.digest(segment_bytes) == record["segments_sha256"],
             "REWRITE-RECORD: segment hash differs from score record")
@@ -205,16 +219,22 @@ def write_comparison(plan_dir, first, second, out_dir, *, candidates=(), repo=RE
     save()
     try:
         bundle = score.read_plan(plan_dir, repo=repo)
+        dense = score.granite.model_for(bundle[0]) == score.granite.MODEL
+        if dense:
+            record.update(score.granite.IDENTITY)
         record["plan_tree_hash"], record["plan_manifest_sha256"] = bundle[4:]
         verified, sources = [], []
         for path in (first, second):
             run = read_score(path, bundle, repo=repo)
-            require(run["record"]["procedure"] == "r0",
+            require(run["record"]["procedure"] == (score.granite.R0 if dense else "r0"),
                     "REWRITE-SPREAD: both references must be untrained R0")
             verified.append(run)
             sources.append((path, run, None, None))
             record["completed_ids"].append(run["record"]["run_id"])
         a, b = verified
+        if dense:
+            require(a["record"]["r0_pass"] == 1 and b["record"]["r0_pass"] == 2,
+                    "GRANITE-R0: references must be pass 1 then pass 2")
         require(a["record"]["run_id"] != b["record"]["run_id"],
                 "REWRITE-SPREAD: two distinct R0 runs are required")
         require(datetime.fromisoformat(a["record"]["created_at"]) <

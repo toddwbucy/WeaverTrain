@@ -3,6 +3,20 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-06: use the verified bulk-store models directly
+
+The [operator storage ruling][granite-store] permits direct model loads from the bulk store for this experimental series.
+A separate fast-load copy is no longer a launch requirement.
+Use the existing model-store setting in `.env` for Nemotron and Granite.
+Keep publisher-digest verification, full manifest checks and read-only reference files.
+Check the selected reference tree before and after each model procedure.
+The failed cache setup record stays unchanged. No copy started and no model or local setting changed.
+PR 44 changes GRANITE-MODEL and its dependent code together to apply this ruling.
+Code review and merge still precede the Granite memory check.
+All other procedure and stop rules stay unchanged.
+
+[granite-store]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6697186384
+
 ## 2026-11-06: Granite uses rank 16 on attention and MLP projections
 
 The [operator target ruling][granite-targets] selects rank 16 on q/k/v/o and gate/up/down for Granite.

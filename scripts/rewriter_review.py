@@ -39,6 +39,8 @@ def read_sources(plan_dir, sources, repo):
     if bundle[0].get("procedure") == "r1-e4" or any(
             run["record"]["procedure"] == "r1-e4" for run in runs):
         four_epoch_sources(bundle, runs)
+    elif score.granite.model_for(bundle[0]) == score.granite.MODEL:
+        granite_sources(bundle, runs)
     require(bool(runs), "REWRITE-REVIEW: at least one score is required")
     identities = [run["record"]["run_id"] for run in runs]
     require(len(set(identities)) == len(identities),
@@ -48,6 +50,25 @@ def read_sources(plan_dir, sources, repo):
             "REWRITE-REVIEW: procedure and epoch repeat")
     runs.sort(key=lambda run: (run["record"]["procedure"], run["record"]["epoch"]))
     return bundle, prompt, runs
+
+
+def granite_sources(bundle, runs):
+    """GRANITE-REVIEW: one baseline or all four distinct held-out epoch outputs."""
+    require(bundle[0]["denominator"] == 100,
+            "GRANITE-REVIEW: held-out scores are required")
+    if len(runs) == 1 and runs[0]["record"]["procedure"] == score.granite.R0:
+        require(runs[0]["record"].get("r0_pass") == 1,
+                "GRANITE-REVIEW: only the first R0 outputs can enter blind review")
+        return
+    require(all(run["record"]["procedure"] == score.granite.R1 for run in runs),
+            "GRANITE-REVIEW: different procedure in the review batch")
+    # Reuse the unchanged four-epoch identity and producer checks with a local view.
+    import copy
+
+    cohort = copy.deepcopy(runs)
+    for run in cohort:
+        run["record"]["procedure"] = "r1-e4"
+    four_epoch_sources(bundle, cohort)
 
 
 def four_epoch_sources(bundle, runs):
@@ -133,6 +154,8 @@ def payload(plan_dir, sources, batch_id, repo):
              "sample": bundle[0]["review_sample"],
              "runs": [run["identity"] for run in runs],
              "sequence": mapping, "unreviewed": unavailable}
+    if score.granite.model_for(bundle[0]) == score.granite.MODEL:
+        audit["rewriter_model"] = score.granite.MODEL
     return prompt, raw, audit
 
 

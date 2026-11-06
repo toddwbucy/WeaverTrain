@@ -15,3 +15,9 @@
 repo_id = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
 revision = "bf77c3174f68ad409e1c2aa60daeb46e32d1c606"
 local_dir = "nvidia--NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+
+# GRANITE-MODEL: dense bf16 series, separate from the retired Granite hybrid.
+[models."granite-4.2-30b"]
+repo_id = "ibm-granite/granite-4.2-30b"
+revision = "9e668ce1c538387ef24d3644e9b0606647762636"
+local_dir = "ibm-granite--granite-4.2-30b"
