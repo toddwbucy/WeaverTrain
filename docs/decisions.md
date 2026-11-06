@@ -3,6 +3,23 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-06: continue R1-E4 after the driver-query SIGPIPE stop
+
+The [operator ruling](https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6674307434) permits the unchanged verification to run again at the frozen R1-E4 commit.
+The review seat reproduced the line-97 driver-query SIGPIPE race and recorded nvidia-smi exit status 141.
+Continue at 49f985d158a87d79a6ddd83594f0ad5c936150f7 without a script or checkout change.
+A repeat is permitted only at that line, in preflight before any of the eight checks, attributable to exit 141.
+Every other failure still stops the procedure.
+Record each repeat on issue 21 with the failed log hash, UTC times and result.
+A repeat that passes supplies the fresh verification for its procedure.
+Keep completed training, adapters and earlier scores unchanged.
+Fix the script after R1-E4 in a separate code PR. That fix must not change R1-E4 records.
+
+The [ordering direction](https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6674565177) puts blind batch preparation immediately after held-out epoch 4, before the next GPU procedure.
+The executor prepares and posts the batch identity, grader directory and prompt and input hashes.
+The review seat checks the directory. The operator opens the separate grader session and the review seat instructs it.
+Training-sample scoring may proceed while the grader works. Other review rules stay unchanged.
+
 ## 2026-11-05: measure R1-E4 before R2
 
 The operator directed one new four-epoch run named R1-E4 before R2.
