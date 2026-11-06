@@ -94,7 +94,7 @@ mkdir -p "$WEAVER_TRAIN_STATE_DIR/stamps"
 [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]] || die "CUDA_VISIBLE_DEVICES must be set in .env"
 
 driver_cuda="$(nvidia-smi | sed -n 's/.*CUDA [A-Za-z ]*Version: *\([0-9]*\)\..*/\1/p' | head -1)"
-driver_ver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)"
+driver_ver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | sed -n '1p')"
 [[ -n "$driver_cuda" ]] || die "could not read the driver's CUDA version from nvidia-smi"
 ((driver_cuda >= MIN_DRIVER_CUDA_MAJOR)) \
   || die "driver supports CUDA $driver_cuda; need >= $MIN_DRIVER_CUDA_MAJOR for the cu130 torch wheels"
