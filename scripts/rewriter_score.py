@@ -758,7 +758,6 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
         if experiment is not None:
             record["imports_before"] = provenance.capture(repo)
         if dense:
-            e4.require_cache(model_manifest, model_dir)
             granite.verify_model_files(model_manifest, model_dir)
             record["verification"] = e4.verify_environment(out, repo)
         require(torch.cuda.is_available() and torch.cuda.device_count() == 2,

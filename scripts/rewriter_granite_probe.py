@@ -27,7 +27,6 @@ def probe(out_dir, *, repo=granite.REPO):
     manifest = mf.load_tree(manifest_path)
     directory = score.loader.resolve_dir(manifest)
     profile.verify_model_files(manifest, directory)
-    granite.require_cache(manifest, directory)
     out, _ = score.fresh_score_output(out_dir, repo=repo, inputs=(directory,))
     out.mkdir(parents=True)
     record = {"schema": "weaver-train/rewriter-granite-probe/v1", "status": "started",

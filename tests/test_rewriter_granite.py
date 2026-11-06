@@ -41,7 +41,6 @@ def dense(experiment, monkeypatch):
     monkeypatch.setattr(profile, "verify_tokenizer", lambda tok: None)
     monkeypatch.setattr(profile, "verify_render", lambda *args: None)
     monkeypatch.setattr(profile, "verify_model_files", lambda *args: None)
-    monkeypatch.setattr(granite, "require_cache", lambda *args: None)
     monkeypatch.setattr(granite, "loaded_placement", lambda model: {"attention_implementation": "fixture"})
     monkeypatch.setattr(granite, "verify_environment", lambda *args: {"status": "completed"})
     current["tokens_per_epoch"] = [dict(epoch=n, **current["counts"]) for n in e4.EPOCHS]
@@ -301,6 +300,16 @@ def test_granite_producer_record_guards(trained, field, value, reason):
     producer = mf.load_run(c.procedure / "train/run.json")
     bundle = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
     with pytest.raises(score.ScoreError, match=reason):
+        granite.producer_proof(c.procedure / "train", producer, bundle[0], c.repo)
+
+
+def test_granite_producer_step_count_guard(trained):
+    """GRANITE-R1: valid epoch adapters cannot hide an incomplete step record."""
+    c = trained
+    producer = mf.load_run(c.procedure / "train/run.json")
+    producer.results["global_step"] = 99
+    bundle = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
+    with pytest.raises(score.ScoreError, match="four saved adapters and 100 optimizer steps are required"):
         granite.producer_proof(c.procedure / "train", producer, bundle[0], c.repo)
 
 

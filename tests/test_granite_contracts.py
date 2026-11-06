@@ -8,7 +8,7 @@ import pytest
 import rewriter_granite as granite
 import rewriter_granite_probe as probe
 import rewriter_granite_profile as profile
-from weaver_train import manifest as mf, trainer
+from weaver_train import loader, manifest as mf, trainer
 from tests.test_granite import tiny_granite
 
 
@@ -43,6 +43,9 @@ def fake_tokenizer(monkeypatch):
             return self.end
 
         def apply_chat_template(self, messages, *, add_generation_prompt, **options):
+            if options.get("tokenize"):
+                assert options == {"tokenize": True, "return_dict": False, "enable_thinking": False}
+                return [1]
             assert options == {"tokenize": False, "enable_thinking": False}
             return "fixture prefix" + self.header + (
                 "" if add_generation_prompt else messages[-1]["content"] + self.ending)
@@ -68,6 +71,20 @@ def test_granite_template_and_boundary_rejections(fake_tokenizer, field, value, 
 def test_granite_thinking_prefix_is_retained(fake_tokenizer):
     result = profile.verify_render(fake_tokenizer, [{"role": "user", "content": "source"}], "target")
     assert result.endswith(profile.HEADER)
+
+
+def test_score_preflight_checks_granite_header(fake_tokenizer, tmp_path):
+    """GRANITE-DATA: score planning checks the thinking-off header before decode."""
+    folded = b"Fixture rules.\n"
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config/rewriter-inputs.toml").write_text(
+        f'folded_prompt = "{granite.build.digest(folded)}"\n')
+    kit = {"rows": [{"id": f"source-{i}", "text": "Use the model."} for i in range(100)]}
+    assert len(granite.score.preflight(fake_tokenizer, kit, folded,
+                                      repo=tmp_path, model=profile.MODEL)) == 100
+    fake_tokenizer.header += "\n"
+    with pytest.raises(ValueError, match="GRANITE-DATA: assistant header differs"):
+        granite.score.preflight(fake_tokenizer, kit, folded, repo=tmp_path, model=profile.MODEL)
 
 
 @pytest.fixture
@@ -115,14 +132,23 @@ def test_model_config_guard(model_files, field, value, reason):
         profile.verify_model_files(tree, root)
 
 
-def test_fast_load_copy_is_required(model_files, monkeypatch):
+@pytest.mark.parametrize("cache_present", [False, True])
+def test_selected_model_copy_is_verified(model_files, monkeypatch, cache_present):
+    """GRANITE-MODEL: a store or optional cache needs the same full manifest check."""
     root, tree = model_files
     tree.local_dir_name = root.name
-    monkeypatch.delenv("WEAVER_TRAIN_MODEL_CACHE", raising=False)
-    with pytest.raises(ValueError, match="verified fast-load copy is required"):
-        granite.require_cache(tree, root)
-    monkeypatch.setenv("WEAVER_TRAIN_MODEL_CACHE", str(root.parent))
-    granite.require_cache(tree, root)
+    (root / "weights.fixture").write_bytes(b"reference weight fixture")
+    tree = mf.build_tree(root, tree.kind, tree.name, source=tree.source,
+                         local_dir_name=tree.local_dir_name)
+    monkeypatch.setenv("WEAVER_TRAIN_MODEL_DIR", "")
+    monkeypatch.setenv("WEAVER_TRAIN_MODEL_STORE", str(root.parent))
+    monkeypatch.setenv("WEAVER_TRAIN_MODEL_CACHE", str(root.parent) if cache_present else "")
+    selected = loader.resolve_dir(tree)
+    assert selected == root
+    profile.verify_model_files(tree, selected)
+    (root / "weights.fixture").write_bytes(b"changed weight fixture")
+    with pytest.raises(mf.ManifestError, match="tree does not match manifest.*weights.fixture"):
+        profile.verify_model_files(tree, selected)
 
 
 @pytest.fixture
@@ -184,6 +210,26 @@ def test_inventory_refuses_wrong_targets_or_missing_matrix(tiny_granite, wrong_t
         del model.model.layers[1].mlp.down_proj
     with pytest.raises(trainer.TargetCoverageError, match=reason):
         trainer.granite_inventory(model, targets, 16)
+
+
+@pytest.mark.parametrize("change", ["nonlinear", "already_adapted"])
+def test_inventory_requires_unadapted_linear(tiny_granite, change):
+    """GRANITE-TARGETS: existing targets must be base linear modules."""
+    import torch
+    from transformers import GraniteForCausalLM
+
+    model = GraniteForCausalLM.from_pretrained(tiny_granite[0])
+    mlp = model.model.layers[1].mlp
+    if change == "nonlinear":
+        replacement = torch.nn.Identity()
+        replacement.in_features = mlp.down_proj.in_features
+        replacement.out_features = mlp.down_proj.out_features
+        mlp.down_proj = replacement
+    else:
+        mlp.down_proj.lora_A = torch.nn.ModuleDict()
+    with pytest.raises(trainer.TargetCoverageError,
+                       match=r"GRANITE-TARGETS: missing base linear model\.layers\.1\.mlp\.down_proj"):
+        trainer.granite_inventory(model, profile.TARGETS, 16)
 
 
 @pytest.mark.parametrize("modules,count", [(447, 140509184), (448, 6648832)])
@@ -270,7 +316,29 @@ def test_training_checks_pinned_counts_before_attachment(tiny_granite, tmp_path,
         trainer._run_unsloth(tiny_granite[0], b"", cfg, tmp_path / "unused", metrics)
 
 
-def test_training_requires_probe_placement(tiny_granite, tmp_path, monkeypatch):
+def test_training_refuses_missing_probe_before_model_load(tiny_granite, tmp_path, monkeypatch):
+    """GRANITE-MEMORY: retain the missing-placement reason without loading a model."""
+    from tests.test_trainer import make_tokenized
+
+    directory, manifest_path = tiny_granite
+    manifest = mf.load_tree(manifest_path)
+    manifest.name = profile.MODEL
+    manifest.save(manifest_path)
+    data, _, _ = make_tokenized(tmp_path, manifest.tree_hash, length=49152)
+    config = granite.REPO / granite.CONFIG
+    trainer.validate_tokenized(data, trainer.load_config(config), manifest.tree_hash, 64)
+    monkeypatch.setattr(trainer, "_run_unsloth",
+                        lambda *args: pytest.fail("missing probe reached model loading"))
+    out = tmp_path / "refused-training"
+    reason = "GRANITE-MEMORY: probe placement is required"
+    with pytest.raises(trainer.TrainConfigError, match=reason):
+        trainer.train(directory, manifest_path, data, config, out)
+    record = mf.load_run(out / "run.json")
+    assert record.status == "failed"
+    assert record.results["error"] == "TrainConfigError: " + reason
+
+
+def test_training_checks_probe_placement(tiny_granite, tmp_path, monkeypatch):
     import unsloth
     import torch
     from transformers import GraniteForCausalLM

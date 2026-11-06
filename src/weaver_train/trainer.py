@@ -505,6 +505,8 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
         metrics["required_granite_placement"] = granite_probe_placement
     record.save(out_dir / "run.json")
     try:
+        if m.name == "granite-4.2-30b" and granite_probe_placement is None:
+            raise TrainConfigError("GRANITE-MEMORY: probe placement is required")
         dataset_input = dataset_path
         if cfg.data_format == "tokenized":
             dataset_input = dataset_path.read_bytes()

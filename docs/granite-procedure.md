@@ -15,8 +15,10 @@ set +a
 export PYTHONPATH="$PWD/src:$PWD/scripts"
 ```
 
-Use the verified model store and fast-load copy from `.env`.
-The models stage must check both copies against `manifests/models/granite-4.2-30b.json`.
+Use the verified model store from `.env`, as the operator ruled on 2026-11-06.
+A separate fast-load copy is optional.
+The models stage checks publisher digests and writes `manifests/models/granite-4.2-30b.json`.
+Check the selected reference tree against that full manifest before and after each model procedure.
 The model procedures call fresh environment verification and retain its log and UTC times.
 No command below retries, changes precision or reduces context after a failure.
 Stop and post the failed record on issue 21. A retry needs a new operator ruling.

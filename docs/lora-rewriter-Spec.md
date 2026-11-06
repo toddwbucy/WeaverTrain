@@ -1,6 +1,7 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
 **Status:** Granite clauses are approved in PR 43. Nemotron clauses are approved in PRs 26, 37 and 39.
+PR 44 applies the operator's storage amendment of 2026-11-06.
 
 **Version:** 0.5 **Date:** 2026-11-06 **Parent:** `docs/decisions.md`
 
@@ -923,7 +924,9 @@ The files frozen by REWRITE-FILES stay frozen.
 **GRANITE-MODEL.** Use `ibm-granite/granite-4.2-30b` at `9e668ce1c538387ef24d3644e9b0606647762636` in bf16.
 Use model key `granite-4.2-30b` and directory name `ibm-granite--granite-4.2-30b` in `config/models.toml`.
 Check the download against publisher file digests at that revision through the models stage.
-Write its manifest in `manifests/models/`, make reference files read-only and check the fast-load copy.
+Write its manifest in `manifests/models/` and make reference files read-only.
+Load from the verified bulk store under the [storage decision of 2026-11-06][granite-store].
+A separate fast-load copy is optional. Check the selected copy against the full manifest before use.
 Check full reference trees before and after every model procedure.
 Do not use the review seat's file-size check as a hash check.
 Use `GraniteForCausalLM`, with `model_type="granite"`, and the installed native implementation.
@@ -1106,6 +1109,7 @@ Keep the full Nemotron test suite, with GPU tests, satisfactory.
 
 [granite-series]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6669853774
 [granite-targets]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6689076884
+[granite-store]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6697186384
 [granite-card]: https://huggingface.co/ibm-granite/granite-4.2-30b/blob/9e668ce1c538387ef24d3644e9b0606647762636/README.md
 [granite-disclosure]: https://github.com/ibm-granite/granite-4.2-language-models/blob/75355e6ef8c17d72a7b3736654ab525352f5e0b8/disclosures/granite_4.2_30b_disclosure.json
 

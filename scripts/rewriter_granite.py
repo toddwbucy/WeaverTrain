@@ -34,15 +34,6 @@ def configuration(repo):
     return current, build.digest(raw)
 
 
-def require_cache(manifest, directory):
-    """GRANITE-MODEL: refuse a model procedure until its fast-load copy is verified."""
-    cache = os.environ.get("WEAVER_TRAIN_MODEL_CACHE")
-    require(bool(cache) and directory.resolve() ==
-            (Path(cache) / manifest.local_dir_name).resolve(),
-            "GRANITE-MODEL: the verified fast-load copy is required")
-    mf.require_tree(manifest, directory)
-
-
 def loaded_placement(model):
     """GRANITE-MODEL, GRANITE-VERIFY: retain the actual native path and placement."""
     from weaver_train import trainer
@@ -276,7 +267,6 @@ def train(experiment_dir, build_dir, out_dir, *, baseline, repo=REPO):
     directory = score.loader.resolve_dir(manifest)
     memory, _ = probe_record(experiment["memory_directory"], commit, data["tree_hash"], repo)
     profile.verify_model_files(manifest, directory)
-    require_cache(manifest, directory)
     out, _ = score.fresh_score_output(out_dir, repo=repo,
                                      inputs=(experiment_dir, build_dir, directory, baseline))
     out.mkdir(parents=True)
