@@ -473,13 +473,18 @@ def initial_messages(system: str, masked_input: str) -> list[dict]:
             {"role": "user", "content": "<<<TEXT\n" + masked_input + "\nTEXT>>>"}]
 
 
-def render_pair(tokenizer, pair: dict, system: str) -> dict:
+def render_pair(tokenizer, pair: dict, system: str, *, model=MODEL) -> dict:
     """RENDER-LAYOUT, RENDER-MASK, RENDER-LENGTH: render one checked pair in memory.
 
     The caller supplies verified folded system text. This function neither checks
     seed provenance nor writes a training data record. Examples stay in the system.
     """
     messages = initial_messages(system, pair["input"])
+    if model != MODEL:
+        import rewriter_granite_profile as granite
+
+        require(model == granite.MODEL, "GRANITE-MODEL: unknown rendering model")
+        granite.verify_render(tokenizer, messages, pair["target"])
     message_bytes = json.dumps(messages, ensure_ascii=True,
                                separators=(",", ":")).encode("utf-8")
     options = {"enable_thinking": False, "tokenize": True, "return_dict": False}
@@ -574,23 +579,30 @@ def read_pair_directory(directory, evidence, pins):
     return indexed, rows["excluded"], record, manifest, digest(manifest_bytes)
 
 
-def build_tokenizer(evidence):
+def build_tokenizer(evidence, model=MODEL):
     """REWRITE-LIMITS, RENDER-OUTPUT: verify the pinned model before tokenizer use."""
     from weaver_train import loader
 
     configured = tomllib.loads(evidence.read("config/models.toml").decode())["models"][
-        MODEL]
-    model_manifest = mf.load_tree(loader.manifest_path_for(MODEL))
-    require(model_manifest.kind == "model" and model_manifest.name == MODEL and
+        model]
+    model_manifest = mf.load_tree(loader.manifest_path_for(model))
+    require(model_manifest.kind == "model" and model_manifest.name == model and
             all(model_manifest.source.get(key) == configured[key]
                 for key in ("repo_id", "revision")),
             "REWRITE-LIMITS: model manifest differs from configured reference")
     model_dir = loader.resolve_dir(model_manifest)
     model_hash = mf.require_tree(model_manifest, model_dir)
+    if model != MODEL:
+        import rewriter_granite_profile as granite
+
+        require(model == granite.MODEL, "GRANITE-MODEL: unknown tokenizer model")
+        granite.verify_model_files(model_manifest, model_dir)
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_dir, local_files_only=True, trust_remote_code=False)
+    if model != MODEL:
+        granite.verify_tokenizer(tokenizer)
     return tokenizer, model_manifest, model_dir, model_hash
 
 
@@ -611,10 +623,13 @@ def fresh_build_output(out_dir, repo):
 
 def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     """RENDER clauses: write the approved selection, masks and immutable identities."""
-    require(procedure in (*PROCEDURES, "r1-e4"), "RENDER-OUTPUT: unknown procedure selection")
+    import rewriter_granite_profile as granite
+
+    dense = procedure == granite.R1
+    require(procedure in (*PROCEDURES, "r1-e4", granite.R1), "RENDER-OUTPUT: unknown procedure selection")
     # REWRITE-R1-E4: reuse the approved R1 selection without changing the pair pool.
-    selection_name = "r1" if procedure == "r1-e4" else procedure
-    if procedure == "r1-e4":
+    selection_name = "r1" if procedure == "r1-e4" or dense else procedure
+    if procedure == "r1-e4" or dense:
         commit = mf.git_commit(repo)
         require(isinstance(commit["rev"], str) and bool(commit["rev"]) and
                 commit["dirty"] is False,
@@ -634,7 +649,12 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     require(selection["available"] and selection["count"] == PROCEDURES[selection_name]
             and selection["ordered_ids_sha256"] == pins[f"{selection_name}_ordered_ids"],
             "PAIR-BALANCE: selection needs an operator decision")
-    tokenizer, model_manifest, model_dir, model_hash = build_tokenizer(evidence)
+    if dense:
+        import rewriter_provenance as provenance
+
+        imports = provenance.capture(repo)
+    tokenizer, model_manifest, model_dir, model_hash = (
+        build_tokenizer(evidence, granite.MODEL) if dense else build_tokenizer(evidence))
     # REWRITE-LIMITS: never create build files inside or around the reference tree.
     model_root = model_dir.resolve()
     require(out != model_root and model_root not in out.parents and
@@ -659,6 +679,8 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
         "completed_ids": [], "counts": {"pairs": 0, "all_tokens": 0,
                                          "final_target_tokens": 0},
     }
+    if dense:
+        record.update(**granite.IDENTITY, imports_before=imports)
     # RENDER-OUTPUT: reserve the directory once. A failed build keeps its partial rows.
     out.mkdir(parents=True, exist_ok=False)
 
@@ -671,7 +693,8 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
     try:
         with (out / "train.jsonl").open("x", encoding="utf-8") as stream:
             for key in selection["ids"]:
-                row = render_pair(tokenizer, indexed[tuple(key)], system)
+                row = (render_pair(tokenizer, indexed[tuple(key)], system, model=granite.MODEL)
+                       if dense else render_pair(tokenizer, indexed[tuple(key)], system))
                 stream.write(json.dumps(row, ensure_ascii=True) + "\n")
                 record["completed_ids"].append(key)
                 record["counts"]["pairs"] += 1
@@ -688,12 +711,14 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
         require(digest(tokenizer.get_chat_template().encode()) == template_hash,
                 "RENDER-LAYOUT: tokenizer template changed during build")
         mf.require_tree(model_manifest, model_dir)
-        epoch_numbers = (1, 2, 3, 4) if procedure == "r1-e4" else (1, 2)
+        epoch_numbers = (1, 2, 3, 4) if procedure == "r1-e4" or dense else (1, 2)
         record["tokens_per_epoch"] = [
             {"epoch": epoch, **record["counts"]} for epoch in epoch_numbers]
-        if procedure == "r1-e4":
+        if procedure == "r1-e4" or dense:
             require(mf.git_commit(repo) == commit,
                     "REWRITE-R1-E4: checkout changed during the training build")
+        if dense:
+            record["imports_after"] = provenance.capture(repo, previous=imports)
         record["status"] = "completed"
         save_record()
         manifest = mf.build_tree(out, "dataset", "ste-rewriter-build",
@@ -717,7 +742,7 @@ def main(argv=None, *, repo=REPO):
     build = commands.add_parser("build", help="render an approved pair selection")
     build.add_argument("--pairs", type=Path, required=True)
     build.add_argument("--folded-prompt", type=Path, required=True)
-    build.add_argument("--selection", choices=(*PROCEDURES, "r1-e4"), required=True)
+    build.add_argument("--selection", choices=(*PROCEDURES, "r1-e4", "granite-r1"), required=True)
     build.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:

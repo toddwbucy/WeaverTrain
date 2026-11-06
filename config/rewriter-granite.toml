@@ -1,0 +1,22 @@
+# GRANITE-R1: the R1-E4 recipe with all dense attention and MLP targets.
+[lora]
+r = 16
+alpha = 32
+dropout = 0.0
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+[train]
+max_seq_length = 49152
+learning_rate = 1e-4
+num_train_epochs = 4
+per_device_batch_size = 1
+gradient_accumulation_steps = 8
+warmup_steps = 10
+lr_scheduler = "cosine"
+seed = 0
+gradient_checkpointing = "unsloth"
+logging_steps = 1
+device_map = "balanced"
+
+[data]
+format = "tokenized"

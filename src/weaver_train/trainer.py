@@ -245,6 +245,70 @@ def target_coverage(model, targets: list[str]) -> dict[str, dict[str, int]]:
     return cov
 
 
+GRANITE_TARGETS = ("q_proj", "k_proj", "v_proj", "o_proj",
+                   "gate_proj", "up_proj", "down_proj")
+
+
+def granite_inventory(model, targets, rank):
+    """GRANITE-TARGETS: inventory every intended matrix before LoRA attachment."""
+    import torch
+
+    if tuple(targets) != GRANITE_TARGETS:
+        raise TargetCoverageError("GRANITE-TARGETS: the seven target names differ")
+    modules = dict(model.named_modules())
+    inventory = []
+    for layer in range(model.config.num_hidden_layers):
+        for target in GRANITE_TARGETS:
+            component = "self_attn" if target in GRANITE_TARGETS[:4] else "mlp"
+            name = f"model.layers.{layer}.{component}.{target}"
+            module = modules.get(name)
+            if not isinstance(module, torch.nn.Linear) or hasattr(module, "lora_A"):
+                raise TargetCoverageError(f"GRANITE-TARGETS: missing base linear {name}")
+            inventory.append({"name": name, "in_features": module.in_features,
+                              "out_features": module.out_features,
+                              "lora_parameters": rank * (module.in_features + module.out_features)})
+    return inventory
+
+
+def check_granite_adapter(model, inventory, rank):
+    """GRANITE-TARGETS: check each adapter, its dimensions and all trainable names."""
+    modules = dict(model.named_modules())
+    expected = set()
+    for entry in inventory:
+        name = "base_model.model." + entry["name"]
+        module = modules.get(name)
+        for side, shape in (("A", (rank, entry["in_features"])),
+                            ("B", (entry["out_features"], rank))):
+            adapters = getattr(module, f"lora_{side}", {})
+            if set(adapters) != {"default"}:
+                raise TargetCoverageError(f"GRANITE-TARGETS: missing or extra adapter at {name}")
+            parameter = adapters["default"].weight
+            if tuple(parameter.shape) != shape or not parameter.requires_grad:
+                raise TargetCoverageError(f"GRANITE-TARGETS: adapter shape or training flag differs at {name}")
+            expected.add(f"{name}.lora_{side}.default.weight")
+    trainable = {name: p for name, p in model.named_parameters() if p.requires_grad}
+    if set(trainable) != expected:
+        raise TargetCoverageError("GRANITE-TARGETS: trainable parameters differ from the inventoried adapters")
+    count = sum(p.numel() for p in trainable.values())
+    if count != sum(entry["lora_parameters"] for entry in inventory):
+        raise TargetCoverageError("GRANITE-TARGETS: trainable parameter count differs")
+    return count
+
+
+def granite_placement(model):
+    """GRANITE-VERIFY: retain the native attention path and bf16 GPU placement."""
+    import torch
+
+    require_gpu_layers(model)
+    for name, parameter in model.named_parameters():
+        if ".lora_" not in name and parameter.is_floating_point() and parameter.dtype != torch.bfloat16:
+            raise RuntimeError("GRANITE-VERIFY: reference weights are not bf16")
+    return {"attention_implementation": model.config._attn_implementation,
+            "parameter_devices": {name: str(p.device) for name, p in model.named_parameters()},
+            "hf_device_map": {name: str(device) for name, device in
+                              getattr(model, "hf_device_map", {}).items()}}
+
+
 # Block types, matched against the class name of the outermost submodule of a decoder
 # layer that names one, after removing the model-family prefix it shares with the layer
 # class (GraniteMoeHybridMambaLayer -> MambaLayer, NemotronHMoE -> MoE): the Granite
@@ -420,7 +484,7 @@ def checked_trainer_class(base):
 def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
           dataset_path: str | os.PathLike, config_path: str | os.PathLike,
           out_dir: str | os.PathLike, *, verify_reference_after: bool = True,
-          verify_workers: int = 8) -> mf.RunRecord:
+          verify_workers: int = 8, granite_probe_placement: dict | None = None) -> mf.RunRecord:
     """TRAIN-RECORD, TRAIN-STOP: persist measurements and failures without retry."""
     started = time.monotonic()
     model_dir, out_dir, dataset_path = Path(model_dir), Path(out_dir), Path(dataset_path)
@@ -436,6 +500,9 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
         dataset={"file_name": dataset_path.name}, config=cfg.raw,
     )
     metrics = {}
+    if m.name == "granite-4.2-30b":
+        metrics["required_target_counts"] = {"modules": 448, "parameters": 140509184}
+        metrics["required_granite_placement"] = granite_probe_placement
     record.save(out_dir / "run.json")
     try:
         dataset_input = dataset_path
@@ -524,6 +591,19 @@ def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig,
             trust_remote_code=False, local_files_only=True,
         )
         require_gpu_layers(model)
+        granite = model.config.model_type == "granite"
+        if "required_target_counts" in metrics and not granite:
+            raise TargetCoverageError("GRANITE-MODEL: training implementation is not dense Granite")
+        if granite:
+            metrics["target_inventory"] = granite_inventory(model, cfg.lora.target_modules, cfg.lora.r)
+            if "required_target_counts" in metrics:
+                expected = metrics["required_target_counts"]
+                if len(metrics["target_inventory"]) != expected["modules"] or sum(
+                        row["lora_parameters"] for row in metrics["target_inventory"]) != expected["parameters"]:
+                    raise TargetCoverageError("GRANITE-TARGETS: pinned module or parameter count differs")
+            metrics["placement_before"] = granite_placement(model)
+            if "required_granite_placement" in metrics and metrics["placement_before"] != metrics["required_granite_placement"]:
+                raise RuntimeError("GRANITE-MEMORY: training placement or attention path differs from the probe")
         model = FastLanguageModel.get_peft_model(
             model, r=cfg.lora.r, lora_alpha=cfg.lora.alpha, lora_dropout=cfg.lora.dropout,
             target_modules=cfg.lora.target_modules, bias=cfg.lora.bias,
@@ -531,6 +611,10 @@ def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig,
         )
         if len({p.device for p in model.parameters()}) > 1:
             pin_layer_devices(model)
+        if granite:
+            metrics["trainable_parameters"] = check_granite_adapter(
+                model, metrics["target_inventory"], cfg.lora.r)
+            metrics["placement_after"] = granite_placement(model)
         coverage = target_coverage(model, cfg.lora.target_modules)
         check_coverage(coverage)
         metrics.update(lora_coverage=coverage, component_coverage=component_coverage(model))
@@ -568,6 +652,11 @@ def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig,
     finally:
         metrics["peak_vram_gib"] = {f"cuda:{i}": torch.cuda.max_memory_allocated(i) / 2**30
                                      for i in range(torch.cuda.device_count())}
+        if "target_inventory" in metrics:
+            metrics["peak_memory_bytes"] = {str(i): {
+                "allocated": torch.cuda.max_memory_allocated(i),
+                "reserved": torch.cuda.max_memory_reserved(i)}
+                for i in range(torch.cuda.device_count())}
 
 
 def main(argv: list[str] | None = None) -> int:

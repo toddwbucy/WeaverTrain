@@ -28,6 +28,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(REPO / "scripts"), str(REPO / "src")]
 
 import rewriter_build as build
+import rewriter_granite_profile as granite
 import ste_check
 import ste_convert
 import ste_experiment
@@ -100,7 +101,8 @@ def input_count(kit, expected_count=100):
     return expected_count
 
 
-def preflight(tokenizer, kit, folded: bytes, *, repo=REPO, expected_count=100):
+def preflight(tokenizer, kit, folded: bytes, *, repo=REPO, expected_count=100,
+              model=build.MODEL):
     """REWRITE-DECODE, RENDER-LAYOUT: check all 100 prompts before any generation.
 
     This returns an in-memory plan only. A matching file hash does not establish
@@ -114,6 +116,8 @@ def preflight(tokenizer, kit, folded: bytes, *, repo=REPO, expected_count=100):
     plan = []
     for row in kit["rows"]:
         messages = build.initial_messages(system, row["text"])
+        if model == granite.MODEL:
+            granite.verify_render(tokenizer, messages)
         ids = tokenizer.apply_chat_template(
             messages, tokenize=True, return_dict=False,
             add_generation_prompt=True, enable_thinking=False)
@@ -139,7 +143,8 @@ def decode_outputs(loaded, kit, folded: bytes, *, repo=REPO, expected_count=100)
     from transformers import GenerationConfig
 
     model, tokenizer = loaded.model, loaded.tokenizer
-    plan = preflight(tokenizer, kit, folded, repo=repo, expected_count=expected_count)
+    options = {"model": granite.MODEL} if getattr(loaded, "name", None) == granite.MODEL else {}
+    plan = preflight(tokenizer, kit, folded, repo=repo, expected_count=expected_count, **options)
     end = tokenizer.convert_tokens_to_ids("<|im_end|>")
     require(type(end) is int and end >= 0 and end != tokenizer.unk_token_id,
             "REWRITE-DECODE: end-of-turn token is unavailable")
@@ -451,6 +456,8 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
             "REWRITE-RECORD: expected a rewriter build manifest")
     build_bytes = captured_file(directory, build_manifest, "build.json")
     record = json.loads(build_bytes)
+    model_name = granite.model_for(record)
+    dense = model_name == granite.MODEL
     require(record["schema"] == "weaver-train/rewriter-build/v1" and
             record["status"] == "completed" and not record["render_only"],
             "REWRITE-RECORD: a completed rewriter training build is required")
@@ -461,14 +468,20 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
     require(record["folded_prompt"] == pins["folded_prompt"] and
             record["prompt_provenance"] == provenance,
             "RENDER-SEED: build prompt identities differ")
-    tokenizer, model_manifest, model_dir, model_hash = build.build_tokenizer(evidence)
+    if dense:
+        import rewriter_provenance as import_provenance
+
+        imports = import_provenance.capture(repo)
+    tokenizer, model_manifest, model_dir, model_hash = (
+        build.build_tokenizer(evidence, model_name) if dense else build.build_tokenizer(evidence))
     fresh_score_output(out, repo=repo, inputs=(build_dir, model_dir))
     expected = {"tree_hash": model_hash,
                 "template_hash": build.digest(tokenizer.get_chat_template().encode()),
                 "tools": False, "enable_thinking": False, "max_seq_length": 49152}
     require_fields(record, expected)
     kit = load_kit(repo)
-    entries = preflight(tokenizer, kit, folded, repo=repo)
+    entries = (preflight(tokenizer, kit, folded, repo=repo, model=model_name) if dense
+               else preflight(tokenizer, kit, folded, repo=repo))
     end = tokenizer.convert_tokens_to_ids("<|im_end|>")
     require(type(end) is int and end >= 0 and end != tokenizer.unk_token_id,
             "REWRITE-DECODE: end-of-turn token is unavailable")
@@ -492,10 +505,14 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
                             "joint_token_check_complete": False}}
     if record["procedure"] == "r1-e4":
         plan["procedure"] = "r1-e4"
+    if dense:
+        plan.update(**granite.IDENTITY, imports_before=imports)
     evidence.verify()
     mf.require_tree(model_manifest, model_dir)
     require(mf.git_commit(repo) == commit,
             "REWRITE-RECORD: checkout changed while freezing the plan")
+    if dense:
+        plan["imports_after"] = import_provenance.capture(repo, previous=imports)
     inputs = [{key: row[key] for key in ("id", "kind", "text")} for row in kit["rows"]]
     plan_bytes = (json.dumps(plan, indent=2, ensure_ascii=True) + "\n").encode()
     files = {"plan.json": plan_bytes,
@@ -518,12 +535,15 @@ def read_plan(plan_dir, *, repo=REPO):
     if manifest.name == "ste-rewriter-training-plan":
         from rewriter_r1_e4 import read_training_plan
 
-        return read_training_plan(directory, manifest, manifest_sha, repo)
+        bundle = read_training_plan(directory, manifest, manifest_sha, repo)
+        granite.model_for(bundle[0])
+        return bundle
     require(manifest.kind == "evaluation" and manifest.name == "ste-rewriter-plan",
             "REWRITE-RECORD: expected a frozen rewriter plan")
     raw = {name: captured_file(directory, manifest, name) for name in
            ("plan.json", "kit.json", "entries.jsonl", "input.jsonl", "folded.txt")}
     plan, kit = json.loads(raw["plan.json"]), json.loads(raw["kit.json"])
+    granite.model_for(plan)
     entries = [json.loads(line) for line in raw["entries.jsonl"].splitlines()]
     require(plan["schema"] == "weaver-train/rewriter-plan/v1" and
             plan["denominator"] == 100, "REWRITE-KIT: plan schema or count differs")
@@ -560,7 +580,9 @@ def validate_loaded_plan(plan, kit, entries, folded, loaded, *, repo, expected_c
                 "template_hash": build.digest(tok.get_chat_template().encode()),
                 "tools": False, "enable_thinking": False, "max_seq_length": 49152}
     require_fields(plan, expected)
-    require(entries == preflight(tok, kit, folded, repo=repo, expected_count=expected_count),
+    options = {"model": granite.MODEL} if granite.model_for(plan) == granite.MODEL else {}
+    require(entries == preflight(tok, kit, folded, repo=repo, expected_count=expected_count,
+                                  **options),
             "REWRITE-DECODE: frozen prompt tokens or reply budgets differ")
     end = tok.convert_tokens_to_ids("<|im_end|>")
     require(type(end) is int and end >= 0 and end != tok.unk_token_id,
@@ -580,7 +602,8 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
     require(producer.schema == mf.RUN_SCHEMA and producer.kind == "train" and
             producer.status == "completed" and producer.precision == "bf16",
             "REWRITE-RECORD: a completed bf16 training record is required")
-    require(producer.model == {"name": build.MODEL, "tree_hash": plan["tree_hash"]},
+    model_name = granite.model_for(plan)
+    require(producer.model == {"name": model_name, "tree_hash": plan["tree_hash"]},
             "REWRITE-RECORD: adapter producer used a different base model")
     directory, data_manifest, data_sha = artifact(training_build)
     require(data_manifest.kind == "dataset" and
@@ -588,6 +611,8 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
             "REWRITE-RECORD: adapter needs a rewriter training build")
     build_bytes = captured_file(directory, data_manifest, "build.json")
     record = json.loads(build_bytes)
+    require(granite.model_for(record) == model_name,
+            "GRANITE-SCOPE: adapter build and score use different models")
     require(record["schema"] == "weaver-train/rewriter-build/v1" and
             record["status"] == "completed" and record["render_only"] is False and
             record["procedure"] == procedure,
@@ -599,7 +624,7 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
             record["prompt_provenance"] == plan["prompt_provenance"],
             "RENDER-SEED: adapter training prompt differs")
     pins = tomllib.loads((repo / "config/rewriter-inputs.toml").read_text())
-    selection_name = "r1" if procedure == "r1-e4" else procedure
+    selection_name = "r1" if procedure in ("r1-e4", granite.R1) else procedure
     require(record["counts"]["pairs"] == build.PROCEDURES[selection_name] and
             record["selection"]["ordered_ids_sha256"] ==
             pins[f"{selection_name}_ordered_ids"],
@@ -620,6 +645,11 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
         e4.configuration(repo)
         extra = e4.producer_proof(adapter.parent, producer, plan, repo)
         config_path = e4.CONFIG
+    elif procedure == granite.R1:
+        import rewriter_granite as dense
+
+        extra = dense.producer_proof(adapter.parent, producer, plan, repo)
+        config_path = dense.CONFIG
     config_bytes = (repo / config_path).read_bytes()
     config = tomllib.loads(config_bytes.decode())
     require(producer.config == config and producer.seed == config["train"]["seed"],
@@ -636,23 +666,30 @@ def adapter_producer(adapter, manifest, training_build, procedure, epoch, plan, 
 
 
 def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
-              training_build=None, repo=REPO):
+              training_build=None, r0_pass=None, repo=REPO):
     """REWRITE-DECODE, REWRITE-CHECK, REWRITE-RECORD: retain one complete first pass."""
     import torch
 
     started = time.monotonic()
-    require((procedure == "r0" and adapter is None and epoch == 0 and
+    require((procedure in ("r0", granite.R0) and adapter is None and epoch == 0 and
              training_build is None) or
-            (procedure in ("r1", "r2", "r1-e4") and adapter is not None and
-             type(epoch) is int and epoch in ((1, 2, 3, 4) if procedure == "r1-e4" else (1, 2))
+            (procedure in ("r1", "r2", "r1-e4", granite.R1) and adapter is not None and
+             type(epoch) is int and epoch in ((1, 2, 3, 4) if procedure in ("r1-e4", granite.R1) else (1, 2))
              and training_build is not None),
             "REWRITE-ORDER: adapter scores need an epoch and its training build")
     bundle = read_plan(plan_dir, repo=repo)
     plan, kit, entries, folded, plan_tree, plan_sha = bundle
+    model_name = granite.model_for(plan)
+    dense = model_name == granite.MODEL
+    require(dense == (procedure in (granite.R0, granite.R1)),
+            "GRANITE-SCOPE: score procedure and model series differ")
+    require((procedure == granite.R0 and type(r0_pass) is int and r0_pass in (1, 2)) or
+            (procedure != granite.R0 and r0_pass is None),
+            "GRANITE-R0: an untrained Granite score requires pass 1 or pass 2")
     count = plan["denominator"]
     require(plan.get("procedure") != "r1-e4" or procedure == "r1-e4",
             "REWRITE-R1-E4: experiment plan requires the four-epoch procedure")
-    require(count == 100 or procedure == "r1-e4",
+    require(count == 100 or procedure in ("r1-e4", granite.R1),
             "REWRITE-R1-E4-TRAIN-SCORES: training sample requires R1-E4")
     experiment = None
     if procedure == "r1-e4":
@@ -660,12 +697,17 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
         import rewriter_provenance as provenance
 
         experiment = e4.score_plan(plan_dir, bundle, repo)
+    elif dense:
+        import rewriter_granite as e4
+        import rewriter_provenance as provenance
+
+        experiment = e4.score_plan(plan_dir, bundle, repo)
     commit = mf.git_commit(repo)
-    model_manifest_path = loader.manifest_path_for(build.MODEL)
+    model_manifest_path = loader.manifest_path_for(model_name)
     model_manifest = mf.load_tree(model_manifest_path)
     configured = tomllib.loads((repo / "config/models.toml").read_text())["models"][
-        build.MODEL]
-    require(model_manifest.kind == "model" and model_manifest.name == build.MODEL and
+        model_name]
+    require(model_manifest.kind == "model" and model_manifest.name == model_name and
             all(model_manifest.source.get(key) == configured[key]
                 for key in ("repo_id", "revision")),
             "REWRITE-LIMITS: model manifest differs from configured reference")
@@ -680,7 +722,7 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
               "created_at": datetime.now(timezone.utc).isoformat(),
               "engine": "python-hf", "precision": "bf16", "status": "started",
               "commit": commit, "procedure": procedure, "epoch": epoch,
-              "adapter": None, "model": build.MODEL,
+              "adapter": None, "model": model_name,
               **{field: plan[field] for field in FIELDS},
               "environment_sha256": plan["environment_sha256"],
               "plan_tree_hash": plan_tree, "plan_manifest_sha256": plan_sha,
@@ -698,6 +740,10 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
     out.mkdir(parents=True, exist_ok=False)
     if experiment is not None:
         record["experiment"] = experiment
+    if dense:
+        record.update(granite.IDENTITY)
+        if procedure == granite.R0:
+            record["r0_pass"] = r0_pass
 
     def save_record():
         """REWRITE-RECORD: keep this invocation's status beside its outputs."""
@@ -711,6 +757,10 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
                 "REWRITE-RECORD: checkout commit differs from frozen plan")
         if experiment is not None:
             record["imports_before"] = provenance.capture(repo)
+        if dense:
+            e4.require_cache(model_manifest, model_dir)
+            granite.verify_model_files(model_manifest, model_dir)
+            record["verification"] = e4.verify_environment(out, repo)
         require(torch.cuda.is_available() and torch.cuda.device_count() == 2,
                 "REWRITE-LIMITS: exactly two selected GPUs are required")
         # REWRITE-RECORD: the allocator must exist before peak counters are reset.
@@ -735,7 +785,7 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
                                      procedure, epoch, plan, repo)}
             if experiment is not None:
                 e4.verify_score_proof(record["adapter"]["producer"], bundle, experiment)
-        loaded = loader.load(build.MODEL, path=model_dir,
+        loaded = loader.load(model_name, path=model_dir,
                              manifest_path=model_manifest_path, device_map="balanced")
         validate_loaded_plan(plan, kit, entries, folded, loaded, repo=repo,
                              expected_count=count)
@@ -749,6 +799,8 @@ def run_score(plan_dir, out_dir, *, procedure, epoch=0, adapter=None,
         placement = {parameter.device for parameter in loaded.model.parameters()}
         require(placement == {torch.device("cuda:0"), torch.device("cuda:1")},
                 "REWRITE-LIMITS: all parameters must span the two selected GPUs")
+        if dense:
+            record["placement"] = e4.loaded_placement(loaded.model)
         if experiment is not None:
             record["imports_before"] = provenance.capture(
                 repo, previous=record["imports_before"])
@@ -827,10 +879,11 @@ def main(argv=None, *, repo=REPO):
     run = commands.add_parser("run", help="record one first rewrite per frozen input")
     run.add_argument("--plan", type=Path, required=True)
     run.add_argument("--out", type=Path, required=True)
-    run.add_argument("--procedure", choices=("r0", "r1", "r2", "r1-e4"), required=True)
+    run.add_argument("--procedure", choices=("r0", "r1", "r2", "r1-e4", granite.R0, granite.R1), required=True)
     run.add_argument("--epoch", type=int, default=0)
     run.add_argument("--adapter", type=Path)
     run.add_argument("--training-build", type=Path)
+    run.add_argument("--r0-pass", type=int, choices=(1, 2))
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -841,7 +894,8 @@ def main(argv=None, *, repo=REPO):
         else:
             record, manifest = run_score(args.plan, args.out, procedure=args.procedure,
                                          epoch=args.epoch, adapter=args.adapter,
-                                         training_build=args.training_build, repo=repo)
+                                         training_build=args.training_build, r0_pass=args.r0_pass,
+                                         repo=repo)
             result = {"status": record["status"], "passed": record["checks"]["passed"]}
     except (mf.ManifestError, loader.LoadError, OSError, KeyError, TypeError,
             IndexError, ValueError, RuntimeError) as exc:

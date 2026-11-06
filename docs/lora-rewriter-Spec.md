@@ -1,6 +1,6 @@
 # weaver-train Spec: LoRA for STE100 text conversion
 
-**Status:** Granite clauses await approval. Nemotron clauses are approved in PRs 26, 37 and 39.
+**Status:** Granite clauses are approved in PR 43. Nemotron clauses are approved in PRs 26, 37 and 39.
 
 **Version:** 0.5 **Date:** 2026-11-06 **Parent:** `docs/decisions.md`
 
