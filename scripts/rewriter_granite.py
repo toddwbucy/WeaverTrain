@@ -235,8 +235,16 @@ def producer_proof(train_dir, producer, plan, repo):
     require(record["epoch_adapters"] == e4.epoch_adapters(producer, train_dir) and
             producer.results.get("global_step") == 100,
             "GRANITE-R1: four saved adapters and 100 optimizer steps are required")
+    training_padding(producer)
     return {"experiment": record["experiment"], "score_plans": record["score_plans"],
             "procedure_sha256": build.digest(raw), "procedure_manifest_sha256": digest}
+
+
+def training_padding(producer):
+    """GRANITE-VERIFY: completed R1 evidence must retain both ID observations."""
+    padding = producer.results.get("padding_token_ids", {})
+    profile.verify_padding_ids(padding.get("before"), loaded=False)
+    profile.verify_padding_ids(padding.get("after"), loaded=True)
 
 
 def seal_procedure(out, record, name):
@@ -288,6 +296,7 @@ def train(experiment_dir, build_dir, out_dir, *, baseline, repo=REPO):
                 "GRANITE-VERIFY: exactly two selected GPUs are required")
         producer = trainer.train(directory, path, Path(build_dir) / "train.jsonl", repo / CONFIG,
                                  out / "train", granite_probe_placement=memory["placement_before"])
+        training_padding(producer)
         e4.producer_commit(producer, commit)
         record["epoch_adapters"] = e4.epoch_adapters(producer, out / "train")
         record["loss_curve"] = loss_curve(producer, json.loads(

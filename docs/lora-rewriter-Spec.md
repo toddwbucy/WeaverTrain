@@ -964,6 +964,14 @@ Training labels still come only from `assistant_masks`, with one intact sequence
 Scores still use the native loader without Unsloth.
 Review and merge the record change and this amendment before the retry.
 Use the new clean merged commit for the retry and all later Granite procedures.
+The [R1 decision of 2026-11-07][granite-r1-padding] applies the same exact exception to the R1 training load.
+Record the same six IDs in the R1 training record before and after its Unsloth load.
+Use the same ID checks as the memory check.
+Save and check each set before the next model operation and before the first optimizer step.
+Keep captured values on failure. Do not invent values after a load failure.
+Check both sets again before a completed training record can supply an adapter score.
+Review and merge this R1 record change before the next memory retry.
+The memory retry authorization and the operator's gate for R0 and R1 stay unchanged.
 The permission to do R1-E4 verification again does not apply to Granite.
 Stop and report every other failure or fallback, with the failed record kept unchanged.
 Do not change libraries, kernels, precision, context length or procedure values to continue.
@@ -1110,6 +1118,9 @@ Stop after the four-epoch report. R2 and loop use are outside this approval.
 Check `pad_token_id` values before and after loading and check unchanged `eos_token_id` values.
 Check failure records. Reject changed or absent IDs.
 Check the real Unsloth change with a small model and check labels from `assistant_masks` for one intact sequence.
+Check the R1 training record at both load boundaries and before training starts.
+Reject each changed or absent ID in the saved producer record, with its other checks satisfactory.
+Check that failures keep captured IDs and stop before an optimizer step.
 Use a small dense Granite model for native load, Unsloth, bf16 and split-GPU tests.
 Check all seven targets in every layer and reject missing coverage or extra trainable parameters.
 Check four saved adapters, finite losses and complete step and learning-rate records.
@@ -1126,6 +1137,7 @@ Keep the full Nemotron test suite, with GPU tests, satisfactory.
 [granite-targets]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6689076884
 [granite-store]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6697186384
 [granite-padding]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6699693082
+[granite-r1-padding]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6700496779
 [granite-card]: https://huggingface.co/ibm-granite/granite-4.2-30b/blob/9e668ce1c538387ef24d3644e9b0606647762636/README.md
 [granite-disclosure]: https://github.com/ibm-granite/granite-4.2-language-models/blob/75355e6ef8c17d72a7b3736654ab525352f5e0b8/disclosures/granite_4.2_30b_disclosure.json
 

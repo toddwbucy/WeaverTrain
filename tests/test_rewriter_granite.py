@@ -264,6 +264,7 @@ def trained(baseline, monkeypatch):
                 "build_sha256": mf.sha256_file(dataset.parent / "build.json"),
                 "rows": 200, "assistant_tokens": 400}, config=granite.configuration(c.repo)[0],
             results={"epoch_adapters": adapters, **curve.results, "epochs": 4,
+                "padding_token_ids": {"before": dict(PADDING_BEFORE), "after": dict(PADDING_AFTER)},
                 "peak_memory_bytes": {str(i): {"allocated": 100, "reserved": 200} for i in (0, 1)}})
         producer.save(out / "run.json")
         (out / "trainer").mkdir()
@@ -336,6 +337,50 @@ def test_granite_producer_step_count_guard(trained):
     bundle = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
     with pytest.raises(score.ScoreError, match="four saved adapters and 100 optimizer steps are required"):
         granite.producer_proof(c.procedure / "train", producer, bundle[0], c.repo)
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+@pytest.mark.parametrize("field", [*PADDING_BEFORE, "missing"])
+@pytest.mark.parametrize("remove", [False, True])
+def test_granite_producer_padding_guard(trained, phase, field, remove):
+    """GRANITE-VERIFY: valid hashes and adapters cannot hide missing or changed IDs."""
+    c = trained
+    producer = mf.load_run(c.procedure / "train/run.json")
+    padding = producer.results["padding_token_ids"]
+    if field == "missing":
+        del padding[phase]
+    elif remove:
+        del padding[phase][field]
+    else:
+        padding[phase][field] = 999
+    producer.save(c.procedure / "train/run.json")
+    edit_artifact(c.procedure, "procedure.json", lambda r: r.update(
+        producer_sha256=mf.sha256_file(c.procedure / "train/run.json")))
+    bundle = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
+    with pytest.raises(ValueError, match=f"padding or end-of-turn IDs {phase} loading differ"):
+        granite.producer_proof(c.procedure / "train", producer, bundle[0], c.repo)
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+def test_granite_training_cannot_seal_missing_padding(trained, monkeypatch, phase):
+    """GRANITE-VERIFY: require both observations before marking R1 complete."""
+    from weaver_train import trainer
+
+    c = trained
+    training = trainer.train
+
+    def missing(*args, **kwargs):
+        producer = training(*args, **kwargs)
+        del producer.results["padding_token_ids"][phase]
+        producer.save(args[4] / "run.json")
+        return producer
+
+    monkeypatch.setattr(trainer, "train", missing)
+    out = c.procedure.with_name("missing-padding")
+    with pytest.raises(ValueError, match=f"padding or end-of-turn IDs {phase} loading differ"):
+        granite.train(c.dense_experiment, c.granite_build, out, baseline=c.baseline, repo=c.repo)
+    assert json.loads((out / "procedure.json").read_bytes())["status"] == "failed"
+    assert not out.with_name(out.name + ".manifest.json").exists()
 
 
 @pytest.mark.parametrize("value", [None, {"rev": "wrong", "dirty": False}, {"rev": "wrong", "dirty": True}])

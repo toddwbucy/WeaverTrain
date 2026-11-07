@@ -27,6 +27,10 @@ Keep the first failed attempt unchanged and use the new clean merged commit for 
 The probe records padding and end-of-turn IDs before and after loading.
 Only the approved change from padding ID `100257` to `100261` is exempt.
 End-of-turn IDs stay `100257`. All other stop rules remain in force.
+The R1 extension on issue 21 applies the same exception and ID checks to the training load.
+Review and merge its recording change before the pending memory retry, keeping the sequence on one merged commit.
+R1 saves its before and after IDs in `train/run.json` before the first optimizer step.
+Later score procedures check those IDs again.
 
 The path variables below identify local evidence outside git.
 `PAIR_DIR` and `FOLDED_PROMPT` identify the approved pair tree and prompt A.

@@ -309,6 +309,34 @@ def granite_placement(model):
                               getattr(model, "hf_device_map", {}).items()}}
 
 
+def granite_padding_ids(tokenizer, model_config, generation_config):
+    """GRANITE-VERIFY: capture tokenizer and configuration IDs without changing them."""
+    return {"tokenizer_pad_token_id": tokenizer.pad_token_id,
+            "tokenizer_eos_token_id": tokenizer.eos_token_id,
+            "model_pad_token_id": model_config.get("pad_token_id"),
+            "model_eos_token_id": model_config.get("eos_token_id"),
+            "generation_pad_token_id": generation_config.get("pad_token_id"),
+            "generation_eos_token_id": generation_config.get("eos_token_id")}
+
+
+def check_granite_padding_ids(values, *, loaded):
+    """GRANITE-VERIFY: the probe and R1 share the exact approved ID checks."""
+    expected = {f"{source}_{token}_token_id": 100261 if loaded and token == "pad" else 100257
+                for source in ("tokenizer", "model", "generation") for token in ("pad", "eos")}
+    phase = "after" if loaded else "before"
+    if values != expected:
+        raise ValueError(f"GRANITE-VERIFY: padding or end-of-turn IDs {phase} loading differ")
+
+
+def record_granite_padding(record, metrics, out_dir, phase, tokenizer, model_config, generation_config):
+    """GRANITE-VERIFY: save actual IDs before checking or continuing the load."""
+    values = granite_padding_ids(tokenizer, model_config, generation_config)
+    metrics.setdefault("padding_token_ids", {})[phase] = values
+    record.results = metrics
+    record.save(out_dir / "run.json")
+    check_granite_padding_ids(values, loaded=phase == "after")
+
+
 # Block types, matched against the class name of the outermost submodule of a decoder
 # layer that names one, after removing the model-family prefix it shares with the layer
 # class (GraniteMoeHybridMambaLayer -> MambaLayer, NemotronHMoE -> MoE): the Granite
@@ -516,7 +544,8 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
             record.dataset["sha256"] = hashlib.sha256(dataset_input).hexdigest()
         else:
             record.dataset["sha256"] = sha256_path(dataset_path)
-        _run_unsloth(model_dir, dataset_input, cfg, out_dir, metrics)
+        options = {"granite_record": record} if m.name == "granite-4.2-30b" else {}
+        _run_unsloth(model_dir, dataset_input, cfg, out_dir, metrics, **options)
         adapter_dir = out_dir / "adapter"
         check_adapter_only(adapter_dir)
         am = mf.build_tree(adapter_dir, "model", f"{m.name}-lora-{record.run_id[:8]}")
@@ -537,13 +566,14 @@ def train(model_dir: str | os.PathLike, manifest_path: str | os.PathLike,
     return record
 
 
-def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig, out_dir: Path, metrics: dict) -> None:
+def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig, out_dir: Path,
+                 metrics: dict, *, granite_record: mf.RunRecord | None = None) -> None:
     """TRAIN-MASK-REACHES-LOSS, TRAIN-EPOCH-ADAPTERS, TRAIN-RECORD: train and measure."""
     import unsloth  # noqa: F401
     from unsloth import FastLanguageModel
     import torch
     from datasets import load_dataset
-    from transformers import TrainerCallback
+    from transformers import AutoTokenizer, TrainerCallback
     from trl import SFTConfig, SFTTrainer
 
     t = cfg.train
@@ -586,12 +616,21 @@ def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig,
     for device in range(torch.cuda.device_count()):
         torch.cuda.reset_peak_memory_stats(device)
     try:
+        if granite_record is not None:
+            tokenizer = AutoTokenizer.from_pretrained(str(model_dir), local_files_only=True,
+                                                     trust_remote_code=False)
+            record_granite_padding(granite_record, metrics, out_dir, "before", tokenizer,
+                json.loads((model_dir / "config.json").read_bytes()),
+                json.loads((model_dir / "generation_config.json").read_bytes()))
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=str(model_dir), max_seq_length=t.max_seq_length, dtype=torch.bfloat16,
             load_in_4bit=False, load_in_8bit=False, full_finetuning=False,
             device_map=t.device_map, offload_embedding=False,
             trust_remote_code=False, local_files_only=True,
         )
+        if granite_record is not None:
+            record_granite_padding(granite_record, metrics, out_dir, "after", tokenizer,
+                                   model.config.to_dict(), model.generation_config.to_dict())
         require_gpu_layers(model)
         granite = model.config.model_type == "granite"
         if "required_target_counts" in metrics and not granite:
