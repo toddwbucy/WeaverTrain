@@ -239,7 +239,10 @@ def baseline(dense):
 
 
 def test_granite_baseline_binds_two_passes_and_blind_first_outputs(baseline):
+    """GRANITE-R0: check both balanced loads and review only the first outputs."""
     c = baseline
+    assert len(c.calls) == 2
+    assert all(options["device_map"] == "balanced" for _, options in c.calls)
     bundle = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
     record, _ = dense_report.read_baseline(c.baseline, bundle)
     assert record["spread"]["denominator"] == 100
@@ -295,8 +298,10 @@ def trained(baseline, monkeypatch):
 
 @pytest.fixture
 def scored(trained):
+    """GRANITE-SCORES: observe the eight R1 loads without baseline calls."""
     c = trained
     c.heldout, c.training, c.sources = [], [], []
+    c.calls.clear()
     for epoch in e4.EPOCHS:
         adapter = c.procedure / f"train/adapter-epoch-{epoch}"
         for sample, destination in (("heldout", c.heldout), ("training", c.training)):
@@ -311,7 +316,8 @@ def scored(trained):
 def test_granite_four_epoch_report_and_blind_ingest(scored):
     """GRANITE-SCORES: retain balanced score loads and all four epoch results."""
     c = scored
-    assert c.calls and all(options["device_map"] == "balanced" for _, options in c.calls)
+    assert len(c.calls) == 8
+    assert all(options["device_map"] == "balanced" for _, options in c.calls)
     batch, verdicts, record = verdicts_for(c, c.sources, "granite-epochs")
     assert record["available"] == 120
     args = SimpleNamespace(experiment=c.dense_experiment, build=c.granite_build, train=c.procedure,
