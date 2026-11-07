@@ -22,6 +22,11 @@ Check the selected reference tree against that full manifest before and after ea
 The model procedures call fresh environment verification and retain its log and UTC times.
 No command below retries, changes precision or reduces context after a failure.
 Stop and post the failed record on issue 21. A retry needs a new operator ruling.
+The 2026-11-07 ruling permits one retry after the record change and Spec amendment merge.
+Keep the first failed attempt unchanged and use the new clean merged commit for the remaining Granite sequence.
+The probe records padding and end-of-turn IDs before and after loading.
+Only the approved change from padding ID `100257` to `100261` is exempt.
+End-of-turn IDs stay `100257`. All other stop rules remain in force.
 
 The path variables below identify local evidence outside git.
 `PAIR_DIR` and `FOLDED_PROMPT` identify the approved pair tree and prompt A.

@@ -951,7 +951,19 @@ Use `pin_layer_devices` on every path that puts the model on two GPUs.
 Model weights must stay in bf16 on the selected GPUs, with no CPU or disk offload.
 Keep the approved Unsloth checkpoint policy. It is not permission for weight offload.
 
-Only the approved graphics allocation and exact torchao warning are exceptions.
+Keep the approved graphics allocation and exact torchao warning as exceptions.
+Under the [decision of 2026-11-07][granite-padding], do one new memory check after the first stop.
+The exact Unsloth warning about `pad_token` is also an exception.
+The change is from `<|im_end|>`, ID `100257`, to `<|fim_pad|>`, ID `100261`.
+Before model loading, record the tokenizer, model and generation `pad_token_id` and `eos_token_id` values in the probe record.
+All six IDs must be `100257`. Record the actual IDs again after Unsloth loads the model.
+All three `pad_token_id` values must then be `100261`. All three `eos_token_id` values must stay `100257`.
+Check both sets of IDs before the optimizer step and when a later procedure reads the probe record.
+Keep the captured IDs on failure. Keep the first stop record unchanged.
+Training labels still come only from `assistant_masks`, with one intact sequence per batch.
+Scores still use the native loader without Unsloth.
+Review and merge the record change and this amendment before the retry.
+Use the new clean merged commit for the retry and all later Granite procedures.
 The permission to do R1-E4 verification again does not apply to Granite.
 Stop and report every other failure or fallback, with the failed record kept unchanged.
 Do not change libraries, kernels, precision, context length or procedure values to continue.
@@ -1095,6 +1107,9 @@ Report the numbers and limits without a cause label or recommendation.
 Stop after the four-epoch report. R2 and loop use are outside this approval.
 
 **GRANITE-TESTS.** Check the exact template output and token-label boundary with the pinned tokenizer before a model procedure.
+Check `pad_token_id` values before and after loading and check unchanged `eos_token_id` values.
+Check failure records. Reject changed or absent IDs.
+Check the real Unsloth change with a small model and check labels from `assistant_masks` for one intact sequence.
 Use a small dense Granite model for native load, Unsloth, bf16 and split-GPU tests.
 Check all seven targets in every layer and reject missing coverage or extra trainable parameters.
 Check four saved adapters, finite losses and complete step and learning-rate records.
@@ -1110,6 +1125,7 @@ Keep the full Nemotron test suite, with GPU tests, satisfactory.
 [granite-series]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6669853774
 [granite-targets]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6689076884
 [granite-store]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6697186384
+[granite-padding]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6699693082
 [granite-card]: https://huggingface.co/ibm-granite/granite-4.2-30b/blob/9e668ce1c538387ef24d3644e9b0606647762636/README.md
 [granite-disclosure]: https://github.com/ibm-granite/granite-4.2-language-models/blob/75355e6ef8c17d72a7b3736654ab525352f5e0b8/disclosures/granite_4.2_30b_disclosure.json
 

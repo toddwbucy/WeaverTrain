@@ -109,6 +109,9 @@ def probe_record(directory, commit, model_tree, repo):
             record["sequence_length"] == 49152 and record["finite_gradients"] is True and
             record["trainable_parameters"] == 140509184 and len(record["target_inventory"]) == 448,
             "GRANITE-MEMORY: exact context, targets and training path are required")
+    padding = record.get("padding_token_ids", {})
+    profile.verify_padding_ids(padding.get("before"), loaded=False)
+    profile.verify_padding_ids(padding.get("after"), loaded=True)
     provenance.verify_pair(record, repo, commit)
     return record, {"tree_hash": manifest.tree_hash, "manifest_sha256": digest}
 
