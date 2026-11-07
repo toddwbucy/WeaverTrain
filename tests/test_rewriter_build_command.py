@@ -118,6 +118,39 @@ def test_build_command_without_seed_writes_trainer_compatible_data(command):
     assert checked["assistant_tokens"] == record["counts"]["final_target_tokens"]
 
 
+def test_granite_build_records_full_pairs_at_32768(command, monkeypatch):
+    """GRANITE-DATA: a real synthetic build records its model-specific limit."""
+    import rewriter_granite_profile as profile
+    import rewriter_provenance as provenance
+    from tests.test_rewriter_run_command import commit_fixture
+
+    c = command
+    assert invoke(c) == 0
+    original = (c.out / "train.jsonl").read_bytes()
+    previous = json.loads((c.out / "build.json").read_bytes())
+    path = loader.manifest_path_for(build.MODEL)
+    manifest = mf.load_tree(path)
+    manifest.name = profile.MODEL
+    manifest.save(path)
+    with (c.repo / "config/models.toml").open("a") as stream:
+        stream.write(f'\n[models."{profile.MODEL}"]\nrepo_id = "fixture"\nrevision = "fixture-revision"\n')
+    commit_fixture(c.repo)
+    monkeypatch.setattr(profile, "verify_model_files", lambda *a: None)
+    monkeypatch.setattr(profile, "verify_tokenizer", lambda *a: None)
+    monkeypatch.setattr(profile, "verify_render", lambda *a: None)
+    monkeypatch.setattr(provenance, "capture", lambda *a, **kw: {"commit": mf.git_commit(c.repo)})
+    out = c.out.with_name("granite-build")
+    record, manifest = build.write_build(c.pairs, c.folded, profile.R1, out, repo=c.repo)
+    assert mf.verify_tree(manifest, out) == []
+    assert record["status"] == "completed"
+    assert record["model"] == profile.MODEL and record["max_seq_length"] == 32768
+    assert previous["max_seq_length"] == 49152
+    assert record["counts"]["pairs"] == 200
+    assert record["selection"] == previous["selection"]
+    assert (out / "train.jsonl").read_bytes() == original
+    assert [row["epoch"] for row in record["tokens_per_epoch"]] == [1, 2, 3, 4]
+
+
 def test_four_epoch_build_preserves_r1_training_bytes(command):
     """REWRITE-R1-E4: only procedure metadata and epoch token records change."""
     from tests.test_rewriter_run_command import commit_fixture

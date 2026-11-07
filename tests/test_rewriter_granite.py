@@ -27,6 +27,15 @@ PADDING_AFTER = {"tokenizer_pad_token_id": 100261, "tokenizer_eos_token_id": 100
     "generation_pad_token_id": 100261, "generation_eos_token_id": 100257}
 
 
+def placement_fixture():
+    """GRANITE-MEMORY: synthetic weights follow the complete approved map."""
+    mapping = profile.training_device_map()
+    return {"attention_implementation": "fixture",
+            "hf_device_map": {name: str(device) for name, device in mapping.items()},
+            "parameter_devices": {name + ".weight": f"cuda:{device}"
+                                  for name, device in mapping.items() if name != "model.rotary_emb"}}
+
+
 @pytest.fixture
 def dense(experiment, monkeypatch):
     """GRANITE-DATA: retain real file hashes while replacing only model I/O."""
@@ -42,13 +51,14 @@ def dense(experiment, monkeypatch):
         limits={"repair_training_allowed": False})
     save_build(c.build, original)
     current = copy.deepcopy(original)
-    current.update(**profile.IDENTITY, procedure=profile.R1, commit=c.commit)
+    current.update(**profile.IDENTITY, procedure=profile.R1, commit=c.commit, max_seq_length=32768)
     # Synthetic tokenizer fixtures have their own template pin. Pinned bytes have a separate test.
     monkeypatch.setattr(profile, "TEMPLATE", current["template_hash"])
     monkeypatch.setattr(profile, "verify_tokenizer", lambda tok: None)
     monkeypatch.setattr(profile, "verify_render", lambda *args: None)
     monkeypatch.setattr(profile, "verify_model_files", lambda *args: None)
-    monkeypatch.setattr(granite, "loaded_placement", lambda model: {"attention_implementation": "fixture"})
+    c.placement = placement_fixture()
+    monkeypatch.setattr(granite, "loaded_placement", lambda model: copy.deepcopy(c.placement))
     monkeypatch.setattr(granite, "verify_environment", lambda *args: {"status": "completed"})
     current["tokens_per_epoch"] = [dict(epoch=n, **current["counts"]) for n in e4.EPOCHS]
     imports = {"commit": c.commit, "modules": {}, "weaver_train_file": "fixture"}
@@ -74,10 +84,11 @@ def dense(experiment, monkeypatch):
     c.memory.mkdir()
     memory = {"schema": "weaver-train/rewriter-granite-probe/v1", "status": "completed",
         **profile.IDENTITY, "commit": c.commit, "tree_hash": manifest.tree_hash,
-        "config_sha256": granite.configuration(c.repo)[1], "sequence_length": 49152,
+        "config_sha256": granite.configuration(c.repo)[1], "sequence_length": 32768,
+        "device_map": profile.training_device_map(),
         "finite_gradients": True, "trainable_parameters": 140509184,
         "padding_token_ids": {"before": dict(PADDING_BEFORE), "after": dict(PADDING_AFTER)},
-        "placement_before": {"attention_implementation": "fixture"},
+        "placement_before": placement_fixture(), "placement_after": placement_fixture(),
         "target_inventory": [{"fixture": i} for i in range(448)],
         "imports_before": imports, "imports_after": imports}
     (c.memory / "procedure.json").write_bytes(e4.json_bytes(memory))
@@ -91,12 +102,16 @@ def dense(experiment, monkeypatch):
 
 
 def test_granite_plans_keep_sources_but_new_model_identity(dense):
+    """GRANITE-DATA: preserve source identities with separate limits and token plans."""
     c = dense
     record, _ = granite.read_experiment(c.dense_experiment, repo=c.repo)
     heldout = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
     training = score.read_plan(c.dense_experiment / "training", repo=c.repo)
     assert record["current_record"]["selection"] == record["reference_record"]["selection"]
     assert [heldout[0]["denominator"], training[0]["denominator"]] == [100, 50]
+    assert heldout[0]["max_seq_length"] == training[0]["max_seq_length"] == 32768
+    assert record["current_record"]["max_seq_length"] == 32768
+    assert record["reference_record"]["max_seq_length"] == 49152
     assert heldout[0]["model"] == training[0]["model"] == profile.MODEL
     assert len(heldout[0]["review_sample"]) == 30
     assert training[0]["review_sample"] == []
@@ -130,7 +145,7 @@ def test_granite_build_source_guards(dense, field):
     ("template_hash", "wrong", "training render fields"),
     ("tools", True, "training render fields"),
     ("enable_thinking", True, "training render fields"),
-    ("max_seq_length", 32768, "training render fields"),
+    ("max_seq_length", 49152, "training render fields"),
     ("tokens_per_epoch", [], "four complete training token records"),
 ])
 def test_granite_build_record_guards(dense, field, value, reason):
@@ -155,7 +170,7 @@ def edit_artifact(directory, filename, change):
 @pytest.mark.parametrize("field,value,reason", [
     ("status", "failed", "probe model, launch or status"),
     ("tree_hash", "wrong", "probe model, launch or status"),
-    ("sequence_length", 32768, "exact context, targets and training path"),
+    ("sequence_length", 49152, "exact context, targets and training path"),
     ("finite_gradients", False, "exact context, targets and training path"),
     ("trainable_parameters", 6648832, "exact context, targets and training path"),
     ("target_inventory", [], "exact context, targets and training path"),
@@ -224,7 +239,10 @@ def baseline(dense):
 
 
 def test_granite_baseline_binds_two_passes_and_blind_first_outputs(baseline):
+    """GRANITE-R0: check both balanced loads and review only the first outputs."""
     c = baseline
+    assert len(c.calls) == 2
+    assert all(options["device_map"] == "balanced" for _, options in c.calls)
     bundle = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
     record, _ = dense_report.read_baseline(c.baseline, bundle)
     assert record["spread"]["denominator"] == 100
@@ -280,8 +298,10 @@ def trained(baseline, monkeypatch):
 
 @pytest.fixture
 def scored(trained):
+    """GRANITE-SCORES: observe the eight R1 loads without baseline calls."""
     c = trained
     c.heldout, c.training, c.sources = [], [], []
+    c.calls.clear()
     for epoch in e4.EPOCHS:
         adapter = c.procedure / f"train/adapter-epoch-{epoch}"
         for sample, destination in (("heldout", c.heldout), ("training", c.training)):
@@ -294,7 +314,10 @@ def scored(trained):
 
 
 def test_granite_four_epoch_report_and_blind_ingest(scored):
+    """GRANITE-SCORES: retain balanced score loads and all four epoch results."""
     c = scored
+    assert len(c.calls) == 8
+    assert all(options["device_map"] == "balanced" for _, options in c.calls)
     batch, verdicts, record = verdicts_for(c, c.sources, "granite-epochs")
     assert record["available"] == 120
     args = SimpleNamespace(experiment=c.dense_experiment, build=c.granite_build, train=c.procedure,
@@ -700,6 +723,8 @@ def probe_world(dense, monkeypatch):
 
     def load(**kwargs):
         """GRANITE-VERIFY: observe the persisted pre-load record at the load boundary."""
+        assert kwargs["max_seq_length"] == 32768
+        assert kwargs["device_map"] == profile.training_device_map()
         c.probe_loads.append(json.loads((c.out / "procedure.json").read_bytes()))
         if c.probe_mode == "load-error":
             raise OSError("fixture model load failed")
@@ -717,7 +742,8 @@ def probe_world(dense, monkeypatch):
     monkeypatch.setattr(torch, "autocast", lambda *a, **kw: contextlib.nullcontext())
 
     def tokens(low, high, shape, **kwargs):
-        assert shape == (1, 49152)
+        """GRANITE-MEMORY: check the full context shape without a model procedure."""
+        assert shape == (1, 32768)
         return torch.tensor([[101, 102, 103, 104]])
 
     monkeypatch.setattr(torch, "randint", tokens)
@@ -761,11 +787,13 @@ def test_probe_success_checks_config_again(probe_world, monkeypatch):
 
 
 def test_probe_positive_record(probe_world):
+    """GRANITE-MEMORY: retain the approved context, placement and completed step."""
     import rewriter_granite_probe as probe
 
     c = probe_world
     record, manifest = probe.probe(c.out, repo=c.repo)
-    assert record["status"] == "completed" and record["sequence_length"] == 49152
+    assert record["status"] == "completed" and record["sequence_length"] == 32768
+    assert record["device_map"] == profile.training_device_map()
     assert record["finite_gradients"] is True and record["steps"][0]["loss"] == 1
     assert set(record["peak_memory_bytes"]) == {"0", "1"}
     padding = {"before": PADDING_BEFORE, "after": PADDING_AFTER}

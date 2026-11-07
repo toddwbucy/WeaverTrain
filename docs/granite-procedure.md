@@ -22,8 +22,8 @@ Check the selected reference tree against that full manifest before and after ea
 The model procedures call fresh environment verification and retain its log and UTC times.
 No command below retries, changes precision or reduces context after a failure.
 Stop and post the failed record on issue 21. A retry needs a new operator ruling.
-The 2026-11-07 ruling permits one retry after the record change and Spec amendment merge.
-Keep the first failed attempt unchanged and use the new clean merged commit for the remaining Granite sequence.
+The context ruling of 2026-11-07 permits one new retry after its code and Spec amendment merge.
+Keep both failed attempts unchanged and use the new clean merged commit for the remaining Granite sequence.
 The probe records padding and end-of-turn IDs before and after loading.
 Only the approved change from padding ID `100257` to `100261` is exempt.
 End-of-turn IDs stay `100257`. All other stop rules remain in force.
@@ -31,6 +31,16 @@ The R1 extension on issue 21 applies the same exception and ID checks to the tra
 Review and merge its recording change before the pending memory retry, keeping the sequence on one merged commit.
 R1 saves its before and after IDs in `train/run.json` before the first optimizer step.
 Later score procedures check those IDs again.
+
+Use 32,768 tokens throughout the Granite series, without truncation.
+Before the PR is ready, report the largest held-out prompt plus reply budget in Granite tokens.
+Stop before any retry if that sum exceeds 32,768.
+The read-only audit on issue 21 found 16,233 tokens, and all 200 training sequences fit.
+The memory check and R1 use the explicit device map in `config/rewriter-granite.toml`.
+It moves layer 32 to GPU 0, for 33 layers on GPU 0 and 31 on GPU 1.
+Embeddings remain on GPU 0. Final normalization, rotary embeddings and the output head remain on GPU 1.
+Record and check the map and actual parameter devices. R1 must match the satisfactory memory check.
+Scores retain balanced placement.
 
 The path variables below identify local evidence outside git.
 `PAIR_DIR` and `FOLDED_PROMPT` identify the approved pair tree and prompt A.

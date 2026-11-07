@@ -3,6 +3,33 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-07: use 32,768 Granite tokens and move one layer to GPU 0
+
+The [operator ruling][granite-32k] follows the second memory attempt's failure during backward on GPU 1.
+It sets `max_seq_length=32768` for the entire Granite series.
+The memory check, training build, held-out and training plans, R1 and scores use that limit.
+No sequence is cut, no prompt is shortened and no source is replaced.
+The approved pairs, seven rank-16 targets, bf16, labels, decode rule and checkpoint policy stay unchanged.
+The padding exemption and all other stop rules stay in force.
+Keep both failed attempts unchanged.
+
+Move one decoder layer from GPU 1 to GPU 0 for the memory check and R1.
+The explicit map moves layer 32, keeping layers 0 through 32 on GPU 0 and 33 through 63 on GPU 1.
+Embeddings stay on GPU 0. Final normalization, rotary embeddings and the output head stay on GPU 1.
+Record the declared map and actual parameter devices in the memory and training records.
+Check both before and after adapter attachment. R1 must match the satisfactory memory check.
+Scores retain their balanced placement.
+
+The ruling permits one new memory check after this change passes review and merges.
+Before the PR is ready, report the largest held-out prompt plus reply budget in Granite tokens.
+Stop before any retry if that total exceeds 32,768.
+The [read-only audit][granite-context-audit] found a largest total of 16,233 and a longest training sequence of 15,492.
+All 100 held-out requests and all 200 approved training sequences fit without truncation.
+The operator still sets the R0 and R1 schedule after a satisfactory memory result.
+
+[granite-32k]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6701149493
+[granite-context-audit]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6701206118
+
 ## 2026-11-07: extend the Granite padding exemption to R1
 
 The [operator ruling][granite-r1-padding] applies the same exact exemption to the Granite R1 training load.

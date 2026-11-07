@@ -1017,7 +1017,9 @@ Stop if the prefix, stop token or final LF does not agree with the pinned templa
 Do not repair the layout or remove `<think>` text from new outputs.
 Do not change the template to continue.
 
-Keep `max_seq_length=49152`, with no truncation or shorter prompt.
+Under the [context decision of 2026-11-07][granite-32k], use `max_seq_length=32768` throughout the Granite series.
+This limit applies to the memory check, training data record, plans, R1 and scores.
+Use this limit with no truncation or shorter prompt.
 Count tokens with Granite before any generation or training.
 Check each training sequence and each prompt plus reply budget against the limit.
 Stop if any selected input does not fit. Do not replace it.
@@ -1027,8 +1029,18 @@ Nemotron token counts, token hashes and `train.jsonl` hashes are not Granite pin
 Source pair identities and prompt bytes must still agree across the two series.
 Publish the new training data, plan, configuration and input hashes before R0.
 
-**GRANITE-MEMORY.** Before R0 or R1, do one LoRA step at 49,152 tokens on the pinned Granite model.
+**GRANITE-MEMORY.** Before R0 or R1, do one LoRA step at 32,768 tokens on the pinned Granite model.
 Use the complete target set, bf16, Unsloth checkpoint policy and training placement on both GPUs.
+Under the [decision of 2026-11-07][granite-32k], do one new memory check after the 49,152-token failure during backward.
+Keep both failure records unchanged. Review and merge this change before the retry.
+Report the largest held-out prompt plus reply budget in Granite tokens before review.
+Stop before any retry if that total is above 32,768.
+Use an explicit device map that moves decoder layer 32 from GPU 1 to GPU 0.
+Put layers 0 through 32 on GPU 0. Put layers 33 through 63 on GPU 1.
+Keep embeddings on GPU 0. Keep final normalization, rotary embeddings and the output head on GPU 1.
+Record the declared map and actual parameter devices before and after adapter attachment.
+Reject a difference between the declared map and actual placement.
+Use this map for the memory check and R1. Scores keep balanced placement.
 Check finite loss and gradients.
 Record seconds for each optimizer step and peak memory on each GPU.
 Post the memory and time record on issue 21 before R0 for the operator to set the procedure schedule.
@@ -1054,7 +1066,11 @@ Publish that report through a draft PR before training.
 Use the exact 200-pair selection under GRANITE-DATA and the targets under GRANITE-TARGETS.
 Use learning rate `1e-4`, cosine schedule, 10 warmup steps and seed 0.
 Use batch size 1 and gradient accumulation 8.
-Keep `gradient_checkpointing="unsloth"`, `logging_steps=1`, `device_map="balanced"` and `data.format="tokenized"`.
+Keep `gradient_checkpointing="unsloth"`, `logging_steps=1` and `data.format="tokenized"`.
+Use `max_seq_length=32768` and the explicit device map under GRANITE-MEMORY.
+Record the map and actual parameter devices before and after adapter attachment.
+Reject a map or placement difference before the first optimizer step.
+Training must use the same placement and attention implementation as the satisfactory memory check.
 Use a separate configuration with these values.
 All remaining trainer values follow `config/rewriter-r1-e4.toml` at `ce869065b2f7581893b97d55c8d09ba4bf08c023`.
 The cosine schedule spans the complete four-epoch procedure from its start.
@@ -1115,6 +1131,12 @@ Report the numbers and limits without a cause label or recommendation.
 Stop after the four-epoch report. R2 and loop use are outside this approval.
 
 **GRANITE-TESTS.** Check the exact template output and token-label boundary with the pinned tokenizer before a model procedure.
+Check the 32,768-token limit for training sequences and prompts plus reply budgets.
+Check that one extra token stops the procedure and that no sequence is cut.
+Check the unchanged Nemotron limit and score placement.
+Check the declared map and actual parameters before and after adapter attachment.
+Reject a changed or absent map in a saved memory record.
+Keep other checks satisfactory in each refusal test.
 Check `pad_token_id` values before and after loading and check unchanged `eos_token_id` values.
 Check failure records. Reject changed or absent IDs.
 Check the real Unsloth change with a small model and check labels from `assistant_masks` for one intact sequence.
@@ -1138,6 +1160,7 @@ Keep the full Nemotron test suite, with GPU tests, satisfactory.
 [granite-store]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6697186384
 [granite-padding]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6699693082
 [granite-r1-padding]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6700496779
+[granite-32k]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6701149493
 [granite-card]: https://huggingface.co/ibm-granite/granite-4.2-30b/blob/9e668ce1c538387ef24d3644e9b0606647762636/README.md
 [granite-disclosure]: https://github.com/ibm-granite/granite-4.2-language-models/blob/75355e6ef8c17d72a7b3736654ab525352f5e0b8/disclosures/granite_4.2_30b_disclosure.json
 

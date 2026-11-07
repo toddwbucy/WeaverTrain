@@ -25,9 +25,11 @@ TRAINING_SAMPLE = "e186c3bdbd87bff4a2a2585301e7e8277526226b95282f9d4536e94cdfaa1
 
 
 def configuration(repo):
-    """GRANITE-R1: the only recipe difference from Nemotron R1-E4 is the target set."""
+    """GRANITE-R1: require the approved targets, context and explicit training map."""
     expected = copy.deepcopy(e4.configuration(repo)[0])
     expected["lora"]["target_modules"] = profile.TARGETS
+    expected["train"].update(max_seq_length=profile.MAX_SEQ_LENGTH,
+                             device_map=profile.training_device_map())
     raw = (repo / CONFIG).read_bytes()
     current = tomllib.loads(raw.decode())
     require(current == expected, "GRANITE-R1: configuration differs from the approved recipe")
@@ -87,7 +89,7 @@ def verify_build(current, original, commit, repo):
                   "source_revision", "folded_prompt", "prompt_provenance", "limits"):
         require(current[field] == original[field], f"GRANITE-DATA: source {field} differs")
     require(current["template_hash"] == profile.TEMPLATE and current["tools"] is False and
-            current["enable_thinking"] is False and current["max_seq_length"] == 49152,
+            current["enable_thinking"] is False and current["max_seq_length"] == profile.MAX_SEQ_LENGTH,
             "GRANITE-DATA: training render fields differ")
     require(current["counts"]["pairs"] == 200 and current["tokens_per_epoch"] ==
             [dict(epoch=epoch, **current["counts"]) for epoch in EPOCHS],
@@ -106,9 +108,15 @@ def probe_record(directory, commit, model_tree, repo):
             profile.model_for(record) == profile.MODEL,
             "GRANITE-MEMORY: probe model, launch or status differs")
     require(record["config_sha256"] == configuration(repo)[1] and
-            record["sequence_length"] == 49152 and record["finite_gradients"] is True and
+            record["sequence_length"] == profile.MAX_SEQ_LENGTH and record["finite_gradients"] is True and
             record["trainable_parameters"] == 140509184 and len(record["target_inventory"]) == 448,
             "GRANITE-MEMORY: exact context, targets and training path are required")
+    from weaver_train import trainer
+
+    require(record.get("device_map") == profile.training_device_map(),
+            "GRANITE-MEMORY: recorded training device map differs")
+    for phase in ("before", "after"):
+        trainer.check_granite_device_map(record.get("placement_" + phase), record["device_map"])
     padding = record.get("padding_token_ids", {})
     profile.verify_padding_ids(padding.get("before"), loaded=False)
     profile.verify_padding_ids(padding.get("after"), loaded=True)

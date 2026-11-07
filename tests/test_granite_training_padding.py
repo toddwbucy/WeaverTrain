@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 import rewriter_granite as granite
-from tests.test_rewriter_granite import PADDING_BEFORE, PADDING_AFTER
+from tests.test_rewriter_granite import PADDING_BEFORE, PADDING_AFTER, placement_fixture
 from tests.test_trainer import make_tokenized
 from weaver_train import manifest as mf, trainer
 
@@ -22,7 +22,8 @@ def training_load(tmp_path, monkeypatch):
     import trl
 
     c = SimpleNamespace(root=tmp_path / "model", out=tmp_path / "training",
-        before=dict(PADDING_BEFORE), after=dict(PADDING_AFTER), events=[], load_error=None)
+        before=dict(PADDING_BEFORE), after=dict(PADDING_AFTER), events=[], load_error=None,
+        placement=placement_fixture(), expected_placement=placement_fixture(), load_options=None)
     c.root.mkdir()
     c.manifest = tmp_path / "model.manifest.json"
 
@@ -45,6 +46,8 @@ def training_load(tmp_path, monkeypatch):
         save_pretrained=save_adapter)
 
     def load(**kwargs):
+        """GRANITE-VERIFY: capture load arguments and the pre-load record."""
+        c.load_options = kwargs
         observe("load")
         if c.load_error:
             raise RuntimeError(c.load_error)
@@ -71,7 +74,7 @@ def training_load(tmp_path, monkeypatch):
     monkeypatch.setattr(torch.cuda, "device_count", lambda: 0)
     monkeypatch.setattr(trainer, "granite_inventory", lambda *a:
         [{"lora_parameters": 140509184}] + [{"lora_parameters": 0}] * 447)
-    monkeypatch.setattr(trainer, "granite_placement", lambda model: {"fixture": "placement"})
+    monkeypatch.setattr(trainer, "granite_placement", lambda model: copy.deepcopy(c.placement))
     monkeypatch.setattr(trainer, "check_granite_adapter", lambda *a: 140509184)
     monkeypatch.setattr(trainer, "target_coverage", lambda *a:
         {name: {"present": 64, "adapted": 64} for name in granite.profile.TARGETS})
@@ -80,21 +83,23 @@ def training_load(tmp_path, monkeypatch):
     monkeypatch.setattr(trl, "SFTConfig", lambda **kwargs: kwargs)
 
     def launch():
+        """GRANITE-R1: train with synthetic files and the approved context and map."""
         for source, name in (("model", "config.json"), ("generation", "generation_config.json")):
             (c.root / name).write_text(json.dumps({"vocab_size": 64,
                 "pad_token_id": c.before[source + "_pad_token_id"],
                 "eos_token_id": c.before[source + "_eos_token_id"]}))
         manifest = mf.build_tree(c.root, "model", granite.profile.MODEL)
         manifest.save(c.manifest)
-        data, _, _ = make_tokenized(tmp_path, manifest.tree_hash, length=49152)
+        data, _, _ = make_tokenized(tmp_path, manifest.tree_hash, length=32768)
         return trainer.train(c.root, c.manifest, data, granite.REPO / granite.CONFIG, c.out,
-                             granite_probe_placement={"fixture": "placement"})
+                             granite_probe_placement=c.expected_placement)
 
     c.launch = launch
     return c
 
 
 def test_training_saves_ids_at_both_load_boundaries(training_load):
+    """GRANITE-VERIFY: retain both token-ID and placement observations in R1."""
     c = training_load
     record = c.launch()
     expected = {"before": PADDING_BEFORE, "after": PADDING_AFTER}
@@ -105,6 +110,11 @@ def test_training_saves_ids_at_both_load_boundaries(training_load):
     assert record.results["padding_token_ids"] == expected
     assert mf.load_run(c.out / "run.json") == record
     assert record.results["reference_verified_after"] is True
+    assert c.load_options["max_seq_length"] == 32768
+    assert c.load_options["device_map"] == granite.profile.training_device_map()
+    assert record.config["train"]["device_map"] == c.load_options["device_map"]
+    assert record.results["placement_before"] == c.expected_placement
+    assert record.results["placement_after"] == c.expected_placement
 
 
 @pytest.mark.parametrize("phase", ["before", "after"])
