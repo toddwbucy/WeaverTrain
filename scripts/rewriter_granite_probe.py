@@ -1,6 +1,7 @@
 """GRANITE-MEMORY: one full-target LoRA step at the approved 49,152 tokens."""
 
 import argparse
+import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,19 +40,33 @@ def probe(out_dir, *, repo=granite.REPO):
         record["verification"] = granite.verify_environment(out, repo)
         import unsloth
         import torch
+        from transformers import AutoTokenizer
         from weaver_train import trainer
 
+        tokenizer = AutoTokenizer.from_pretrained(str(directory), local_files_only=True,
+                                                 trust_remote_code=False)
+        profile.verify_tokenizer(tokenizer)
+        record["padding_token_ids"] = {"before": profile.padding_ids(tokenizer,
+            json.loads((directory / "config.json").read_bytes()),
+            json.loads((directory / "generation_config.json").read_bytes()))}
+        (out / "procedure.json").write_bytes(e4.json_bytes(record))
+        profile.verify_padding_ids(record["padding_token_ids"]["before"], loaded=False)
         granite.require(torch.cuda.is_available() and torch.cuda.device_count() == 2,
                         "GRANITE-VERIFY: exactly two selected GPUs are required")
         torch.cuda.init()
         devices = list(range(2))
         for device in devices:
             torch.cuda.reset_peak_memory_stats(device)
-        model, _ = unsloth.FastLanguageModel.from_pretrained(
+        model, tokenizer = unsloth.FastLanguageModel.from_pretrained(
             model_name=str(directory), max_seq_length=49152, dtype=torch.bfloat16,
             load_in_4bit=False, load_in_8bit=False, full_finetuning=False,
             device_map="balanced", offload_embedding=False, trust_remote_code=False,
             local_files_only=True)
+        record["padding_token_ids"]["after"] = profile.padding_ids(
+            tokenizer, model.config.to_dict(), model.generation_config.to_dict())
+        (out / "procedure.json").write_bytes(e4.json_bytes(record))
+        profile.verify_padding_ids(record["padding_token_ids"]["after"], loaded=True)
+        profile.verify_tokenizer(tokenizer)
         record["placement_before"] = granite.loaded_placement(model)
         inventory = trainer.granite_inventory(model, profile.TARGETS, 16)
         check_counts(inventory, sum(row["lora_parameters"] for row in inventory))

@@ -19,6 +19,13 @@ from tests.test_rewriter_r1_e4 import (
 
 score, mf, e4 = granite.score, granite.mf, granite.e4
 
+PADDING_BEFORE = {"tokenizer_pad_token_id": 100257, "tokenizer_eos_token_id": 100257,
+    "model_pad_token_id": 100257, "model_eos_token_id": 100257,
+    "generation_pad_token_id": 100257, "generation_eos_token_id": 100257}
+PADDING_AFTER = {"tokenizer_pad_token_id": 100261, "tokenizer_eos_token_id": 100257,
+    "model_pad_token_id": 100261, "model_eos_token_id": 100257,
+    "generation_pad_token_id": 100261, "generation_eos_token_id": 100257}
+
 
 @pytest.fixture
 def dense(experiment, monkeypatch):
@@ -69,6 +76,7 @@ def dense(experiment, monkeypatch):
         **profile.IDENTITY, "commit": c.commit, "tree_hash": manifest.tree_hash,
         "config_sha256": granite.configuration(c.repo)[1], "sequence_length": 49152,
         "finite_gradients": True, "trainable_parameters": 140509184,
+        "padding_token_ids": {"before": dict(PADDING_BEFORE), "after": dict(PADDING_AFTER)},
         "placement_before": {"attention_implementation": "fixture"},
         "target_inventory": [{"fixture": i} for i in range(448)],
         "imports_before": imports, "imports_after": imports}
@@ -157,6 +165,23 @@ def test_memory_record_guards(dense, field, value, reason):
     c = dense
     edit_artifact(c.memory, "procedure.json", lambda r: r.update({field: value}))
     with pytest.raises(ValueError, match=reason):
+        granite.probe_record(c.memory, c.commit, c.loaded.tree_hash, c.repo)
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+@pytest.mark.parametrize("field", [*PADDING_BEFORE, "missing"])
+def test_memory_padding_ids_are_required(dense, phase, field):
+    """GRANITE-VERIFY: a sealed probe must retain every approved token ID."""
+    c = dense
+
+    def change(record):
+        if field == "missing":
+            del record["padding_token_ids"][phase]
+        else:
+            record["padding_token_ids"][phase][field] = 999
+
+    edit_artifact(c.memory, "procedure.json", change)
+    with pytest.raises(ValueError, match=f"padding or end-of-turn IDs {phase} loading differ"):
         granite.probe_record(c.memory, c.commit, c.loaded.tree_hash, c.repo)
 
 
@@ -579,13 +604,31 @@ def probe_world(dense, monkeypatch):
     import contextlib
     import unsloth
     import torch
+    from transformers import AutoTokenizer
     from weaver_train import trainer
 
     c = dense
     c.parameter = torch.nn.Parameter(torch.tensor(1.0))
     c.probe_mode = "ok"
+    c.pad_after = dict(PADDING_AFTER)
+    c.native_tokenizer = SimpleNamespace(pad_token_id=100257, eos_token_id=100257)
+    c.probe_loads = []
+    c.probe_forwards = []
+    for filename in ("config.json", "generation_config.json"):
+        (c.model / filename).write_text(json.dumps({"pad_token_id": 100257, "eos_token_id": 100257}))
+    old_manifest = mf.load_tree(c.model_manifest)
+    mf.build_tree(c.model, old_manifest.kind, old_manifest.name,
+                  source=old_manifest.source).save(c.model_manifest)
+    monkeypatch.setattr(AutoTokenizer, "from_pretrained", lambda *a, **kw: c.native_tokenizer)
 
     class Model:
+        config = SimpleNamespace(to_dict=lambda: {
+            "pad_token_id": c.pad_after["model_pad_token_id"],
+            "eos_token_id": c.pad_after["model_eos_token_id"]})
+        generation_config = SimpleNamespace(to_dict=lambda: {
+            "pad_token_id": c.pad_after["generation_pad_token_id"],
+            "eos_token_id": c.pad_after["generation_eos_token_id"]})
+
         def parameters(self):
             return [c.parameter]
 
@@ -596,6 +639,7 @@ def probe_world(dense, monkeypatch):
             return self
 
         def __call__(self, **kwargs):
+            c.probe_forwards.append(json.loads((c.out / "procedure.json").read_bytes()))
             if c.probe_mode == "gradient":
                 loss = torch.tensor(1.0, requires_grad=True)
             else:
@@ -608,7 +652,16 @@ def probe_world(dense, monkeypatch):
             (destination / "adapter_model.safetensors").write_bytes(b"fixture adapter")
 
     model = Model()
-    monkeypatch.setattr(unsloth.FastLanguageModel, "from_pretrained", lambda **kw: (model, None))
+
+    def load(**kwargs):
+        """GRANITE-VERIFY: observe the persisted pre-load record at the load boundary."""
+        c.probe_loads.append(json.loads((c.out / "procedure.json").read_bytes()))
+        if c.probe_mode == "load-error":
+            raise OSError("fixture model load failed")
+        return model, SimpleNamespace(pad_token_id=c.pad_after["tokenizer_pad_token_id"],
+                                      eos_token_id=c.pad_after["tokenizer_eos_token_id"])
+
+    monkeypatch.setattr(unsloth.FastLanguageModel, "from_pretrained", load)
     monkeypatch.setattr(unsloth.FastLanguageModel, "get_peft_model", lambda model, **kw: model)
     inventory = [{"lora_parameters": 140509184}] + [{"lora_parameters": 0} for _ in range(447)]
     monkeypatch.setattr(trainer, "granite_inventory", lambda *a: inventory)
@@ -670,7 +723,74 @@ def test_probe_positive_record(probe_world):
     assert record["status"] == "completed" and record["sequence_length"] == 49152
     assert record["finite_gradients"] is True and record["steps"][0]["loss"] == 1
     assert set(record["peak_memory_bytes"]) == {"0", "1"}
+    padding = {"before": PADDING_BEFORE, "after": PADDING_AFTER}
+    assert record["padding_token_ids"] == padding
+    assert c.probe_loads[0]["padding_token_ids"] == {"before": PADDING_BEFORE}
+    assert c.probe_forwards[0]["padding_token_ids"] == padding
     assert mf.require_tree(manifest, c.out) == manifest.tree_hash
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+@pytest.mark.parametrize("field", PADDING_BEFORE)
+def test_probe_refuses_changed_padding_ids(probe_world, phase, field):
+    """GRANITE-VERIFY: each changed ID stops before forward with its observed value retained."""
+    import rewriter_granite_probe as probe
+
+    c = probe_world
+    if phase == "after":
+        c.pad_after[field] = 999
+    elif field.startswith("tokenizer_"):
+        setattr(c.native_tokenizer, field.removeprefix("tokenizer_"), 999)
+    else:
+        filename = "config.json" if field.startswith("model_") else "generation_config.json"
+        path = c.model / filename
+        config = json.loads(path.read_bytes())
+        config[field.split("_", 1)[1]] = 999
+        path.write_bytes(e4.json_bytes(config))
+        manifest = mf.load_tree(c.model_manifest)
+        mf.build_tree(c.model, manifest.kind, manifest.name,
+                      source=manifest.source).save(c.model_manifest)
+    reason = f"padding or end-of-turn IDs {phase} loading differ"
+    with pytest.raises(ValueError, match=reason):
+        probe.probe(c.out, repo=c.repo)
+    failed = json.loads((c.out / "procedure.json").read_bytes())
+    assert failed["status"] == "failed" and reason in failed["failure"]["message"]
+    assert failed["padding_token_ids"][phase][field] == 999
+    assert len(c.probe_loads) == (phase == "after") and not c.probe_forwards
+    assert not (c.out / "adapter").exists()
+
+
+def test_probe_load_failure_retains_before_padding_ids(probe_world):
+    """GRANITE-VERIFY: loader failure preserves the native IDs without an invented after value."""
+    import rewriter_granite_probe as probe
+
+    c = probe_world
+    c.probe_mode = "load-error"
+    with pytest.raises(OSError, match="fixture model load failed"):
+        probe.probe(c.out, repo=c.repo)
+    failed = json.loads((c.out / "procedure.json").read_bytes())
+    assert failed["status"] == "failed"
+    assert failed["padding_token_ids"] == {"before": PADDING_BEFORE}
+    assert not c.probe_forwards and not (c.out / "adapter").exists()
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+def test_probe_checks_tokenizer_on_both_sides_of_loading(probe_world, monkeypatch, phase):
+    """GRANITE-DATA: padding permission does not remove the pinned-template check."""
+    import rewriter_granite_probe as probe
+
+    c, calls = probe_world, []
+
+    def verify(tokenizer):
+        calls.append(tokenizer)
+        if len(calls) == (1 if phase == "before" else 2):
+            raise ValueError("fixture template differs")
+
+    monkeypatch.setattr(profile, "verify_tokenizer", verify)
+    with pytest.raises(ValueError, match="fixture template differs"):
+        probe.probe(c.out, repo=c.repo)
+    assert len(c.probe_loads) == (phase == "after") and not c.probe_forwards
+    assert json.loads((c.out / "procedure.json").read_bytes())["status"] == "failed"
 
 
 @pytest.mark.parametrize("procedure", ["probe", "train"])

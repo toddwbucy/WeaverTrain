@@ -3,6 +3,24 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-07: permit the Granite padding-token substitution
+
+The [operator ruling][granite-padding] permits one new memory check after the first attempt stopped.
+Exempt only Unsloth's change from `<|im_end|>`, ID `100257`, to the existing `<|fim_pad|>`, ID `100261`, for padding.
+Keep the end-of-turn token at ID `100257`.
+The probe must record tokenizer, model and generation padding IDs before and after loading.
+Record their end-of-turn IDs too. Stop if these values differ from the approved change.
+
+Training labels come only from assistant masks, with one complete sequence per batch and no padding.
+Scoring uses the native loader, without Unsloth. This ruling changes no label, decode or template rule.
+Keep the first failed record, logs and hashes unchanged.
+Review and merge this recording change and its Spec amendment before the new check.
+Use its new clean merged commit for the successful check and all later Granite procedures.
+Other failures and fallbacks still stop the procedure. A further retry needs a new operator instruction.
+The operator sets the R0 and R1 schedule after a successful memory result.
+
+[granite-padding]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6699693082
+
 ## 2026-11-06: use the verified bulk-store models directly
 
 The [operator storage ruling][granite-store] permits direct model loads from the bulk store for this experimental series.

@@ -147,3 +147,52 @@ def test_granite_unsloth_split_weights_and_gradients(tiny_granite):
     gradients = [p.grad for p in model.parameters() if p.requires_grad]
     assert gradients and all(g is not None and torch.isfinite(g).all() for g in gradients)
     mf.require_tree(mf.load_tree(manifest_path), directory)
+
+
+@pytest.mark.multigpu
+def test_granite_padding_substitution_keeps_assistant_labels(tiny_granite):
+    """GRANITE-VERIFY: real Unsloth padding repair leaves the assistant-mask labels intact."""
+    import unsloth
+    import torch
+    from tokenizers import Tokenizer, models, pre_tokenizers
+    from transformers import PreTrainedTokenizerFast
+    import rewriter_granite_profile as profile
+
+    directory, manifest_path = tiny_granite
+    vocab = {word: i for i, word in enumerate([
+        "zero", "<unk>", "<s>", "</s>", "the", "model", "state", "train", "<|fim_pad|>"])}
+    backend = Tokenizer(models.WordLevel(vocab=vocab, unk_token="<unk>"))
+    backend.pre_tokenizer = pre_tokenizers.Whitespace()
+    tokenizer = PreTrainedTokenizerFast(tokenizer_object=backend, pad_token="</s>",
+        eos_token="</s>", bos_token="<s>", unk_token="<unk>",
+        additional_special_tokens=["<|fim_pad|>"])
+    tokenizer.save_pretrained(directory)
+    configs = []
+    for filename in ("config.json", "generation_config.json"):
+        path = directory / filename
+        config = json.loads(path.read_bytes())
+        config["pad_token_id"] = 3
+        path.write_text(json.dumps(config))
+        configs.append(config)
+    manifest = mf.build_tree(directory, "model", "tiny-granite")
+    manifest.save(manifest_path)
+    before = profile.padding_ids(tokenizer, *configs)
+    model, tokenizer = unsloth.FastLanguageModel.from_pretrained(
+        model_name=str(directory), max_seq_length=64, dtype=torch.bfloat16,
+        load_in_4bit=False, load_in_8bit=False, full_finetuning=False,
+        device_map=SPLIT, offload_embedding=False,
+        trust_remote_code=False, local_files_only=True)
+    trainer.pin_layer_devices(model)
+    after = profile.padding_ids(tokenizer, model.config.to_dict(), model.generation_config.to_dict())
+    assert before == {"tokenizer_pad_token_id": 3, "tokenizer_eos_token_id": 3,
+        "model_pad_token_id": 3, "model_eos_token_id": 3,
+        "generation_pad_token_id": 3, "generation_eos_token_id": 3}
+    assert after == {"tokenizer_pad_token_id": 8, "tokenizer_eos_token_id": 3,
+        "model_pad_token_id": 8, "model_eos_token_id": 3,
+        "generation_pad_token_id": 8, "generation_eos_token_id": 3}
+    batch = trainer.AssistantCollator()([
+        {"input_ids": [4, 5, 3, 8], "assistant_masks": [0, 1, 1, 1]}])
+    assert batch["labels"].tolist() == [[-100, 5, 3, 8]]
+    assert batch["input_ids"].tolist() == [[4, 5, 3, 8]]
+    assert batch["attention_mask"].tolist() == [[1, 1, 1, 1]]
+    mf.require_tree(manifest, directory)
