@@ -473,6 +473,13 @@ def initial_messages(system: str, masked_input: str) -> list[dict]:
             {"role": "user", "content": "<<<TEXT\n" + masked_input + "\nTEXT>>>"}]
 
 
+def context_limit(model=MODEL):
+    """GRANITE-DATA: the dense series has its own limit without changing Nemotron."""
+    import rewriter_granite_profile as granite
+
+    return granite.MAX_SEQ_LENGTH if model == granite.MODEL else MAX_SEQ_LENGTH
+
+
 def render_pair(tokenizer, pair: dict, system: str, *, model=MODEL) -> dict:
     """RENDER-LAYOUT, RENDER-MASK, RENDER-LENGTH: render one checked pair in memory.
 
@@ -496,9 +503,10 @@ def render_pair(tokenizer, pair: dict, system: str, *, model=MODEL) -> dict:
     identity = f"{pair['batch']}/{pair['id']}"
     if ids[:len(prefix)] != prefix or len(ids) <= len(prefix):
         raise RenderError(f"RENDER-MASK: final target prefix differs or is empty: {identity}")
-    if len(ids) > MAX_SEQ_LENGTH:
+    limit = context_limit(model)
+    if len(ids) > limit:
         raise RenderError(f"RENDER-LENGTH: {identity} has {len(ids)} tokens, "
-                          f"limit {MAX_SEQ_LENGTH}")
+                          f"limit {limit}")
     # RENDER-OUTPUT: keep pair identity and complete initial-list identity per row.
     fields = ("batch", "id", "trajectory", "uuid", "row", "kind", "loc", "target_round")
     return {**{key: pair[key] for key in fields}, "input_ids": ids,
@@ -665,7 +673,7 @@ def write_build(pair_dir, folded_path, procedure, out_dir, *, repo=REPO):
         "schema": "weaver-train/rewriter-build/v1", "spec": "0.2",
         "status": "started", "commit": mf.git_commit(repo), "procedure": procedure,
         "tree_hash": model_hash, "template_hash": template_hash, "tools": False,
-        "enable_thinking": False, "max_seq_length": MAX_SEQ_LENGTH,
+        "enable_thinking": False, "max_seq_length": context_limit(granite.MODEL if dense else MODEL),
         "render_only": False, "seed": 0, "selection": selection,
         "pair_manifest": json.loads(pair_manifest.to_json()),
         "pair_manifest_sha256": pair_manifest_sha,

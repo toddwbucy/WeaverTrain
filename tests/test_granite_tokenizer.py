@@ -43,3 +43,21 @@ def test_pinned_granite_training_boundary():
     evidence.verify()
     build.mf.require_tree(manifest, directory)
     print(totals)
+
+
+def test_pinned_granite_heldout_context():
+    """GRANITE-DATA: the fixed held-out prompts and reply budgets fit 32,768 tokens."""
+    import rewriter_score as score
+
+    folded = os.environ.get("WEAVER_GRANITE_TEST_FOLDED")
+    if not folded:
+        pytest.skip("needs the verified local held-out sources and folded prompt for pinned Granite")
+    evidence = build.Evidence(build.REPO)
+    tokenizer, manifest, directory, _ = build.build_tokenizer(evidence, profile.MODEL)
+    kit = score.load_kit(build.REPO)
+    entries = score.preflight(tokenizer, kit, Path(folded).read_bytes(), model=profile.MODEL)
+    totals = [len(e["input_ids"]) + e["max_new_tokens"] for e in entries]
+    assert len(totals) == 100
+    assert max(totals) == 16233 < profile.MAX_SEQ_LENGTH == 32768
+    evidence.verify()
+    build.mf.require_tree(manifest, directory)

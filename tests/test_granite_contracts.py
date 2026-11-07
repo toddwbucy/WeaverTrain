@@ -324,7 +324,7 @@ def test_training_refuses_missing_probe_before_model_load(tiny_granite, tmp_path
     manifest = mf.load_tree(manifest_path)
     manifest.name = profile.MODEL
     manifest.save(manifest_path)
-    data, _, _ = make_tokenized(tmp_path, manifest.tree_hash, length=49152)
+    data, _, _ = make_tokenized(tmp_path, manifest.tree_hash, length=32768)
     config = granite.REPO / granite.CONFIG
     trainer.validate_tokenized(data, trainer.load_config(config), manifest.tree_hash, 64)
     monkeypatch.setattr(trainer, "_run_unsloth",
@@ -342,11 +342,12 @@ def test_training_checks_probe_placement(tiny_granite, tmp_path, monkeypatch):
     import unsloth
     import torch
     from transformers import GraniteForCausalLM
+    from tests.test_rewriter_granite import placement_fixture
 
     model = GraniteForCausalLM.from_pretrained(tiny_granite[0], dtype=torch.bfloat16)
     monkeypatch.setattr(unsloth.FastLanguageModel, "from_pretrained", lambda **kw: (model, None))
     monkeypatch.setattr(trainer, "require_gpu_layers", lambda model: None)
-    monkeypatch.setattr(trainer, "granite_placement", lambda model: {"attention_implementation": "different"})
+    monkeypatch.setattr(trainer, "granite_placement", lambda model: placement_fixture())
     monkeypatch.setattr(torch.cuda, "device_count", lambda: 0)
     cfg = trainer.load_config(granite.REPO / granite.CONFIG)
     with pytest.raises(RuntimeError, match="training placement or attention path differs from the probe"):

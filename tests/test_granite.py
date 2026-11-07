@@ -64,8 +64,9 @@ def test_granite_native_split_bf16(tiny_granite):
     mf.require_tree(mf.load_tree(manifest_path), directory)
 
 
-@pytest.mark.gpu
-def test_granite_unsloth_four_epochs(tiny_granite, tmp_path):
+@pytest.mark.multigpu
+@pytest.mark.parametrize("explicit_map", [False, True])
+def test_granite_unsloth_four_epochs(tiny_granite, tmp_path, explicit_map):
     """GRANITE-R1: the real trainer saves four adapters and complete step logs."""
     from tests.test_trainer import make_tokenized
 
@@ -95,10 +96,19 @@ device_map = "balanced"
 [data]
 format = "tokenized"
 ''')
+    if explicit_map:
+        text = config.read_text().replace('device_map = "balanced"\n', '')
+        mapping = "[train.device_map]\n" + "".join(
+            f'"{name}" = {device}\n' for name, device in SPLIT.items())
+        config.write_text(text.replace("[data]", mapping + "\n[data]"))
     out = tmp_path / "training"
     record = trainer.train(directory, manifest_path, data, config, out)
     assert record.status == "completed"
     assert record.results["global_step"] == 4
+    if explicit_map:
+        assert record.config["train"]["device_map"] == SPLIT
+        for phase in ("before", "after"):
+            trainer.check_granite_device_map(record.results["placement_" + phase], SPLIT)
     assert record.results["lora_coverage"] == {
         target: {"present": 2, "adapted": 2} for target in TARGETS}
     assert [entry["epoch"] for entry in record.results["epoch_adapters"]] == [1, 2, 3, 4]

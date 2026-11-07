@@ -1,4 +1,4 @@
-"""GRANITE-MEMORY: one full-target LoRA step at the approved 49,152 tokens."""
+"""GRANITE-MEMORY: one full-target LoRA step at the approved 32,768 tokens."""
 
 import argparse
 import json
@@ -32,7 +32,8 @@ def probe(out_dir, *, repo=granite.REPO):
     record = {"schema": "weaver-train/rewriter-granite-probe/v1", "status": "started",
         **profile.IDENTITY, "commit": commit, "engine": "python-hf", "precision": "bf16",
         "created_at": datetime.now(timezone.utc).isoformat(), "tree_hash": manifest.tree_hash,
-        "config_sha256": config_sha, "sequence_length": 49152, "imports_before": imports}
+        "config_sha256": config_sha, "sequence_length": profile.MAX_SEQ_LENGTH,
+        "device_map": config["train"]["device_map"], "imports_before": imports}
     started, devices = time.monotonic(), []
     try:
         (out / "procedure.json").write_bytes(e4.json_bytes(record))
@@ -58,9 +59,9 @@ def probe(out_dir, *, repo=granite.REPO):
         for device in devices:
             torch.cuda.reset_peak_memory_stats(device)
         model, tokenizer = unsloth.FastLanguageModel.from_pretrained(
-            model_name=str(directory), max_seq_length=49152, dtype=torch.bfloat16,
+            model_name=str(directory), max_seq_length=profile.MAX_SEQ_LENGTH, dtype=torch.bfloat16,
             load_in_4bit=False, load_in_8bit=False, full_finetuning=False,
-            device_map="balanced", offload_embedding=False, trust_remote_code=False,
+            device_map=dict(record["device_map"]), offload_embedding=False, trust_remote_code=False,
             local_files_only=True)
         record["padding_token_ids"]["after"] = profile.padding_ids(
             tokenizer, model.config.to_dict(), model.generation_config.to_dict())
@@ -68,6 +69,7 @@ def probe(out_dir, *, repo=granite.REPO):
         profile.verify_padding_ids(record["padding_token_ids"]["after"], loaded=True)
         profile.verify_tokenizer(tokenizer)
         record["placement_before"] = granite.loaded_placement(model)
+        trainer.check_granite_device_map(record["placement_before"], record["device_map"])
         inventory = trainer.granite_inventory(model, profile.TARGETS, 16)
         check_counts(inventory, sum(row["lora_parameters"] for row in inventory))
         record["target_inventory"] = inventory
@@ -79,10 +81,12 @@ def probe(out_dir, *, repo=granite.REPO):
         check_counts(inventory, count)
         record.update(trainable_parameters=count, component_coverage=trainer.component_coverage(model),
                       placement_after=granite.loaded_placement(model))
+        trainer.check_granite_device_map(record["placement_after"], record["device_map"])
         trainable = [parameter for parameter in model.parameters() if parameter.requires_grad]
         optimizer = torch.optim.AdamW(trainable, lr=config["train"]["learning_rate"])
         vocab = model.get_input_embeddings().weight.shape[0]
-        ids = torch.randint(100, vocab - 100, (1, 49152), generator=torch.Generator().manual_seed(0))
+        ids = torch.randint(100, vocab - 100, (1, profile.MAX_SEQ_LENGTH),
+                            generator=torch.Generator().manual_seed(0))
         ids = ids.to(model.get_input_embeddings().weight.device)
         model.train()
         for device in devices:

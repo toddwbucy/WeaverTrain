@@ -122,8 +122,9 @@ def preflight(tokenizer, kit, folded: bytes, *, repo=REPO, expected_count=100,
             messages, tokenize=True, return_dict=False,
             add_generation_prompt=True, enable_thinking=False)
         budget = reply_budget(row["text"])
-        require(len(ids) + budget <= build.MAX_SEQ_LENGTH,
-                f"REWRITE-DECODE: {row['id']} prompt plus reply exceeds 49152")
+        limit = build.context_limit(model)
+        require(len(ids) + budget <= limit,
+                f"REWRITE-DECODE: {row['id']} prompt plus reply exceeds {limit}")
         message_bytes = json.dumps(messages, ensure_ascii=True,
                                    separators=(",", ":")).encode("utf-8")
         plan.append({"id": row["id"], "input_ids": ids, "max_new_tokens": budget,
@@ -477,7 +478,8 @@ def freeze_plan(build_dir, folded_path, out_dir, *, repo=REPO):
     fresh_score_output(out, repo=repo, inputs=(build_dir, model_dir))
     expected = {"tree_hash": model_hash,
                 "template_hash": build.digest(tokenizer.get_chat_template().encode()),
-                "tools": False, "enable_thinking": False, "max_seq_length": 49152}
+                "tools": False, "enable_thinking": False,
+                "max_seq_length": build.context_limit(model_name)}
     require_fields(record, expected)
     kit = load_kit(repo)
     entries = (preflight(tokenizer, kit, folded, repo=repo, model=model_name) if dense
@@ -576,9 +578,11 @@ def read_plan(plan_dir, *, repo=REPO):
 def validate_loaded_plan(plan, kit, entries, folded, loaded, *, repo, expected_count=100):
     """REWRITE-DECODE: compare the complete loaded render before the first output."""
     tok = loaded.tokenizer
+    model_name = granite.model_for(plan)
     expected = {"tree_hash": loaded.tree_hash,
                 "template_hash": build.digest(tok.get_chat_template().encode()),
-                "tools": False, "enable_thinking": False, "max_seq_length": 49152}
+                "tools": False, "enable_thinking": False,
+                "max_seq_length": build.context_limit(model_name)}
     require_fields(plan, expected)
     options = {"model": granite.MODEL} if granite.model_for(plan) == granite.MODEL else {}
     require(entries == preflight(tok, kit, folded, repo=repo, expected_count=expected_count,

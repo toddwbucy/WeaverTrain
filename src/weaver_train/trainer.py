@@ -98,7 +98,7 @@ class TrainSettings:
     num_train_epochs: int | None = None
     gradient_checkpointing: str | bool = "unsloth"
     logging_steps: int = 1
-    device_map: str = "balanced"
+    device_map: str | dict[str, int] = "balanced"
 
 
 @dataclass
@@ -119,7 +119,7 @@ _REQUIRED = {
 }
 _OPTIONAL = {
     "lora": {"bias": str},
-    "train": {"gradient_checkpointing": (str, bool), "logging_steps": int, "device_map": str,
+    "train": {"gradient_checkpointing": (str, bool), "logging_steps": int, "device_map": (str, dict),
               "max_steps": int, "num_train_epochs": int},
     "data": {"text_field": str},
 }
@@ -145,6 +145,11 @@ def parse_config(raw: dict) -> TrainConfig:
             if key in sec and (not isinstance(sec[key], typ) or typ is int and isinstance(sec[key], bool)):
                 raise TrainConfigError(f"[{section}] {key} has the wrong type")
     lora, tr = raw["lora"], raw["train"]
+    device_map = tr.get("device_map")
+    if isinstance(device_map, dict) and (not device_map or any(
+            not isinstance(name, str) or not name or type(device) is not int or device < 0
+            for name, device in device_map.items())):
+        raise TrainConfigError("GRANITE-MEMORY: explicit device map needs module names and nonnegative GPU indices")
     if not lora["target_modules"] or not all(isinstance(t, str) for t in lora["target_modules"]):
         raise TrainConfigError("[lora] target_modules must be a non-empty list of names")
     if lora["r"] <= 0 or lora["alpha"] <= 0 or not 0 <= lora["dropout"] < 1:
@@ -307,6 +312,22 @@ def granite_placement(model):
             "parameter_devices": {name: str(p.device) for name, p in model.named_parameters()},
             "hf_device_map": {name: str(device) for name, device in
                               getattr(model, "hf_device_map", {}).items()}}
+
+
+def check_granite_device_map(placement, expected):
+    """GRANITE-MEMORY, GRANITE-R1: verify the map and actual parameter devices."""
+    if not isinstance(placement, dict) or placement.get("hf_device_map") != {
+            name: str(device) for name, device in expected.items()}:
+        raise RuntimeError("GRANITE-MEMORY: loaded device map differs from configured map")
+    devices = placement.get("parameter_devices")
+    if not isinstance(devices, dict) or not devices:
+        raise RuntimeError("GRANITE-MEMORY: parameter placement differs from configured map")
+    for name, device in devices.items():
+        name = name.removeprefix("base_model.model.")
+        owner = next((key for key in sorted(expected, key=len, reverse=True)
+                      if name == key or name.startswith(key + ".")), None)
+        if owner is None or device != f"cuda:{expected[owner]}":
+            raise RuntimeError("GRANITE-MEMORY: parameter placement differs from configured map")
 
 
 def granite_padding_ids(tokenizer, model_config, generation_config):
@@ -625,7 +646,8 @@ def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig,
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=str(model_dir), max_seq_length=t.max_seq_length, dtype=torch.bfloat16,
             load_in_4bit=False, load_in_8bit=False, full_finetuning=False,
-            device_map=t.device_map, offload_embedding=False,
+            device_map=dict(t.device_map) if isinstance(t.device_map, dict) else t.device_map,
+            offload_embedding=False,
             trust_remote_code=False, local_files_only=True,
         )
         if granite_record is not None:
@@ -643,6 +665,8 @@ def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig,
                         row["lora_parameters"] for row in metrics["target_inventory"]) != expected["parameters"]:
                     raise TargetCoverageError("GRANITE-TARGETS: pinned module or parameter count differs")
             metrics["placement_before"] = granite_placement(model)
+            if isinstance(t.device_map, dict):
+                check_granite_device_map(metrics["placement_before"], t.device_map)
             if "required_granite_placement" in metrics and metrics["placement_before"] != metrics["required_granite_placement"]:
                 raise RuntimeError("GRANITE-MEMORY: training placement or attention path differs from the probe")
         model = FastLanguageModel.get_peft_model(
@@ -656,6 +680,8 @@ def _run_unsloth(model_dir: Path, dataset_input: Path | bytes, cfg: TrainConfig,
             metrics["trainable_parameters"] = check_granite_adapter(
                 model, metrics["target_inventory"], cfg.lora.r)
             metrics["placement_after"] = granite_placement(model)
+            if isinstance(t.device_map, dict):
+                check_granite_device_map(metrics["placement_after"], t.device_map)
         coverage = target_coverage(model, cfg.lora.target_modules)
         check_coverage(coverage)
         metrics.update(lora_coverage=coverage, component_coverage=component_coverage(model))

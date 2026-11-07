@@ -13,10 +13,18 @@ TOKENIZER_CONFIG = "2007f26df166ed10a2d6fa881c1c8f3cdd151e451469f59b274897f14449
 HEADER = "<|im_start|>assistant\n<think></think>"
 ENDING = "<|im_end|>\n"
 END_ID = 100257
+MAX_SEQ_LENGTH = 32768
 R0, R1 = "granite-r0", "granite-r1"
 TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 IDENTITY = {"series": "granite", "model": MODEL, "tokenizer_config_sha256": TOKENIZER_CONFIG,
             "engine": "python-hf", "precision": "bf16"}
+
+
+def training_device_map():
+    """GRANITE-MEMORY, GRANITE-R1: move layer 32 from GPU 1 to GPU 0."""
+    return {"model.embed_tokens": 0,
+            **{f"model.layers.{layer}": 0 if layer < 33 else 1 for layer in range(64)},
+            "model.norm": 1, "model.rotary_emb": 1, "lm_head": 1}
 
 
 def require(condition, reason):
