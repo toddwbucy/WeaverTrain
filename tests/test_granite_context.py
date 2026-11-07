@@ -88,6 +88,7 @@ def test_probe_refuses_wrong_layer_before_forward(probe_world, monkeypatch, phas
     calls = []
 
     def placement(model):
+        """GRANITE-MEMORY: make only the selected probe placement check fail."""
         calls.append(model)
         observed = copy.deepcopy(c.placement)
         if len(calls) == (1 if phase == "before" else 2):
@@ -110,6 +111,7 @@ def test_training_refuses_wrong_layer_before_optimizer(training_load, monkeypatc
     calls = []
 
     def placement(model):
+        """GRANITE-R1: make only the selected training placement check fail."""
         calls.append(model)
         observed = copy.deepcopy(c.placement)
         if len(calls) == (1 if phase == "before" else 2):
@@ -132,6 +134,7 @@ def test_saved_probe_requires_explicit_map(dense, field, missing):
     c = dense
 
     def change(record):
+        """GRANITE-MEMORY: preserve other checks while changing one map claim."""
         if missing:
             del record[field]
         elif field == "device_map":
@@ -173,6 +176,7 @@ def test_render_context_boundary_keeps_intact_sequences(monkeypatch, model, limi
     pair = {key: "fixture" for key in ("batch", "id", "trajectory", "uuid", "row", "kind", "loc", "target_round", "input", "target")}
 
     def apply(messages, **options):
+        """GRANITE-DATA: return an intact synthetic sequence at the chosen boundary."""
         assert "truncation" not in options
         return [1] if options["add_generation_prompt"] else [1] * (limit + overflow)
 
@@ -198,6 +202,7 @@ def test_score_context_boundary_counts_reply_budget(world, monkeypatch, count, m
     calls = []
 
     def apply(messages, **options):
+        """GRANITE-DATA: vary only the final prompt's combined token budget."""
         assert "truncation" not in options
         calls.append(messages)
         return [1] * (limit - score.reply_budget(kit["rows"][-1]["text"]) + overflow) if len(calls) == count else [1]

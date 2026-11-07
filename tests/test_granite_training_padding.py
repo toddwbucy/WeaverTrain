@@ -46,6 +46,7 @@ def training_load(tmp_path, monkeypatch):
         save_pretrained=save_adapter)
 
     def load(**kwargs):
+        """GRANITE-VERIFY: capture load arguments and the pre-load record."""
         c.load_options = kwargs
         observe("load")
         if c.load_error:
@@ -82,6 +83,7 @@ def training_load(tmp_path, monkeypatch):
     monkeypatch.setattr(trl, "SFTConfig", lambda **kwargs: kwargs)
 
     def launch():
+        """GRANITE-R1: train with synthetic files and the approved context and map."""
         for source, name in (("model", "config.json"), ("generation", "generation_config.json")):
             (c.root / name).write_text(json.dumps({"vocab_size": 64,
                 "pad_token_id": c.before[source + "_pad_token_id"],
@@ -97,6 +99,7 @@ def training_load(tmp_path, monkeypatch):
 
 
 def test_training_saves_ids_at_both_load_boundaries(training_load):
+    """GRANITE-VERIFY: retain both token-ID and placement observations in R1."""
     c = training_load
     record = c.launch()
     expected = {"before": PADDING_BEFORE, "after": PADDING_AFTER}

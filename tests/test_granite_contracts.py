@@ -339,6 +339,7 @@ def test_training_refuses_missing_probe_before_model_load(tiny_granite, tmp_path
 
 
 def test_training_checks_probe_placement(tiny_granite, tmp_path, monkeypatch):
+    """GRANITE-R1: a valid device map cannot hide a different probe placement."""
     import unsloth
     import torch
     from transformers import GraniteForCausalLM

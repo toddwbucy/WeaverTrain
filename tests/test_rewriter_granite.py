@@ -102,6 +102,7 @@ def dense(experiment, monkeypatch):
 
 
 def test_granite_plans_keep_sources_but_new_model_identity(dense):
+    """GRANITE-DATA: preserve source identities with separate limits and token plans."""
     c = dense
     record, _ = granite.read_experiment(c.dense_experiment, repo=c.repo)
     heldout = score.read_plan(c.dense_experiment / "heldout", repo=c.repo)
@@ -308,8 +309,9 @@ def scored(trained):
 
 
 def test_granite_four_epoch_report_and_blind_ingest(scored):
+    """GRANITE-SCORES: retain balanced score loads and all four epoch results."""
     c = scored
-    assert all(options["device_map"] == "balanced" for _, options in c.calls)
+    assert c.calls and all(options["device_map"] == "balanced" for _, options in c.calls)
     batch, verdicts, record = verdicts_for(c, c.sources, "granite-epochs")
     assert record["available"] == 120
     args = SimpleNamespace(experiment=c.dense_experiment, build=c.granite_build, train=c.procedure,
@@ -734,6 +736,7 @@ def probe_world(dense, monkeypatch):
     monkeypatch.setattr(torch, "autocast", lambda *a, **kw: contextlib.nullcontext())
 
     def tokens(low, high, shape, **kwargs):
+        """GRANITE-MEMORY: check the full context shape without a model procedure."""
         assert shape == (1, 32768)
         return torch.tensor([[101, 102, 103, 104]])
 
@@ -778,6 +781,7 @@ def test_probe_success_checks_config_again(probe_world, monkeypatch):
 
 
 def test_probe_positive_record(probe_world):
+    """GRANITE-MEMORY: retain the approved context, placement and completed step."""
     import rewriter_granite_probe as probe
 
     c = probe_world
