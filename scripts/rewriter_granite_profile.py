@@ -13,7 +13,6 @@ TOKENIZER_CONFIG = "2007f26df166ed10a2d6fa881c1c8f3cdd151e451469f59b274897f14449
 HEADER = "<|im_start|>assistant\n<think></think>"
 ENDING = "<|im_end|>\n"
 END_ID = 100257
-PAD_ID = 100261
 R0, R1 = "granite-r0", "granite-r1"
 TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 IDENTITY = {"series": "granite", "model": MODEL, "tokenizer_config_sha256": TOKENIZER_CONFIG,
@@ -66,20 +65,16 @@ def verify_tokenizer(tokenizer):
 
 def padding_ids(tokenizer, model_config, generation_config):
     """GRANITE-VERIFY: capture actual tokenizer and configuration token IDs."""
-    return {"tokenizer_pad_token_id": tokenizer.pad_token_id,
-            "tokenizer_eos_token_id": tokenizer.eos_token_id,
-            "model_pad_token_id": model_config.get("pad_token_id"),
-            "model_eos_token_id": model_config.get("eos_token_id"),
-            "generation_pad_token_id": generation_config.get("pad_token_id"),
-            "generation_eos_token_id": generation_config.get("eos_token_id")}
+    from weaver_train.trainer import granite_padding_ids
+
+    return granite_padding_ids(tokenizer, model_config, generation_config)
 
 
 def verify_padding_ids(values, *, loaded):
     """GRANITE-VERIFY: permit only the approved padding substitution at load."""
-    expected = {f"{source}_{token}_token_id": PAD_ID if loaded and token == "pad" else END_ID
-                for source in ("tokenizer", "model", "generation") for token in ("pad", "eos")}
-    phase = "after" if loaded else "before"
-    require(values == expected, f"GRANITE-VERIFY: padding or end-of-turn IDs {phase} loading differ")
+    from weaver_train.trainer import check_granite_padding_ids
+
+    check_granite_padding_ids(values, loaded=loaded)
 
 
 def verify_render(tokenizer, messages, target=None):

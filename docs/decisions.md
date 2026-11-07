@@ -3,6 +3,26 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-07: extend the Granite padding exemption to R1
+
+The [operator ruling][granite-r1-padding] applies the same exact exemption to the Granite R1 training load.
+Only the change from `<|im_end|>`, ID `100257`, to `<|fim_pad|>`, ID `100261`, for padding is exempt.
+The end-of-turn ID stays `100257`. Every other failure or fallback still stops the procedure.
+This closes note 1 of the PR 45 review-seat return.
+
+The R1 training record must capture tokenizer, model and generation padding and end-of-turn IDs before and after loading.
+Save and check each set before the next model operation and before the first optimizer step.
+Check both sets again before a completed training record can supply an adapter score.
+Keep captured values on failure, without an invented value when loading stops.
+The memory check and R1 use the same ID checks. Labels still come only from assistant masks.
+
+Record this ruling in GRANITE-VERIFY and grade the code before R1.
+Review and merge the change before the pending memory retry so the sequence uses one clean merged commit.
+The existing memory retry authorization and the operator's R0 and R1 scheduling gate stay unchanged.
+The first stopped probe and all Nemotron evidence stay unchanged.
+
+[granite-r1-padding]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6700496779
+
 ## 2026-11-07: permit the Granite padding-token substitution
 
 The [operator ruling][granite-padding] permits one new memory check after the first attempt stopped.
