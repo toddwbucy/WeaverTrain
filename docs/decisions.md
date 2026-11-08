@@ -3,6 +3,30 @@
 Operator rulings that set this project's direction, newest first. Each entry gives the
 date, the decision and its reasoning as stated.
 
+## 2026-11-07: finish Granite R1 and park R2 until the loop cutover
+
+The [operator ruling][granite-cutover] keeps Granite R1 in its approved scope through the report.
+Finish all four epochs, held-out scores, the fixed 50-pair diagnostic and the blind review.
+The operator then selects one saved epoch adapter for the cutover, without a quality bar.
+Misses are useful at this stage because they exercise the loop's refusal, retry, verb queue and miss records.
+
+R2 is parked. It is not authorized, and no Spec text is drafted for it.
+Its future data will come from the rebuilt Rust loop's verified rewrites and corrected misses.
+The checker and meaning review select those records. This replaces the plan for more pairs from the Python build.
+
+The training procedure is complete for this series after Granite R1.
+Training stays in Python in this repository. The loop that produces training data is the part moving to Rust.
+Nemotron R1-E4 remains the reference. Runs 2 through 4 of the earlier experiment list remain unauthorized.
+The planned family order is dense, then standard MoE, then hybrid. Each later family needs its own ruling.
+
+After the Granite R1 report, this repository supplies the chosen adapter and its manifest.
+GGUF conversion and SPU loading belong to [WeaverAgent issue 435][granite-cutover-loop] and [issue 473][granite-cutover-load].
+This ruling authorizes no R2 procedure, later model-family run, conversion or SPU load here.
+
+[granite-cutover]: https://github.com/toddwbucy/WeaverTrain/issues/21#issuecomment-6708719438
+[granite-cutover-loop]: https://github.com/toddwbucy/WeaverAgent/issues/435
+[granite-cutover-load]: https://github.com/toddwbucy/WeaverAgent/issues/473
+
 ## 2026-11-07: use 32,768 Granite tokens and move one layer to GPU 0
 
 The [operator ruling][granite-32k] follows the second memory attempt's failure during backward on GPU 1.
